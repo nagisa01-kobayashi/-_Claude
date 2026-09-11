@@ -1,0 +1,389 @@
+<title>バレーボール戦術メニューカード</title>
+<meta name="description" content="チャレンジコート・アドバンスコートそれぞれの3つの戦術を体感して、チームの決め事を1つ選ぶための掲示カード">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+  :root{
+    --paper:#faf6ec;
+    --card:#ffffff;
+    --ink:#26323c;
+    --ink-soft:#5b6670;
+    --rule:#e4d9c3;
+    --chal:#2e6b7e;
+    --chal-bg:#e7f0ee;
+    --adv:#5b4b8a;
+    --adv-bg:#efeaf7;
+    --ball:#e8b84b;
+    --ball-line:#8a6423;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#20262b;
+      --card:#2a3138;
+      --ink:#ede7da;
+      --ink-soft:#a9afb3;
+      --rule:#3b4249;
+      --chal:#5fb0c4;
+      --chal-bg:#243138;
+      --adv:#a996d9;
+      --adv-bg:#2b2438;
+      --ball:#f0c563;
+      --ball-line:#3a2c10;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#20262b;
+    --card:#2a3138;
+    --ink:#ede7da;
+    --ink-soft:#a9afb3;
+    --rule:#3b4249;
+    --chal:#5fb0c4;
+    --chal-bg:#243138;
+    --adv:#a996d9;
+    --adv-bg:#2b2438;
+    --ball:#f0c563;
+    --ball-line:#3a2c10;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",sans-serif;
+    display:flex;
+    justify-content:center;
+    padding:28px 14px 60px;
+  }
+  .sheet{
+    width:100%;
+    max-width:880px;
+    background:var(--card);
+    border:1px solid var(--rule);
+    border-radius:18px;
+    padding:26px 34px 18px;
+  }
+
+  header{
+    border-bottom:3px solid var(--ink);
+    padding-bottom:10px;
+    margin-bottom:16px;
+  }
+  header h1{
+    font-family:"Zen Maru Gothic",sans-serif;
+    font-weight:900;
+    font-size:25px;
+    margin:0 0 4px;
+    color:var(--ink);
+    text-wrap:balance;
+  }
+  header p{
+    margin:0;
+    font-size:13px;
+    color:var(--ink-soft);
+  }
+
+  .section{
+    border-radius:14px;
+    overflow:hidden;
+    border:1px solid var(--rule);
+    margin-bottom:18px;
+  }
+  .section-head{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    padding:9px 16px;
+    color:#fff;
+    font-family:"Zen Maru Gothic",sans-serif;
+  }
+  .section-head .name{
+    font-weight:900;
+    font-size:16px;
+  }
+  .section-head .goal{
+    font-size:12px;
+    opacity:.92;
+  }
+  .section.chal .section-head{background:var(--chal);}
+  .section.adv .section-head{background:var(--adv);}
+
+  .tactics-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:9px;
+    padding:10px;
+  }
+  .tactic-card{
+    position:relative;
+    border-radius:10px;
+    padding:8px 8px 9px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2px;
+  }
+  .section.chal .tactic-card{background:var(--chal-bg);}
+  .section.adv .tactic-card{background:var(--adv-bg);}
+
+  .badge{
+    position:absolute;
+    top:6px; left:8px;
+    font-family:"Zen Maru Gothic",sans-serif;
+    font-weight:700;
+    font-size:11px;
+    color:#fff;
+    border-radius:999px;
+    padding:1px 8px;
+  }
+  .section.chal .badge{background:var(--chal);}
+  .section.adv .badge{background:var(--adv);}
+
+  .checkbox{
+    position:absolute;
+    top:5px; right:7px;
+    width:15px;height:15px;
+    border-radius:50%;
+    border:2px solid var(--ink-soft);
+    background:transparent;
+  }
+
+  .tactic-card svg{
+    width:100%;
+    max-width:120px;
+    height:auto;
+    margin-top:11px;
+  }
+  .tactic-card h3{
+    margin:2px 0 0;
+    font-family:"Zen Maru Gothic",sans-serif;
+    font-size:13px;
+    font-weight:700;
+    color:var(--ink);
+  }
+  .tactic-card p{
+    margin:1px 0 0;
+    font-size:10.8px;
+    line-height:1.3;
+    color:var(--ink);
+    text-align:center;
+  }
+
+  .fill-in{
+    margin:0 10px 10px;
+    padding:8px 10px;
+    background:var(--paper);
+    border:1px dashed var(--rule);
+    border-radius:8px;
+    font-size:12px;
+    color:var(--ink-soft);
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+  }
+  .fill-in b{color:var(--ink);white-space:nowrap;}
+  .fill-in .line{
+    flex:1;
+    border-bottom:1px solid var(--ink-soft);
+    min-height:1.4em;
+  }
+
+  footer{
+    margin-top:6px;
+    padding-top:10px;
+    border-top:1px dashed var(--rule);
+    font-size:12px;
+    color:var(--ink-soft);
+    display:flex;
+    gap:8px;
+    align-items:flex-start;
+  }
+  footer b{color:var(--ink);}
+
+  @media print{
+    body{padding:0;background:#fff;}
+    .sheet{border:none;border-radius:0;max-width:none;padding:0 6mm;}
+    @page{size:A4;margin:7mm;}
+    .section{page-break-inside:avoid;break-inside:avoid;}
+  }
+</style>
+
+<div class="sheet">
+
+  <header>
+    <h1>バレーボール戦術メニューカード</h1>
+    <p>プロも使う技術を3つずつ体感して、チームの「決め事」を1つ選ぼう。体感したら◯をつけよう。</p>
+  </header>
+
+  <!-- ================= チャレンジコート ================= -->
+  <div class="section chal">
+    <div class="section-head">
+      <span class="name">チャレンジコート</span>
+      <span class="goal">ねらい:ラリーをつなぐ</span>
+    </div>
+    <div class="tactics-grid">
+
+      <div class="tactic-card">
+        <span class="badge">①</span><span class="checkbox"></span>
+        <svg viewBox="0 -10 120 110">
+          <line x1="8" y1="94" x2="112" y2="94" stroke="var(--rule)" stroke-width="2"/>
+          <circle cx="55" cy="22" r="9" fill="none" stroke="var(--chal)" stroke-width="6"/>
+          <path d="M55,31 L54,52" fill="none" stroke="var(--chal)" stroke-width="6" stroke-linecap="round"/>
+          <path d="M55,36 L46,26 L40,16" fill="none" stroke="var(--chal)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M55,36 L62,44 L64,52" fill="none" stroke="var(--chal)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M54,52 L48,68 L51,93" fill="none" stroke="var(--chal)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M54,52 L61,69 L64,94" fill="none" stroke="var(--chal)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="38" cy="10" r="7" fill="var(--ball)" stroke="var(--ball-line)" stroke-width="2"/>
+          <circle cx="95" cy="30" r="8" fill="none" stroke="var(--ink-soft)" stroke-width="5.5"/>
+          <path d="M95,38 L94,56" fill="none" stroke="var(--ink-soft)" stroke-width="5.5" stroke-linecap="round"/>
+          <path d="M95,42 L89,49" fill="none" stroke="var(--ink-soft)" stroke-width="5.5" stroke-linecap="round"/>
+          <path d="M95,42 L101,49" fill="none" stroke="var(--ink-soft)" stroke-width="5.5" stroke-linecap="round"/>
+          <path d="M94,56 L100,71 L104,93" fill="none" stroke="var(--ink-soft)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M94,56 L87,72 L83,94" fill="none" stroke="var(--ink-soft)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M58,4 Q68,-6 78,3" fill="none" stroke="var(--chal)" stroke-width="2"/>
+          <path d="M62,3 L58,9 L57,2 Z" fill="var(--card)" stroke="var(--chal)" stroke-width="2"/>
+          <rect x="58" y="-8" width="34" height="16" rx="7" fill="var(--card)" stroke="var(--chal)" stroke-width="2"/>
+          <text x="75" y="3" font-family="'Zen Maru Gothic',sans-serif" font-weight="700" font-size="10.5" fill="var(--chal)" text-anchor="middle">はい!</text>
+        </svg>
+        <h3>声出し(コール)</h3>
+        <p>ボールが来たら「はい!」と声で宣言する</p>
+      </div>
+
+      <div class="tactic-card">
+        <span class="badge">②</span><span class="checkbox"></span>
+        <svg viewBox="0 -6 120 106">
+          <rect x="10" y="20" width="100" height="70" rx="8" fill="var(--chal-bg)" stroke="var(--rule)" stroke-width="1.5"/>
+          <line x1="10" y1="20" x2="110" y2="20" stroke="var(--ink-soft)" stroke-width="3"/>
+          <circle cx="60" cy="4" r="6" fill="var(--ball)" stroke="var(--ball-line)" stroke-width="2"/>
+          <path d="M60,10 L60,20" fill="none" stroke="var(--ink-soft)" stroke-width="2.2" stroke-dasharray="3 3" marker-end="url(#arrow-chal)"/>
+          <path d="M28,50 Q60,32 92,50" fill="none" stroke="var(--chal)" stroke-width="1.6" stroke-dasharray="3 3"/>
+          <circle cx="28" cy="50" r="6.5" fill="var(--chal)" stroke="var(--card)" stroke-width="2"/>
+          <circle cx="44" cy="39" r="6.5" fill="var(--chal)" stroke="var(--card)" stroke-width="2"/>
+          <circle cx="60" cy="35" r="6.5" fill="var(--chal)" stroke="var(--card)" stroke-width="2"/>
+          <circle cx="76" cy="39" r="6.5" fill="var(--chal)" stroke="var(--card)" stroke-width="2"/>
+          <circle cx="92" cy="50" r="6.5" fill="var(--chal)" stroke="var(--card)" stroke-width="2"/>
+        </svg>
+        <h3>半円隊形</h3>
+        <p>扇形に広がって立ち、隙間を作らない</p>
+      </div>
+
+      <div class="tactic-card">
+        <span class="badge">③</span><span class="checkbox"></span>
+        <svg viewBox="0 -10 120 110">
+          <line x1="8" y1="94" x2="112" y2="94" stroke="var(--rule)" stroke-width="2"/>
+          <circle cx="58" cy="20" r="9" fill="none" stroke="var(--chal)" stroke-width="6"/>
+          <path d="M58,29 L56,50" fill="none" stroke="var(--chal)" stroke-width="6" stroke-linecap="round"/>
+          <path d="M56,38 L78,61" fill="none" stroke="var(--chal)" stroke-width="6" stroke-linecap="round"/>
+          <path d="M56,50 L49,68 L52,93" fill="none" stroke="var(--chal)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M56,50 L65,69 L68,94" fill="none" stroke="var(--chal)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M20,40 Q50,58 76,60" fill="none" stroke="var(--ink-soft)" stroke-width="2.2" stroke-dasharray="3 3"/>
+          <circle cx="20" cy="40" r="6" fill="var(--ball)" stroke="var(--ball-line)" stroke-width="2"/>
+          <path d="M77,58 Q80,25 77,8" fill="none" stroke="var(--chal)" stroke-width="2.4" stroke-dasharray="4 4" marker-end="url(#arrow-chal)"/>
+          <circle cx="77" cy="7" r="7" fill="var(--ball)" stroke="var(--ball-line)" stroke-width="2"/>
+        </svg>
+        <h3>「まず高く」の原則</h3>
+        <p>崩れたら無理せず、まず頭上に高く返す</p>
+      </div>
+
+    </div>
+    <div class="fill-in"><b>選んだチームの決め事:</b><span class="line"></span></div>
+  </div>
+
+  <!-- ================= アドバンスコート ================= -->
+  <div class="section adv">
+    <div class="section-head">
+      <span class="name">アドバンスコート</span>
+      <span class="goal">ねらい:三段攻撃につなげる</span>
+    </div>
+    <div class="tactics-grid">
+
+      <div class="tactic-card">
+        <span class="badge">①</span><span class="checkbox"></span>
+        <svg viewBox="0 -10 120 110">
+          <line x1="8" y1="94" x2="112" y2="94" stroke="var(--rule)" stroke-width="2"/>
+          <circle cx="45" cy="20" r="9" fill="none" stroke="var(--adv)" stroke-width="6"/>
+          <path d="M45,29 L43,50" fill="none" stroke="var(--adv)" stroke-width="6" stroke-linecap="round"/>
+          <path d="M43,38 L66,60" fill="none" stroke="var(--adv)" stroke-width="6" stroke-linecap="round"/>
+          <path d="M43,50 L36,68 L39,93" fill="none" stroke="var(--adv)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M43,50 L52,69 L55,94" fill="none" stroke="var(--adv)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="100" cy="46" r="6" fill="none" stroke="var(--ink-soft)" stroke-width="5.5"/>
+          <path d="M99,52 L98,66" fill="none" stroke="var(--ink-soft)" stroke-width="5.5" stroke-linecap="round"/>
+          <path d="M96,55 L91,32" fill="none" stroke="var(--ink-soft)" stroke-width="5.5" stroke-linecap="round"/>
+          <path d="M104,55 L109,32" fill="none" stroke="var(--ink-soft)" stroke-width="5.5" stroke-linecap="round"/>
+          <path d="M98,66 L94,90" fill="none" stroke="var(--ink-soft)" stroke-width="5.5" stroke-linecap="round"/>
+          <path d="M98,66 L104,91" fill="none" stroke="var(--ink-soft)" stroke-width="5.5" stroke-linecap="round"/>
+          <path d="M76,58 Q90,18 100,29" fill="none" stroke="var(--adv)" stroke-width="2.4" stroke-dasharray="4 4" marker-end="url(#arrow-adv)"/>
+          <circle cx="100" cy="25" r="6" fill="var(--ball)" stroke="var(--ball-line)" stroke-width="2"/>
+          <rect x="4" y="-9" width="40" height="16" rx="7" fill="var(--card)" stroke="var(--adv)" stroke-width="2"/>
+          <path d="M20,7 L16,13 L14,6 Z" fill="var(--card)" stroke="var(--adv)" stroke-width="2"/>
+          <text x="24" y="2" font-family="'Zen Maru Gothic',sans-serif" font-weight="700" font-size="10.5" fill="var(--adv)" text-anchor="middle">せーの!</text>
+        </svg>
+        <h3>セッターへの合言葉</h3>
+        <p>拾ったら名前を呼んでセッターへ送る</p>
+      </div>
+
+      <div class="tactic-card">
+        <span class="badge">②</span><span class="checkbox"></span>
+        <svg viewBox="0 -6 120 106">
+          <rect x="10" y="20" width="100" height="70" rx="8" fill="var(--adv-bg)" stroke="var(--rule)" stroke-width="1.5"/>
+          <line x1="10" y1="20" x2="110" y2="20" stroke="var(--ink-soft)" stroke-width="3"/>
+          <circle cx="45" cy="4" r="6" fill="var(--ball)" stroke="var(--ball-line)" stroke-width="2"/>
+          <path d="M45,10 L45,20" fill="none" stroke="var(--ink-soft)" stroke-width="2.2" stroke-dasharray="3 3" marker-end="url(#arrow-adv)"/>
+          <path d="M20,62 L35,42 L50,62 L65,42" fill="none" stroke="var(--adv)" stroke-width="1.6" stroke-dasharray="3 3"/>
+          <circle cx="20" cy="62" r="6.5" fill="var(--adv)" stroke="var(--card)" stroke-width="2"/>
+          <circle cx="35" cy="42" r="6.5" fill="var(--adv)" stroke="var(--card)" stroke-width="2"/>
+          <circle cx="50" cy="62" r="6.5" fill="var(--adv)" stroke="var(--card)" stroke-width="2"/>
+          <circle cx="65" cy="42" r="6.5" fill="var(--adv)" stroke="var(--card)" stroke-width="2"/>
+          <circle cx="94" cy="34" r="8" fill="var(--card)" stroke="var(--adv)" stroke-width="2.6"/>
+          <text x="94" y="37.5" font-family="'Zen Maru Gothic',sans-serif" font-weight="900" font-size="10" fill="var(--adv)" text-anchor="middle">S</text>
+        </svg>
+        <h3>W字レセプション体形</h3>
+        <p>前後にずれて構え、セッター(S)は自由に</p>
+      </div>
+
+      <div class="tactic-card">
+        <span class="badge">③</span><span class="checkbox"></span>
+        <svg viewBox="0 -10 120 110">
+          <line x1="8" y1="94" x2="112" y2="94" stroke="var(--rule)" stroke-width="2"/>
+          <circle cx="42" cy="28" r="9" fill="none" stroke="var(--adv)" stroke-width="6"/>
+          <path d="M42,37 L40,60" fill="none" stroke="var(--adv)" stroke-width="6" stroke-linecap="round"/>
+          <path d="M34,42 L40,20" fill="none" stroke="var(--adv)" stroke-width="6" stroke-linecap="round"/>
+          <path d="M50,42 L44,20" fill="none" stroke="var(--adv)" stroke-width="6" stroke-linecap="round"/>
+          <path d="M40,60 L33,76 L29,94" fill="none" stroke="var(--adv)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M40,60 L48,77 L53,95" fill="none" stroke="var(--adv)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="95" cy="16" r="9" fill="none" stroke="var(--adv)" stroke-width="6"/>
+          <path d="M95,25 L93,44" fill="none" stroke="var(--adv)" stroke-width="6" stroke-linecap="round"/>
+          <path d="M99,28 L106,18 L110,8" fill="none" stroke="var(--adv)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M91,28 L84,32 L80,26" fill="none" stroke="var(--adv)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M93,44 L86,52 L82,45" fill="none" stroke="var(--adv)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M93,44 L100,53 L106,47" fill="none" stroke="var(--adv)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M48,18 Q68,2 87,22" fill="none" stroke="var(--adv)" stroke-width="2.4" stroke-dasharray="4 4" marker-end="url(#arrow-adv)"/>
+          <circle cx="88" cy="24" r="5.5" fill="var(--ball)" stroke="var(--ball-line)" stroke-width="2"/>
+          <rect x="76" y="-9" width="42" height="16" rx="7" fill="var(--card)" stroke="var(--adv)" stroke-width="2"/>
+          <path d="M92,7 L88,13 L86,6 Z" fill="var(--card)" stroke="var(--adv)" stroke-width="2"/>
+          <text x="97" y="2" font-family="'Zen Maru Gothic',sans-serif" font-weight="700" font-size="9" fill="var(--adv)" text-anchor="middle">オープン!</text>
+        </svg>
+        <h3>オープンコール</h3>
+        <p>アタッカーがトス前に狙うコースを声で伝える</p>
+      </div>
+
+    </div>
+    <div class="fill-in"><b>選んだチームの決め事:</b><span class="line"></span></div>
+  </div>
+
+  <footer>
+    <span>💡</span>
+    <span><b>使い方:</b>3つを順番に試してみて、自分たちのチームに合うものを1つ選ぼう。次の試合では選んだ決め事を意識してプレーしよう。</span>
+  </footer>
+</div>
+
+<svg width="0" height="0" style="position:absolute;">
+  <defs>
+    <marker id="arrow-chal" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto-start-reverse">
+      <path d="M0,0 L7,3.5 L0,7 Z" fill="var(--chal)"/>
+    </marker>
+    <marker id="arrow-adv" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto-start-reverse">
+      <path d="M0,0 L7,3.5 L0,7 Z" fill="var(--adv)"/>
+    </marker>
+  </defs>
+</svg>
