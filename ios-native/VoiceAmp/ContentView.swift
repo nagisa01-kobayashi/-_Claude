@@ -22,7 +22,15 @@ struct ContentView: View {
                     .background(Circle().fill(amp.isRunning ? Color.green : Color.blue))
             }
 
-            if !amp.routeName.isEmpty { Text("出力先: \(amp.routeName)").foregroundColor(.secondary) }
+            if !amp.routeName.isEmpty {
+                Text("出力先: \(amp.routeName)")
+                    .foregroundColor(amp.isBluetoothOut ? .green : .secondary)
+            }
+            if amp.isRunning && !amp.isBluetoothOut {
+                Text("Bluetoothスピーカーに出ていません。コントロールセンターのAirPlayマークからスピーカーを選んでください。")
+                    .foregroundColor(.orange)
+                    .multilineTextAlignment(.center)
+            }
             if let errorMessage { Text(errorMessage).foregroundColor(.orange) }
 
             VStack(alignment: .leading) {
