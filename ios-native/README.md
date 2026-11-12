@@ -7,10 +7,7 @@ Safari（Webアプリ版）はマイクを使うとBluetoothの高音質出力�
 ## 方法1：iPadだけで作る（Swift Playgrounds）※Mac不要
 1. App Storeで **Swift Playgrounds**（Apple製・無料）を入れる
 2. 起動 →「アプリ」（App）を新規作成 → 名前を「こえアンプ」にする
-3. 左のファイル一覧で
-   - `MyApp.swift` の中身を全部消し、`VoiceAmp/VoiceAmpApp.swift` の中身を貼り付け
-   - `ContentView.swift` の中身を全部消し、`VoiceAmp/ContentView.swift` の中身を貼り付け
-   - 「＋」→ 新規ファイル → 名前 `AudioAmplifier` を作り、`VoiceAmp/AudioAmplifier.swift` の中身を貼り付け
+3. `ContentView.swift` の中身を全部消し、`KoeAmp_Playgrounds.swift` の中身を丸ごと貼り付け（`MyApp.swift` はそのままでOK）
 4. 左上のアプリ設定（歯車アイコン）→ **機能（Capabilities）→ ＋ → マイク（Microphone）** を追加し、説明に「声を拡声するためにマイクを使います」と入力
 5. Bluetoothスピーカーを接続してから、右上の ▶︎（実行）を押す → 「スタート」→ マイクを許可
 6. 実行できたら、アプリ設定の **「Appをインストール」** でホーム画面に追加できます（以降はPlaygroundsを開かずに使えます）

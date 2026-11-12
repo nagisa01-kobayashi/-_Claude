@@ -6,7 +6,7 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 28) {
-            Text("🎤 こえアンプ").font(.largeTitle).bold()
+            Text("こえアンプ").font(.largeTitle).bold()
 
             Button {
                 if amp.isRunning { amp.stop() }
