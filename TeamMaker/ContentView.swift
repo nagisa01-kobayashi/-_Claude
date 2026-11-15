@@ -3,17 +3,18 @@
 // MyApp.swift はそのままで動きます。
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - データの形
 
-enum Gender: String, Codable, CaseIterable, Identifiable {
+enum Gender: String, Codable, CaseIterable, Identifiable, Sendable {
     case male = "男"
     case female = "女"
     case unknown = "−"
     var id: String { rawValue }
 }
 
-struct Student: Identifiable, Codable, Hashable {
+struct Student: Identifiable, Codable, Hashable, Sendable {
     var id = UUID()
     var className: String   // 学級（例 2-2）
     var number: Int         // 出席番号
@@ -180,7 +181,7 @@ enum RosterParser {
 
 // MARK: - チーム分けの計算
 
-struct Team: Identifiable {
+struct Team: Identifiable, Sendable {
     let id = UUID()
     let number: Int
     let members: [Student]
@@ -283,6 +284,9 @@ struct MakeTeamsView: View {
     @State var spreadSport = ""     // 空 ＝ 指定しない
     @State var teams: [Team] = []
     @State var usedSport = ""
+    @State var usedSubtitle = ""
+    @State var pdfTitle = ""
+    @State var pdfShowLevel = false
 
     // 絞り込んだ対象の生徒（参加がオンの人だけ）
     var targets: [Student] {
@@ -334,6 +338,10 @@ struct MakeTeamsView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(targets.isEmpty)
+
+                    if !teams.isEmpty {
+                        sendSection
+                    }
 
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 12)], spacing: 12) {
                         ForEach(teams) { team in
@@ -402,6 +410,204 @@ struct MakeTeamsView: View {
         let sport = spreadSport.isEmpty ? nil : spreadSport
         teams = TeamMaker.make(targets, teamCount: plannedTeamCount, spreadSport: sport)
         usedSport = spreadSport
+
+        // PDF の見出しの下に入れる説明（日付・対象・チーム数）
+        let classes = selectedClasses.isEmpty ? "全学級"
+            : selectedClasses.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+                .joined(separator: "・")
+        var parts = [Date().formatted(date: .long, time: .omitted),
+                     "\(classes)／\(genderFilter.rawValue)",
+                     "\(teams.count)チーム"]
+        if !spreadSport.isEmpty { parts.append("★＝#\(spreadSport) 経験者") }
+        usedSubtitle = parts.joined(separator: "　")
+    }
+
+    var pdfItem: TeamsPDF {
+        TeamsPDF(title: pdfTitle.isEmpty ? "チーム分け" : pdfTitle,
+                 subtitle: usedSubtitle,
+                 teams: teams,
+                 sport: usedSport,
+                 showLevel: pdfShowLevel)
+    }
+
+    var sendSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("④ 生徒に送る").font(.headline)
+            TextField("PDFのタイトル（例：バレーボール チーム分け）", text: $pdfTitle)
+                .textFieldStyle(.roundedBorder)
+            Toggle("技能レベルも載せる（生徒に送るときはオフがおすすめ）", isOn: $pdfShowLevel)
+            ShareLink(item: pdfItem,
+                      preview: SharePreview(pdfItem.title, image: Image(systemName: "doc.richtext"))) {
+                Label("PDFにして送る", systemImage: "square.and.arrow.up")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.12)))
+    }
+}
+
+// MARK: - PDF にして送る
+
+struct TeamsPDF: Transferable, Sendable {
+    let title: String
+    let subtitle: String
+    let teams: [Team]
+    let sport: String
+    let showLevel: Bool
+
+    var fileName: String {
+        let safeTitle = title
+            .components(separatedBy: CharacterSet(charactersIn: "/\\:?*\"<>|"))
+            .joined()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd"
+        return "\(safeTitle)_\(formatter.string(from: Date())).pdf"
+    }
+
+    // 共有ボタンを押したときに、その場で最新のチームから PDF を作ります
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: .pdf) { pdf in
+            SentTransferredFile(try await PDFMaker.makeFile(pdf))
+        }
+    }
+}
+
+@MainActor
+enum PDFMaker {
+    static let pageSize = CGSize(width: 595, height: 842)   // A4（縦）
+    static let availableHeight: CGFloat = 690               // 見出しと余白を除いた高さ
+
+    enum PDFError: Error { case cannotCreate }
+
+    static func makeFile(_ pdf: TeamsPDF) throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(pdf.fileName)
+        try? FileManager.default.removeItem(at: url)
+
+        var box = CGRect(origin: .zero, size: pageSize)
+        guard let context = CGContext(url as CFURL, mediaBox: &box, nil) else {
+            throw PDFError.cannotCreate
+        }
+        let pages = paginate(pdf.teams)
+        for (i, rows) in pages.enumerated() {
+            let page = PDFPageView(pdf: pdf, rows: rows, pageNumber: i + 1, pageCount: pages.count)
+                .frame(width: pageSize.width, height: pageSize.height)
+                .background(Color.white)
+                .environment(\.colorScheme, .light)
+            let renderer = ImageRenderer(content: page)
+            renderer.render { _, draw in
+                context.beginPDFPage(nil)
+                draw(context)
+                context.endPDFPage()
+            }
+        }
+        context.closePDF()
+        return url
+    }
+
+    // 2チームずつ横に並べ、1ページに入りきらなくなったら次のページへ
+    static func paginate(_ teams: [Team]) -> [[[Team]]] {
+        let rows = stride(from: 0, to: teams.count, by: 2).map {
+            Array(teams[$0..<min($0 + 2, teams.count)])
+        }
+        var pages: [[[Team]]] = []
+        var current: [[Team]] = []
+        var used: CGFloat = 0
+        for row in rows {
+            let height = (row.map { 50 + CGFloat($0.members.count) * 19 }.max() ?? 0) + 12
+            if !current.isEmpty && used + height > availableHeight {
+                pages.append(current)
+                current = []
+                used = 0
+            }
+            current.append(row)
+            used += height
+        }
+        if !current.isEmpty { pages.append(current) }
+        return pages
+    }
+}
+
+struct PDFPageView: View {
+    let pdf: TeamsPDF
+    let rows: [[Team]]
+    let pageNumber: Int
+    let pageCount: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(pdf.title).font(.system(size: 22, weight: .bold))
+                Text(pdf.subtitle).font(.system(size: 11)).foregroundStyle(Color.gray)
+            }
+            ForEach(rows.indices, id: \.self) { r in
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(rows[r]) { team in
+                        PDFTeamCard(team: team, sport: pdf.sport, showLevel: pdf.showLevel)
+                    }
+                    if rows[r].count == 1 {
+                        Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+            if pageCount > 1 {
+                Text("\(pageNumber) / \(pageCount)")
+                    .font(.system(size: 10))
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(32)
+        .foregroundStyle(Color.black)
+    }
+}
+
+struct PDFTeamCard: View {
+    let team: Team
+    let sport: String
+    let showLevel: Bool
+
+    var color: Color { teamColors[(team.number - 1) % teamColors.count] }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("チーム \(team.number)").font(.system(size: 16, weight: .bold))
+                Spacer()
+                Text("\(team.members.count)人").font(.system(size: 11))
+            }
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            .background(color)
+
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(team.members) { m in
+                    HStack(spacing: 6) {
+                        Text("\(m.className)-\(m.number)")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color.gray)
+                            .frame(width: 44, alignment: .leading)
+                        Text(m.name).font(.system(size: 13))
+                        if !sport.isEmpty && m.sports.contains(sport) {
+                            Text("★").font(.system(size: 10)).foregroundStyle(Color.orange)
+                        }
+                        Spacer(minLength: 0)
+                        if showLevel {
+                            Text("Lv\(m.level)").font(.system(size: 10))
+                        }
+                    }
+                }
+            }
+            .padding(10)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(color, lineWidth: 1.5))
     }
 }
 
