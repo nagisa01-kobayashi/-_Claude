@@ -45,23 +45,56 @@ func genderColor(_ g: Gender) -> Color {
 
 // MARK: - 名簿（iPad の中だけに保存します）
 
+// アプリの中の「書類」フォルダに JSON ファイルとして保存します（アプリを閉じても残ります）
+enum Storage {
+    static var folder: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
+
+    static func load<T: Decodable>(_ type: T.Type, from name: String) -> T? {
+        guard let data = try? Data(contentsOf: folder.appendingPathComponent(name)) else { return nil }
+        return try? JSONDecoder().decode(T.self, from: data)
+    }
+
+    static func save<T: Encodable>(_ value: T, to name: String) {
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        try? data.write(to: folder.appendingPathComponent(name), options: .atomic)
+    }
+}
+
+// 過去に組んだチームの記録
+struct HistoryEntry: Identifiable, Codable, Sendable {
+    var id = UUID()
+    var date: Date
+    var title: String
+    var subtitle: String
+    var sport: String
+    var teams: [Team]
+
+    var memberCount: Int { teams.reduce(0) { $0 + $1.members.count } }
+}
+
 final class Roster: ObservableObject {
     @Published var students: [Student] = [] {
-        didSet { save() }
+        didSet { Storage.save(students, to: rosterFile) }
     }
-    private let saveKey = "TeamMaker.students"
+    @Published var history: [HistoryEntry] = [] {
+        didSet { Storage.save(history, to: historyFile) }
+    }
+    private let rosterFile = "roster.json"
+    private let historyFile = "history.json"
+    private let oldSaveKey = "TeamMaker.students"   // 前の版の保存場所
 
     init() {
-        if let data = UserDefaults.standard.data(forKey: saveKey),
-           let saved = try? JSONDecoder().decode([Student].self, from: data) {
+        if let saved = Storage.load([Student].self, from: rosterFile) {
             students = saved
+        } else if let data = UserDefaults.standard.data(forKey: oldSaveKey),
+                  let saved = try? JSONDecoder().decode([Student].self, from: data) {
+            // 前の版で保存した名簿を引き継ぐ
+            students = saved
+            Storage.save(saved, to: rosterFile)
         }
-    }
-
-    private func save() {
-        if let data = try? JSONEncoder().encode(students) {
-            UserDefaults.standard.set(data, forKey: saveKey)
-        }
+        history = Storage.load([HistoryEntry].self, from: historyFile) ?? []
     }
 
     var classNames: [String] {
@@ -181,10 +214,10 @@ enum RosterParser {
 
 // MARK: - チーム分けの計算
 
-struct Team: Identifiable, Sendable {
-    let id = UUID()
-    let number: Int
-    let members: [Student]
+struct Team: Identifiable, Codable, Sendable {
+    var id = UUID()
+    var number: Int
+    var members: [Student]
 
     var levelTotal: Int { members.reduce(0) { $0 + $1.level } }
     var levelAverage: Double {
@@ -250,6 +283,8 @@ struct ContentView: View {
         TabView {
             MakeTeamsView()
                 .tabItem { Label("チーム分け", systemImage: "person.3.fill") }
+            HistoryView()
+                .tabItem { Label("履歴", systemImage: "clock.arrow.circlepath") }
             RosterView()
                 .tabItem { Label("名簿", systemImage: "list.bullet") }
             ImportView()
@@ -287,6 +322,7 @@ struct MakeTeamsView: View {
     @State var usedSubtitle = ""
     @State var pdfTitle = ""
     @State var pdfShowLevel = false
+    @State var savedEntryID: UUID?   // 今のチームを履歴に保存したか
 
     // 絞り込んだ対象の生徒（参加がオンの人だけ）
     var targets: [Student] {
@@ -409,6 +445,7 @@ struct MakeTeamsView: View {
     func makeTeams() {
         let sport = spreadSport.isEmpty ? nil : spreadSport
         teams = TeamMaker.make(targets, teamCount: plannedTeamCount, spreadSport: sport)
+        savedEntryID = nil
         usedSport = spreadSport
 
         // PDF の見出しの下に入れる説明（日付・対象・チーム数）
@@ -432,21 +469,128 @@ struct MakeTeamsView: View {
 
     var sendSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("④ 生徒に送る").font(.headline)
-            TextField("PDFのタイトル（例：バレーボール チーム分け）", text: $pdfTitle)
+            Text("④ 保存する・生徒に送る").font(.headline)
+            TextField("タイトル（例：バレーボール チーム分け）", text: $pdfTitle)
                 .textFieldStyle(.roundedBorder)
             Toggle("技能レベルも載せる（生徒に送るときはオフがおすすめ）", isOn: $pdfShowLevel)
-            ShareLink(item: pdfItem,
-                      preview: SharePreview(pdfItem.title, image: Image(systemName: "doc.richtext"))) {
-                Label("PDFにして送る", systemImage: "square.and.arrow.up")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
+            HStack(spacing: 12) {
+                Button {
+                    saveToHistory()
+                } label: {
+                    Label(savedEntryID == nil ? "履歴に保存" : "保存しました",
+                          systemImage: savedEntryID == nil ? "tray.and.arrow.down" : "checkmark.circle.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                }
+                .buttonStyle(.bordered)
+                .disabled(savedEntryID != nil)
+
+                ShareLink(item: pdfItem,
+                          preview: SharePreview(pdfItem.title, image: Image(systemName: "doc.richtext"))) {
+                    Label("PDFにして送る", systemImage: "square.and.arrow.up")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.bordered)
         }
         .padding()
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.12)))
+    }
+
+    func saveToHistory() {
+        let entry = HistoryEntry(date: Date(), title: pdfItem.title, subtitle: usedSubtitle,
+                                 sport: usedSport, teams: teams)
+        roster.history.insert(entry, at: 0)
+        savedEntryID = entry.id
+    }
+}
+
+// MARK: - 履歴画面
+
+struct HistoryView: View {
+    @EnvironmentObject var roster: Roster
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if roster.history.isEmpty {
+                    Text("まだ履歴がありません。チームを分けたあと「履歴に保存」を押すと、ここに残ります。")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach($roster.history) { $entry in
+                    NavigationLink {
+                        HistoryDetailView(entry: $entry)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(entry.title).font(.headline)
+                            Text(entry.date.formatted(date: .long, time: .shortened))
+                                .font(.caption)
+                            Text("\(entry.teams.count)チーム・\(entry.memberCount)人　\(entry.subtitle)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                .onDelete { offsets in
+                    roster.history.remove(atOffsets: offsets)
+                }
+            }
+            .navigationTitle("チーム分けの履歴")
+            .toolbar {
+                if !roster.history.isEmpty { EditButton() }
+            }
+        }
+    }
+}
+
+struct HistoryDetailView: View {
+    @Binding var entry: HistoryEntry
+    @State var showLevel = false
+
+    var pdfItem: TeamsPDF {
+        TeamsPDF(title: entry.title, subtitle: entry.subtitle, teams: entry.teams,
+                 sport: entry.sport, showLevel: showLevel)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 10) {
+                    TextField("タイトル", text: $entry.title)
+                        .font(.title2.bold())
+                        .textFieldStyle(.roundedBorder)
+                    Text("保存した日時：\(entry.date.formatted(date: .long, time: .shortened))")
+                        .font(.callout)
+                    Text(entry.subtitle)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Toggle("技能レベルも載せる（生徒に送るときはオフがおすすめ）", isOn: $showLevel)
+                    ShareLink(item: pdfItem,
+                              preview: SharePreview(pdfItem.title, image: Image(systemName: "doc.richtext"))) {
+                        Label("このチームをPDFにして送る", systemImage: "square.and.arrow.up")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding()
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.12)))
+
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 12)], spacing: 12) {
+                    ForEach(entry.teams) { team in
+                        TeamCard(team: team, sport: entry.sport)
+                    }
+                }
+            }
+            .padding()
+        }
+        .navigationTitle(entry.title)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -874,6 +1018,20 @@ struct ImportView: View {
 
         NavigationStack {
             Form {
+                Section("保存されている名簿") {
+                    if roster.students.isEmpty {
+                        Text("まだ名簿がありません。下の欄に貼り付けて読み込んでください。")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Label("\(roster.classNames.joined(separator: "・"))　計 \(roster.students.count)人",
+                              systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text("名簿は iPad に保存されています。アプリを閉じても残るので、次回から読み込み直す必要はありません。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 Section("使い方") {
                     Text("""
                     1. Excel で 1行目を見出しにします：学級／番号／名前／性別／レベル／サッカー／バレーボール…
