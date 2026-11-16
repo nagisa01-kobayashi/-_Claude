@@ -142,11 +142,14 @@ enum RosterParser {
             result.messages.append("1行目（見出し）に「名前」の列が見つかりません。")
             return result
         }
-        let classCol = column(["学級", "クラス", "組"])
+        let gradeCol = column(["学年"])
+        let kumiCol = column(["組"])
+        let classCol = column(["学級", "クラス"]) ?? (gradeCol == nil ? kumiCol : nil)
         let numberCol = column(["番号"])
         let genderCol = column(["性別"])
         let levelCol = column(["レベル", "技能"])
-        let fixedCols = Set([nameCol, classCol, numberCol, genderCol, levelCol].compactMap { $0 })
+        let fixedCols = Set([nameCol, gradeCol, kumiCol, classCol, numberCol, genderCol, levelCol]
+            .compactMap { $0 })
         let sportCols = header.indices.filter { !fixedCols.contains($0) && !header[$0].isEmpty }
         result.sports = sportCols.map { header[$0] }
 
@@ -172,7 +175,7 @@ enum RosterParser {
             let sports = sportCols.filter { isMarked(value($0)) }.map { header[$0] }
 
             result.students.append(Student(
-                className: normalizeClass(value(classCol)),
+                className: className(grade: value(gradeCol), kumi: value(kumiCol), whole: value(classCol)),
                 number: number(value(numberCol)) ?? (i + 1),
                 name: name,
                 gender: gender,
@@ -201,6 +204,24 @@ enum RosterParser {
         let t = s.trimmingCharacters(in: .whitespaces)
         if t.isEmpty { return false }
         return !["×", "✕", "x", "X", "-", "－", "0", "なし"].contains(t)
+    }
+
+    // 「学年」「組」の列があれば「2-2」の形にまとめる（「2年」「2組」の「年」「組」は取る）
+    static func className(grade: String, kumi: String, whole: String) -> String {
+        if !whole.isEmpty { return normalizeClass(whole) }
+        func strip(_ s: String) -> String {
+            let half = s.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? s
+            return half.replacingOccurrences(of: "年生", with: "")
+                .replacingOccurrences(of: "年", with: "")
+                .replacingOccurrences(of: "組", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let g = strip(grade)
+        let k = strip(kumi)
+        if g.isEmpty && k.isEmpty { return "−" }
+        if g.isEmpty { return k }
+        if k.isEmpty { return g }
+        return "\(g)-\(k)"
     }
 
     static func normalizeClass(_ s: String) -> String {
@@ -1056,7 +1077,7 @@ struct ImportView: View {
                 Section("Excel ファイルで入力する") {
                     Text("""
                     1.「入力用の Excel ファイルを書き出す」を押し、「ファイルに保存」か Excel で開きます。
-                    2. Excel で生徒を入力して保存します（性別・レベル・○ は選択肢から選べます。スポーツの列は増やしても構いません）。
+                    2. Excel で「学年・組・番号・性別・名前・レベル」と経験のあるスポーツの ○ を入力して保存します（性別・レベル・○ は選択肢から選べます。スポーツの列は増やしても構いません）。
                     3.「入力したファイルを読み込む」でそのファイルを選びます。
                     """)
                     .font(.callout)
@@ -1227,18 +1248,24 @@ enum XLSXWriter {
     static let lastRow = 300   // 選択肢（プルダウン）を付ける行の終わり
 
     static func roster(students: [Student], sports: [String]) -> Data {
-        let header = ["学級", "番号", "名前", "性別", "レベル"] + sports
+        let header = ["学年", "組", "番号", "性別", "名前", "レベル"] + sports
         var rows = ""
         rows += row(1, header.enumerated().map { textCell($0.offset, 1, $0.element, style: 2) })
         for (i, s) in students.enumerated() {
             let r = i + 2
-            var cells = [textCell(0, r, s.className, style: 1),
-                         numberCell(1, r, s.number, style: 3),
-                         textCell(2, r, s.name, style: 0)]
+            // 「2-2」を学年「2」と組「2」に分ける
+            let parts = s.className.split(separator: "-").map(String.init)
+            let grade = parts.count == 2 ? parts[0] : ""
+            let kumi = parts.count == 2 ? parts[1] : (s.className == "−" ? "" : s.className)
+            var cells: [String] = []
+            if !grade.isEmpty { cells.append(anyCell(0, r, grade)) }
+            if !kumi.isEmpty { cells.append(anyCell(1, r, kumi)) }
+            cells.append(numberCell(2, r, s.number, style: 3))
             if s.gender != .unknown { cells.append(textCell(3, r, s.gender.rawValue, style: 3)) }
-            cells.append(numberCell(4, r, s.level, style: 3))
+            cells.append(textCell(4, r, s.name, style: 0))
+            cells.append(numberCell(5, r, s.level, style: 3))
             for (j, sp) in sports.enumerated() where s.sports.contains(sp) {
-                cells.append(textCell(5 + j, r, "○", style: 3))
+                cells.append(textCell(6 + j, r, "○", style: 3))
             }
             rows += row(r, cells)
         }
@@ -1246,19 +1273,19 @@ enum XLSXWriter {
         let lastCol = columnName(header.count - 1)
         var validations = [
             validation("D2:D\(lastRow)", "男,女"),
-            validation("E2:E\(lastRow)", "1,2,3,4,5"),
+            validation("F2:F\(lastRow)", "1,2,3,4,5"),
         ]
-        if !sports.isEmpty { validations.append(validation("F2:\(lastCol)\(lastRow)", "○")) }
+        if !sports.isEmpty { validations.append(validation("G2:\(lastCol)\(lastRow)", "○")) }
 
         let sportCols = sports.isEmpty ? ""
-            : "<col min=\"6\" max=\"\(header.count)\" width=\"12\" style=\"3\" customWidth=\"1\"/>"
+            : "<col min=\"7\" max=\"\(header.count)\" width=\"12\" style=\"3\" customWidth=\"1\"/>"
 
         let sheet = """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">\
         <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>\
-        <cols><col min="1" max="1" width="8" style="1" customWidth="1"/><col min="2" max="2" width="6" style="3" customWidth="1"/>\
-        <col min="3" max="3" width="16" customWidth="1"/><col min="4" max="5" width="7" style="3" customWidth="1"/>\
+        <cols><col min="1" max="4" width="6" style="3" customWidth="1"/>\
+        <col min="5" max="5" width="16" customWidth="1"/><col min="6" max="6" width="7" style="3" customWidth="1"/>\
         \(sportCols)</cols>\
         <sheetData>\(rows)</sheetData>\
         <dataValidations count="\(validations.count)">\(validations.joined())</dataValidations>\
@@ -1331,6 +1358,12 @@ enum XLSXWriter {
 
     static func textCell(_ col: Int, _ row: Int, _ text: String, style: Int) -> String {
         "<c r=\"\(columnName(col))\(row)\" s=\"\(style)\" t=\"inlineStr\"><is><t>\(escape(text))</t></is></c>"
+    }
+
+    // 数字なら数値、そうでなければ文字として書く
+    static func anyCell(_ col: Int, _ row: Int, _ text: String) -> String {
+        if let n = Int(text) { return numberCell(col, row, n, style: 3) }
+        return textCell(col, row, text, style: 3)
     }
 
     static func numberCell(_ col: Int, _ row: Int, _ value: Int, style: Int) -> String {
@@ -1641,21 +1674,21 @@ enum Zip {
 
 // 動作確認用のサンプル（架空の生徒です）
 let sampleRoster = """
-学級\t番号\t名前\t性別\tレベル\tサッカー\tバレーボール\tバスケットボール\t野球
-2-2\t1\t青木 一郎\t男\t4\t○\t\t\t
-2-2\t2\t石井 健太\t男\t3\t\t\t○\t
-2-2\t3\t上田 翔\t男\t5\t○\t\t\t○
-2-2\t4\t岡本 大輝\t男\t2\t\t\t\t
-2-2\t5\t加藤 さくら\t女\t4\t\t○\t\t
-2-2\t6\t木村 美咲\t女\t3\t\t\t○\t
-2-2\t7\t小林 結衣\t女\t2\t\t\t\t
-2-2\t8\t佐藤 陽菜\t女\t5\t\t○\t○\t
-2-4\t1\t清水 拓海\t男\t3\t○\t\t\t
-2-4\t2\t鈴木 蓮\t男\t4\t\t\t\t○
-2-4\t3\t高橋 悠真\t男\t1\t\t\t\t
-2-4\t4\t田中 湊\t男\t5\t○\t\t○\t
-2-4\t5\t中村 葵\t女\t3\t\t○\t\t
-2-4\t6\t西田 凛\t女\t4\t○\t\t\t
-2-4\t7\t橋本 芽依\t女\t1\t\t\t\t
-2-4\t8\t藤田 心春\t女\t3\t\t○\t\t
+学年\t組\t番号\t性別\t名前\tレベル\tサッカー\tバレーボール\tバスケットボール\t野球
+2\t2\t1\t男\t青木 一郎\t4\t○\t\t\t
+2\t2\t2\t男\t石井 健太\t3\t\t\t○\t
+2\t2\t3\t男\t上田 翔\t5\t○\t\t\t○
+2\t2\t4\t男\t岡本 大輝\t2\t\t\t\t
+2\t2\t5\t女\t加藤 さくら\t4\t\t○\t\t
+2\t2\t6\t女\t木村 美咲\t3\t\t\t○\t
+2\t2\t7\t女\t小林 結衣\t2\t\t\t\t
+2\t2\t8\t女\t佐藤 陽菜\t5\t\t○\t○\t
+2\t4\t1\t男\t清水 拓海\t3\t○\t\t\t
+2\t4\t2\t男\t鈴木 蓮\t4\t\t\t\t○
+2\t4\t3\t男\t高橋 悠真\t1\t\t\t\t
+2\t4\t4\t男\t田中 湊\t5\t○\t\t○\t
+2\t4\t5\t女\t中村 葵\t3\t\t○\t\t
+2\t4\t6\t女\t西田 凛\t4\t○\t\t\t
+2\t4\t7\t女\t橋本 芽依\t1\t\t\t\t
+2\t4\t8\t女\t藤田 心春\t3\t\t○\t\t
 """
