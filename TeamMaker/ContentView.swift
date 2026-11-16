@@ -4,6 +4,7 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import Compression
 
 // MARK: - データの形
 
@@ -185,7 +186,10 @@ enum RosterParser {
     static func cells(_ line: String) -> [String] {
         let sep: Character = line.contains("\t") ? "\t" : ","
         return line.split(separator: sep, omittingEmptySubsequences: false)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "\"\u{FEFF}"))
+            }
     }
 
     static func number(_ s: String) -> Int? {
@@ -207,6 +211,16 @@ enum RosterParser {
             let a = t[..<m]
             let b = t[t.index(after: m)..<t.index(before: t.endIndex)]
             if Int(a) != nil, Int(b) != nil { return "\(a)-\(b)" }
+        }
+        // Excel ファイルの中で日付が数値（例 46055）として保存されている場合も元に戻す
+        if let serial = Int(t), serial >= 36526, serial < 73051 {
+            var cal = Calendar(identifier: .gregorian)
+            cal.timeZone = TimeZone(identifier: "UTC") ?? .current
+            if let base = DateComponents(calendar: cal, year: 1899, month: 12, day: 30).date,
+               let date = cal.date(byAdding: .day, value: serial, to: base) {
+                let c = cal.dateComponents([.month, .day], from: date)
+                if let m = c.month, let d = c.day { return "\(m)-\(d)" }
+            }
         }
         return t.isEmpty ? "−" : t
     }
@@ -1012,6 +1026,13 @@ struct ImportView: View {
     @State var text = ""
     @State var confirmReplace = false
     @State var message = ""
+    @State var errorMessage = ""
+    @State var fileMessage = ""
+    @State var showImporter = false
+
+    var templateSports: [String] {
+        roster.allSports.isEmpty ? defaultSports : roster.allSports
+    }
 
     var body: some View {
         let preview = RosterParser.parse(text)
@@ -1032,17 +1053,43 @@ struct ImportView: View {
                     }
                 }
 
-                Section("使い方") {
+                Section("Excel ファイルで入力する") {
                     Text("""
-                    1. Excel で 1行目を見出しにします：学級／番号／名前／性別／レベル／サッカー／バレーボール…
-                    2. スポーツの列には、経験があれば ○ を入れます（空欄なら経験なし）。
-                    3. 見出しごと表をコピーして、下の欄に貼り付けます。
+                    1.「入力用の Excel ファイルを書き出す」を押し、「ファイルに保存」か Excel で開きます。
+                    2. Excel で生徒を入力して保存します（性別・レベル・○ は選択肢から選べます。スポーツの列は増やしても構いません）。
+                    3.「入力したファイルを読み込む」でそのファイルを選びます。
                     """)
                     .font(.callout)
-                    Button("サンプルを入れてみる") { text = sampleRoster }
+
+                    ShareLink(item: RosterSheet(students: [], sports: templateSports,
+                                                fileName: "名簿入力用.xlsx"),
+                              preview: SharePreview("名簿入力用.xlsx", image: Image(systemName: "tablecells"))) {
+                        Label("入力用の Excel ファイルを書き出す", systemImage: "square.and.arrow.up")
+                    }
+                    if !roster.students.isEmpty {
+                        ShareLink(item: RosterSheet(students: roster.students, sports: templateSports,
+                                                    fileName: "名簿（\(todayStamp())）.xlsx"),
+                                  preview: SharePreview("今の名簿.xlsx", image: Image(systemName: "tablecells"))) {
+                            Label("今の名簿を Excel に書き出す（直したいとき）", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                    Button {
+                        showImporter = true
+                    } label: {
+                        Label("入力したファイルを読み込む", systemImage: "doc.badge.plus")
+                    }
+                    if !fileMessage.isEmpty {
+                        Text(fileMessage).font(.caption).foregroundStyle(.blue)
+                    }
+                    if !errorMessage.isEmpty {
+                        Text(errorMessage).font(.caption).foregroundStyle(.red)
+                    }
                 }
 
-                Section("ここに貼り付け") {
+                Section("または、表をコピーして貼り付ける") {
+                    Text("Excel で見出しの行ごと表をコピーして、下の欄に貼り付けます。")
+                        .font(.callout)
+                    Button("サンプルを入れてみる") { text = sampleRoster }
                     TextEditor(text: $text)
                         .frame(minHeight: 200)
                         .font(.system(.body, design: .monospaced))
@@ -1088,16 +1135,508 @@ struct ImportView: View {
                 }
             }
             .navigationTitle("名簿の読み込み")
-            .confirmationDialog("今の名簿を消して、貼り付けた名簿に置き換えますか？",
+            .confirmationDialog("今の名簿を消して、読み取った名簿に置き換えますか？",
                                 isPresented: $confirmReplace, titleVisibility: .visible) {
                 Button("置き換える", role: .destructive) {
                     roster.students = preview.students.sorted(by: Student.rosterOrder)
                     message = "\(preview.students.count)人の名簿に置き換えました。"
                     text = ""
+                    fileMessage = ""
                 }
+            }
+            .fileImporter(isPresented: $showImporter,
+                          allowedContentTypes: [.xlsx, .commaSeparatedText, .tabSeparatedText, .plainText]) { result in
+                readFile(result)
             }
         }
     }
+
+    // 選んだファイルを読み取り、貼り付け欄に入れる（あとは貼り付けと同じ流れで確認・保存）
+    func readFile(_ result: Result<URL, Error>) {
+        errorMessage = ""
+        fileMessage = ""
+        message = ""
+        switch result {
+        case .failure(let error):
+            errorMessage = "ファイルを開けませんでした：\(error.localizedDescription)"
+        case .success(let url):
+            let canAccess = url.startAccessingSecurityScopedResource()
+            defer { if canAccess { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let data = try Data(contentsOf: url)
+                if url.pathExtension.lowercased() == "xlsx" {
+                    let rows = try XLSXReader.rows(from: data)
+                    text = rows.map { row in
+                        row.map { $0.replacingOccurrences(of: "\t", with: " ")
+                                    .replacingOccurrences(of: "\n", with: " ") }
+                            .joined(separator: "\t")
+                    }
+                    .joined(separator: "\n")
+                } else {
+                    // Excel の CSV は Shift_JIS のことが多いので、UTF-8 で読めなければ Shift_JIS で読む
+                    text = String(data: data, encoding: .utf8)
+                        ?? String(data: data, encoding: .shiftJIS)
+                        ?? ""
+                }
+                if text.isEmpty {
+                    errorMessage = "ファイルの中に読み取れる表がありませんでした。"
+                } else {
+                    fileMessage = "「\(url.lastPathComponent)」を読み取りました。下の「読み取り結果」を確認して、置き換えるか追加してください。"
+                }
+            } catch {
+                errorMessage = "ファイルを読み取れませんでした：\(error.localizedDescription)"
+            }
+        }
+    }
+}
+
+func todayStamp() -> String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyyMMdd"
+    return formatter.string(from: Date())
+}
+
+let defaultSports = ["サッカー", "バレーボール", "バスケットボール", "ソフトボール",
+                     "バドミントン", "卓球", "テニス", "陸上", "水泳", "ダンス"]
+
+// MARK: - Excel（.xlsx）の書き出し・読み込み
+
+extension UTType {
+    static var xlsx: UTType { UTType("org.openxmlformats.spreadsheetml.sheet") ?? .data }
+}
+
+// 共有ボタンから書き出す名簿の Excel ファイル（students が空なら入力用テンプレート）
+struct RosterSheet: Transferable, Sendable {
+    let students: [Student]
+    let sports: [String]
+    let fileName: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: .xlsx) { sheet in
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(sheet.fileName)
+            try? FileManager.default.removeItem(at: url)
+            let data = XLSXWriter.roster(students: sheet.students.sorted(by: Student.rosterOrder),
+                                         sports: sheet.sports)
+            try data.write(to: url, options: .atomic)
+            return SentTransferredFile(url)
+        }
+    }
+}
+
+enum XLSXWriter {
+    static let lastRow = 300   // 選択肢（プルダウン）を付ける行の終わり
+
+    static func roster(students: [Student], sports: [String]) -> Data {
+        let header = ["学級", "番号", "名前", "性別", "レベル"] + sports
+        var rows = ""
+        rows += row(1, header.enumerated().map { textCell($0.offset, 1, $0.element, style: 2) })
+        for (i, s) in students.enumerated() {
+            let r = i + 2
+            var cells = [textCell(0, r, s.className, style: 1),
+                         numberCell(1, r, s.number, style: 3),
+                         textCell(2, r, s.name, style: 0)]
+            if s.gender != .unknown { cells.append(textCell(3, r, s.gender.rawValue, style: 3)) }
+            cells.append(numberCell(4, r, s.level, style: 3))
+            for (j, sp) in sports.enumerated() where s.sports.contains(sp) {
+                cells.append(textCell(5 + j, r, "○", style: 3))
+            }
+            rows += row(r, cells)
+        }
+
+        let lastCol = columnName(header.count - 1)
+        var validations = [
+            validation("D2:D\(lastRow)", "男,女"),
+            validation("E2:E\(lastRow)", "1,2,3,4,5"),
+        ]
+        if !sports.isEmpty { validations.append(validation("F2:\(lastCol)\(lastRow)", "○")) }
+
+        let sportCols = sports.isEmpty ? ""
+            : "<col min=\"6\" max=\"\(header.count)\" width=\"12\" style=\"3\" customWidth=\"1\"/>"
+
+        let sheet = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">\
+        <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>\
+        <cols><col min="1" max="1" width="8" style="1" customWidth="1"/><col min="2" max="2" width="6" style="3" customWidth="1"/>\
+        <col min="3" max="3" width="16" customWidth="1"/><col min="4" max="5" width="7" style="3" customWidth="1"/>\
+        \(sportCols)</cols>\
+        <sheetData>\(rows)</sheetData>\
+        <dataValidations count="\(validations.count)">\(validations.joined())</dataValidations>\
+        </worksheet>
+        """
+
+        let styles = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\
+        <fonts count="2"><font><sz val="11"/><name val="Yu Gothic"/></font><font><b/><sz val="11"/><name val="Yu Gothic"/></font></fonts>\
+        <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>\
+        <fill><patternFill patternType="solid"><fgColor rgb="FFDDEBF7"/><bgColor indexed="64"/></patternFill></fill></fills>\
+        <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>\
+        <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>\
+        <cellXfs count="4">\
+        <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>\
+        <xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>\
+        <xf numFmtId="49" fontId="1" fillId="2" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center"/></xf>\
+        <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center"/></xf>\
+        </cellXfs>\
+        <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>\
+        </styleSheet>
+        """
+
+        let workbook = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">\
+        <sheets><sheet name="名簿" sheetId="1" r:id="rId1"/></sheets></workbook>
+        """
+
+        let workbookRels = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\
+        <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>\
+        <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>\
+        </Relationships>
+        """
+
+        let rootRels = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\
+        <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>\
+        </Relationships>
+        """
+
+        let contentTypes = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\
+        <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\
+        <Default Extension="xml" ContentType="application/xml"/>\
+        <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>\
+        <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>\
+        <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>\
+        </Types>
+        """
+
+        return Zip.stored([
+            ("[Content_Types].xml", Data(contentTypes.utf8)),
+            ("_rels/.rels", Data(rootRels.utf8)),
+            ("xl/workbook.xml", Data(workbook.utf8)),
+            ("xl/_rels/workbook.xml.rels", Data(workbookRels.utf8)),
+            ("xl/styles.xml", Data(styles.utf8)),
+            ("xl/worksheets/sheet1.xml", Data(sheet.utf8)),
+        ])
+    }
+
+    static func row(_ r: Int, _ cells: [String]) -> String {
+        "<row r=\"\(r)\">\(cells.joined())</row>"
+    }
+
+    static func textCell(_ col: Int, _ row: Int, _ text: String, style: Int) -> String {
+        "<c r=\"\(columnName(col))\(row)\" s=\"\(style)\" t=\"inlineStr\"><is><t>\(escape(text))</t></is></c>"
+    }
+
+    static func numberCell(_ col: Int, _ row: Int, _ value: Int, style: Int) -> String {
+        "<c r=\"\(columnName(col))\(row)\" s=\"\(style)\"><v>\(value)</v></c>"
+    }
+
+    static func validation(_ range: String, _ list: String) -> String {
+        "<dataValidation type=\"list\" allowBlank=\"1\" showErrorMessage=\"1\" sqref=\"\(range)\"><formula1>\"\(list)\"</formula1></dataValidation>"
+    }
+
+    // 0 → A, 25 → Z, 26 → AA
+    static func columnName(_ index: Int) -> String {
+        var n = index + 1
+        var name = ""
+        while n > 0 {
+            let r = (n - 1) % 26
+            name = String(UnicodeScalar(UInt8(65 + r))) + name
+            n = (n - 1) / 26
+        }
+        return name
+    }
+
+    static func escape(_ s: String) -> String {
+        s.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+}
+
+enum XLSXReader {
+    struct ReadError: LocalizedError {
+        let errorDescription: String?
+    }
+
+    // 最初のシートを、行ごとの文字の表にして返します
+    static func rows(from data: Data) throws -> [[String]] {
+        let files = try Zip.entries(data)
+        let shared = files["xl/sharedStrings.xml"].map { SharedStringsParser.parse($0) } ?? []
+        guard let sheet = files[firstSheetPath(files)] else {
+            throw ReadError(errorDescription: "Excel ファイルの中にシートが見つかりませんでした。")
+        }
+        return SheetParser.parse(sheet, shared: shared)
+    }
+
+    static func firstSheetPath(_ files: [String: Data]) -> String {
+        if let wb = files["xl/workbook.xml"], let rels = files["xl/_rels/workbook.xml.rels"] {
+            let sheets = ElementCollector.collect(wb).filter { $0.name == "sheet" }
+            if let rid = sheets.first?.attrs.first(where: { $0.key == "r:id" || $0.key.hasSuffix(":id") })?.value,
+               let target = ElementCollector.collect(rels)
+                .first(where: { $0.name == "Relationship" && $0.attrs["Id"] == rid })?.attrs["Target"] {
+                let path = target.hasPrefix("/") ? String(target.dropFirst()) : "xl/" + target
+                if files[path] != nil { return path }
+            }
+        }
+        return files.keys
+            .filter { $0.hasPrefix("xl/worksheets/") && $0.hasSuffix(".xml") }
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+            .first ?? ""
+    }
+}
+
+// 「x:sheet」のような名前空間の付いた名前から「sheet」を取り出す
+func localName(_ name: String) -> String {
+    name.split(separator: ":").last.map(String.init) ?? name
+}
+
+final class ElementCollector: NSObject, XMLParserDelegate {
+    var elements: [(name: String, attrs: [String: String])] = []
+
+    static func collect(_ data: Data) -> [(name: String, attrs: [String: String])] {
+        let collector = ElementCollector()
+        let parser = XMLParser(data: data)
+        parser.delegate = collector
+        parser.parse()
+        return collector.elements
+    }
+
+    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?,
+                qualifiedName qName: String?, attributes attributeDict: [String: String] = [:]) {
+        elements.append((localName(elementName), attributeDict))
+    }
+}
+
+final class SharedStringsParser: NSObject, XMLParserDelegate {
+    var strings: [String] = []
+    var current = ""
+    var inText = false
+    var phoneticDepth = 0   // ふりがな（rPh）の中の文字は読み飛ばす
+
+    static func parse(_ data: Data) -> [String] {
+        let p = SharedStringsParser()
+        let parser = XMLParser(data: data)
+        parser.delegate = p
+        parser.parse()
+        return p.strings
+    }
+
+    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?,
+                qualifiedName qName: String?, attributes attributeDict: [String: String] = [:]) {
+        switch localName(elementName) {
+        case "si": current = ""
+        case "rPh": phoneticDepth += 1
+        case "t": inText = phoneticDepth == 0
+        default: break
+        }
+    }
+
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        if inText { current += string }
+    }
+
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?,
+                qualifiedName qName: String?) {
+        switch localName(elementName) {
+        case "si": strings.append(current)
+        case "rPh": phoneticDepth -= 1
+        case "t": inText = false
+        default: break
+        }
+    }
+}
+
+final class SheetParser: NSObject, XMLParserDelegate {
+    let shared: [String]
+    var cells: [Int: [Int: String]] = [:]
+    var rowIndex = 0
+    var nextCol = 0
+    var col = 0
+    var cellType = ""
+    var value = ""
+    var buffer = ""
+    var reading = false
+
+    init(shared: [String]) { self.shared = shared }
+
+    static func parse(_ data: Data, shared: [String]) -> [[String]] {
+        let p = SheetParser(shared: shared)
+        let parser = XMLParser(data: data)
+        parser.delegate = p
+        parser.parse()
+        guard let maxRow = p.cells.keys.max(), maxRow >= 1 else { return [] }
+        let maxCol = p.cells.values.compactMap { $0.keys.max() }.max() ?? 0
+        return (1...maxRow).map { r in
+            (0...maxCol).map { c in p.cells[r]?[c] ?? "" }
+        }
+    }
+
+    // 「B12」→ 列 1
+    static func column(of ref: String) -> Int? {
+        let letters = ref.prefix { $0.isLetter }
+        guard !letters.isEmpty else { return nil }
+        var n = 0
+        for ch in letters.uppercased().unicodeScalars { n = n * 26 + Int(ch.value) - 64 }
+        return n - 1
+    }
+
+    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?,
+                qualifiedName qName: String?, attributes attributeDict: [String: String] = [:]) {
+        switch localName(elementName) {
+        case "row":
+            rowIndex = Int(attributeDict["r"] ?? "") ?? (rowIndex + 1)
+            nextCol = 0
+        case "c":
+            col = SheetParser.column(of: attributeDict["r"] ?? "") ?? nextCol
+            nextCol = col + 1
+            cellType = attributeDict["t"] ?? ""
+            value = ""
+        case "v", "t":
+            reading = true
+            buffer = ""
+        default: break
+        }
+    }
+
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        if reading { buffer += string }
+    }
+
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?,
+                qualifiedName qName: String?) {
+        switch localName(elementName) {
+        case "v", "t":
+            value += buffer
+            reading = false
+        case "c":
+            var text = value
+            if cellType == "s", let i = Int(value), i >= 0, i < shared.count { text = shared[i] }
+            if cellType == "e" { text = "" }
+            text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !text.isEmpty { cells[rowIndex, default: [:]][col] = text }
+        default: break
+        }
+    }
+}
+
+// MARK: - ZIP（.xlsx の中身は ZIP です）
+
+enum Zip {
+    struct ZipError: LocalizedError {
+        let errorDescription: String?
+    }
+
+    // 圧縮しないで ZIP にまとめる（Excel はこの形でも開けます）
+    static func stored(_ files: [(String, Data)]) -> Data {
+        var out = Data()
+        var central = Data()
+        let (time, date) = dosDateTime(Date())
+        for (name, data) in files {
+            let nameData = Data(name.utf8)
+            let crc = crc32(data)
+            let offset = UInt32(out.count)
+            let size = UInt32(data.count)
+
+            out += le32(0x04034b50) + le16(20) + le16(0x0800) + le16(0) + le16(time) + le16(date)
+            out += le32(crc) + le32(size) + le32(size) + le16(UInt16(nameData.count)) + le16(0)
+            out += nameData + data
+
+            central += le32(0x02014b50) + le16(20) + le16(20) + le16(0x0800) + le16(0)
+            central += le16(time) + le16(date) + le32(crc) + le32(size) + le32(size)
+            central += le16(UInt16(nameData.count)) + le16(0) + le16(0) + le16(0) + le16(0)
+            central += le32(0) + le32(offset) + nameData
+        }
+        let centralOffset = UInt32(out.count)
+        out += central
+        out += le32(0x06054b50) + le16(0) + le16(0)
+        out += le16(UInt16(files.count)) + le16(UInt16(files.count))
+        out += le32(UInt32(central.count)) + le32(centralOffset) + le16(0)
+        return out
+    }
+
+    // ZIP の中のファイルを取り出す
+    static func entries(_ data: Data) throws -> [String: Data] {
+        let b = [UInt8](data)
+        func u16(_ o: Int) -> Int { Int(b[o]) | Int(b[o + 1]) << 8 }
+        func u32(_ o: Int) -> Int { u16(o) | u16(o + 2) << 16 }
+
+        let notExcel = ZipError(errorDescription: "Excel（.xlsx）ファイルとして読み取れませんでした。")
+        guard b.count >= 22 else { throw notExcel }
+        var end = -1
+        var i = b.count - 22
+        while i >= max(0, b.count - 22 - 65535) {
+            if u32(i) == 0x06054b50 { end = i; break }
+            i -= 1
+        }
+        guard end >= 0 else { throw notExcel }
+
+        let count = u16(end + 10)
+        var p = u32(end + 16)
+        var result: [String: Data] = [:]
+        for _ in 0..<count {
+            guard p + 46 <= b.count, u32(p) == 0x02014b50 else { throw notExcel }
+            let method = u16(p + 10)
+            let compressedSize = u32(p + 20)
+            let size = u32(p + 24)
+            let nameLength = u16(p + 28)
+            let extraLength = u16(p + 30)
+            let commentLength = u16(p + 32)
+            let local = u32(p + 42)
+            guard p + 46 + nameLength <= b.count else { throw notExcel }
+            let name = String(decoding: b[(p + 46)..<(p + 46 + nameLength)], as: UTF8.self)
+            p += 46 + nameLength + extraLength + commentLength
+
+            guard local + 30 <= b.count else { continue }
+            let start = local + 30 + u16(local + 26) + u16(local + 28)
+            guard start + compressedSize <= b.count else { continue }
+            let body = Array(b[start..<(start + compressedSize)])
+            if method == 0 {
+                result[name] = Data(body)
+            } else if method == 8, let inflated = inflate(body, size: size) {
+                result[name] = inflated
+            }
+        }
+        return result
+    }
+
+    static func inflate(_ source: [UInt8], size: Int) -> Data? {
+        guard size > 0 else { return Data() }
+        var destination = [UInt8](repeating: 0, count: size)
+        let written = compression_decode_buffer(&destination, size, source, source.count,
+                                                nil, COMPRESSION_ZLIB)
+        return written > 0 ? Data(destination[0..<written]) : nil
+    }
+
+    static let crcTable: [UInt32] = (0..<256).map { i -> UInt32 in
+        var c = UInt32(i)
+        for _ in 0..<8 { c = (c & 1) != 0 ? 0xEDB88320 ^ (c >> 1) : c >> 1 }
+        return c
+    }
+
+    static func crc32(_ data: Data) -> UInt32 {
+        var c: UInt32 = 0xFFFFFFFF
+        for byte in data { c = crcTable[Int((c ^ UInt32(byte)) & 0xFF)] ^ (c >> 8) }
+        return c ^ 0xFFFFFFFF
+    }
+
+    static func dosDateTime(_ date: Date) -> (UInt16, UInt16) {
+        let c = Calendar(identifier: .gregorian)
+            .dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+        let time = (c.hour ?? 0) << 11 | (c.minute ?? 0) << 5 | (c.second ?? 0) / 2
+        let day = max(0, (c.year ?? 1980) - 1980) << 9 | (c.month ?? 1) << 5 | (c.day ?? 1)
+        return (UInt16(time), UInt16(day))
+    }
+
+    static func le16(_ v: UInt16) -> Data { withUnsafeBytes(of: v.littleEndian) { Data($0) } }
+    static func le32(_ v: UInt32) -> Data { withUnsafeBytes(of: v.littleEndian) { Data($0) } }
 }
 
 // 動作確認用のサンプル（架空の生徒です）
