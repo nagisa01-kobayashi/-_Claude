@@ -195,9 +195,13 @@ enum RosterParser {
             }
     }
 
+    // 「4」「4.0」「４」のどれでも 4 として読む
     static func number(_ s: String) -> Int? {
-        let half = s.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? s
-        return Int(half.trimmingCharacters(in: .whitespaces))
+        let half = (s.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? s)
+            .trimmingCharacters(in: .whitespaces)
+        if let n = Int(half) { return n }
+        if let d = Double(half), d.isFinite { return Int(d.rounded()) }
+        return nil
     }
 
     static func isMarked(_ s: String) -> Bool {
@@ -1553,6 +1557,10 @@ final class SheetParser: NSObject, XMLParserDelegate {
             var text = value
             if cellType == "s", let i = Int(value), i >= 0, i < shared.count { text = shared[i] }
             if cellType == "e" { text = "" }
+            // 数値のセルは「4.0」のように保存されていることがあるので「4」にそろえる
+            if cellType == "" || cellType == "n", let d = Double(text), d.isFinite, d == d.rounded() {
+                text = String(Int(d))
+            }
             text = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !text.isEmpty { cells[rowIndex, default: [:]][col] = text }
         default: break
