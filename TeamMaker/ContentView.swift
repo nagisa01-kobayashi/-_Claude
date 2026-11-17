@@ -27,6 +27,10 @@ struct Student: Identifiable, Codable, Hashable, Sendable {
 
     var tagText: String { sports.map { "#\($0)" }.joined(separator: " ") }
 
+    // 名簿を読み込み直しても同じ生徒だとわかるように「学級-番号-名前」で見分ける
+    var key: String { "\(className)-\(number)-\(name)" }
+    var shortLabel: String { "\(className)-\(number) \(name)" }
+
     // 名簿の並び順（学級 → 番号）
     static func rosterOrder(_ a: Student, _ b: Student) -> Bool {
         if a.className != b.className {
@@ -75,6 +79,18 @@ struct HistoryEntry: Identifiable, Codable, Sendable {
     var memberCount: Int { teams.reduce(0) { $0 + $1.members.count } }
 }
 
+// 2人の組み合わせを表す文字（順番に関係なく同じになる）
+func pairKey(_ a: String, _ b: String) -> String {
+    a < b ? "\(a)|\(b)" : "\(b)|\(a)"
+}
+
+// 一緒のチームにしない2人
+struct Separation: Identifiable, Codable, Sendable {
+    var id = UUID()
+    var a: String   // Student.key
+    var b: String
+}
+
 final class Roster: ObservableObject {
     @Published var students: [Student] = [] {
         didSet { Storage.save(students, to: rosterFile) }
@@ -82,8 +98,12 @@ final class Roster: ObservableObject {
     @Published var history: [HistoryEntry] = [] {
         didSet { Storage.save(history, to: historyFile) }
     }
+    @Published var separations: [Separation] = [] {
+        didSet { Storage.save(separations, to: separationFile) }
+    }
     private let rosterFile = "roster.json"
     private let historyFile = "history.json"
+    private let separationFile = "separations.json"
     private let oldSaveKey = "TeamMaker.students"   // 前の版の保存場所
 
     init() {
@@ -96,6 +116,29 @@ final class Roster: ObservableObject {
             Storage.save(saved, to: rosterFile)
         }
         history = Storage.load([HistoryEntry].self, from: historyFile) ?? []
+        separations = Storage.load([Separation].self, from: separationFile) ?? []
+    }
+
+    var separatedPairs: Set<String> { Set(separations.map { pairKey($0.a, $0.b) }) }
+
+    // 直近 count 回の履歴で同じチームだった組み合わせと、その回数
+    func previousPairs(recent count: Int) -> [String: Int] {
+        var result: [String: Int] = [:]
+        for entry in history.prefix(count) {
+            for team in entry.teams {
+                let keys = team.members.map(\.key)
+                for i in keys.indices {
+                    for j in keys.indices where i < j {
+                        result[pairKey(keys[i], keys[j]), default: 0] += 1
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    func label(for key: String) -> String {
+        students.first { $0.key == key }?.shortLabel ?? key
     }
 
     var classNames: [String] {
@@ -269,15 +312,24 @@ struct Team: Identifiable, Codable, Sendable {
 enum TeamMaker {
     // 考え方：
     // 1. 経験者を先に、次にレベルの高い順に並べる（同じレベルの中はランダム）
-    // 2. 1人ずつ「人数が少ない → 経験者が少ない → 同じ性別が少ない → レベル合計が低い」チームに入れる
-    // これで人数・経験者・男女・レベルがそろいやすくなります。
-    static func make(_ students: [Student], teamCount: Int, spreadSport: String?) -> [Team] {
+    // 2. 1人ずつ「人数が少ない → 一緒にしない相手がいない → 経験者が少ない → 同じ性別が少ない
+    //    → レベル合計が低い」チームに入れる
+    // 3. 最後に、性別・経験・レベルが同じ生徒どうしを入れ替えて、
+    //    「一緒にしない組み合わせ」と「前回も同じチーム」を減らす（バランスはくずれません）
+    static func make(_ students: [Student], teamCount: Int, spreadSport: String?,
+                     separated: Set<String> = [], previous: [String: Int] = [:]) -> [Team] {
         guard !students.isEmpty else { return [] }
         let n = max(1, min(teamCount, students.count))
 
         func isExp(_ s: Student) -> Bool {
             guard let sp = spreadSport else { return false }
             return s.sports.contains(sp)
+        }
+        func conflict(_ a: Student, _ b: Student) -> Int {
+            separated.contains(pairKey(a.key, b.key)) ? 1 : 0
+        }
+        func penalty(_ a: Student, _ b: Student) -> Int {
+            conflict(a, b) * 1000 + (previous[pairKey(a.key, b.key)] ?? 0)
         }
 
         let order = students
@@ -291,11 +343,25 @@ enum TeamMaker {
 
         var groups = Array(repeating: [Student](), count: n)
         for s in order {
+            func score(_ g: [Student]) -> (Int, Int, Int, Int, Int) {
+                (g.count,
+                 g.reduce(0) { $0 + conflict(s, $1) },
+                 isExp(s) ? g.filter(isExp).count : 0,
+                 g.filter { $0.gender == s.gender }.count,
+                 g.reduce(0) { $0 + $1.level })
+            }
             // 同点のときはランダムなチームに入るよう、順番を混ぜてから選ぶ
-            let best = groups.indices.shuffled().min { i, j in
-                score(groups[i], for: s, isExp) < score(groups[j], for: s, isExp)
-            }!
+            let best = groups.indices.shuffled().min { score(groups[$0]) < score(groups[$1]) }!
             groups[best].append(s)
+        }
+
+        if !separated.isEmpty || !previous.isEmpty {
+            // まずはレベルも同じ生徒どうしで入れ替える
+            improve(&groups, tolerance: 0, isExp: isExp, penalty: penalty)
+            // それでも「一緒にしない組み合わせ」が残るときは、レベルの差を少しずつ広げて入れ替える
+            for tolerance in [1, 2, 4] where hasConflict(groups, conflict) {
+                improve(&groups, tolerance: tolerance, isExp: isExp) { conflict($0, $1) }
+            }
         }
 
         return groups.shuffled().enumerated().map { index, members in
@@ -303,13 +369,45 @@ enum TeamMaker {
         }
     }
 
-    private static func score(_ g: [Student], for s: Student,
-                              _ isExp: (Student) -> Bool) -> (Int, Int, Int, Int) {
-        let size = g.count
-        let exp = isExp(s) ? g.filter(isExp).count : 0
-        let sameGender = g.filter { $0.gender == s.gender }.count
-        let level = g.reduce(0) { $0 + $1.level }
-        return (size, exp, sameGender, level)
+    private static func hasConflict(_ groups: [[Student]],
+                                    _ conflict: (Student, Student) -> Int) -> Bool {
+        groups.contains { g in
+            g.indices.contains { i in g.indices.contains { j in i < j && conflict(g[i], g[j]) > 0 } }
+        }
+    }
+
+    private static func improve(_ groups: inout [[Student]], tolerance: Int,
+                                isExp: (Student) -> Bool,
+                                penalty: (Student, Student) -> Int) {
+        // x がグループ g に入ったときのペナルティ（except の生徒は抜けるものとして数えない）
+        func cost(_ x: Student, _ g: [Student], except: UUID) -> Int {
+            g.reduce(0) { $1.id == except || $1.id == x.id ? $0 : $0 + penalty(x, $1) }
+        }
+        var rounds = 0
+        var improved = true
+        while improved && rounds < 30 {
+            improved = false
+            rounds += 1
+            for i in groups.indices {
+                for j in groups.indices where i < j {
+                    for ai in groups[i].indices {
+                        for bi in groups[j].indices {
+                            let a = groups[i][ai]
+                            let b = groups[j][bi]
+                            guard a.gender == b.gender, isExp(a) == isExp(b),
+                                  abs(a.level - b.level) <= tolerance else { continue }
+                            let before = cost(a, groups[i], except: a.id) + cost(b, groups[j], except: b.id)
+                            let after = cost(a, groups[j], except: b.id) + cost(b, groups[i], except: a.id)
+                            if after < before {
+                                groups[i][ai] = b
+                                groups[j][bi] = a
+                                improved = true
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -362,6 +460,8 @@ struct MakeTeamsView: View {
     @State var pdfTitle = ""
     @State var pdfShowLevel = false
     @State var savedEntryID: UUID?   // 今のチームを履歴に保存したか
+    @State var avoidRecent = 0       // 0 ＝ 使わない、1 ＝ 前回、3 ＝ 直近3回
+    @State var usedPrevious: [String: Int] = [:]
 
     // 絞り込んだ対象の生徒（参加がオンの人だけ）
     var targets: [Student] {
@@ -416,11 +516,15 @@ struct MakeTeamsView: View {
 
                     if !teams.isEmpty {
                         sendSection
+                        checkSection
                     }
 
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 12)], spacing: 12) {
                         ForEach(teams) { team in
-                            TeamCard(team: team, sport: usedSport)
+                            TeamCard(team: team, sport: usedSport,
+                                     warnKeys: conflictKeys, repeatKeys: repeatKeys,
+                                     teamCount: teams.count,
+                                     onMove: { id, to in move(studentID: id, to: to) })
                         }
                     }
                 }
@@ -473,6 +577,32 @@ struct MakeTeamsView: View {
             }
             .pickerStyle(.menu)
 
+            Text("④ 前回と同じチームだった人を離す").font(.headline)
+            Picker("前回のチーム", selection: $avoidRecent) {
+                Text("使わない").tag(0)
+                Text("前回の1回").tag(1)
+                Text("直近の3回").tag(3)
+            }
+            .pickerStyle(.segmented)
+            .disabled(roster.history.isEmpty)
+            Text(roster.history.isEmpty
+                 ? "「履歴に保存」したチームがあると使えます。"
+                 : "「履歴に保存」したチームの中で、同じチームだった人どうしをなるべく別のチームにします。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text("⑤ 一緒にしない組み合わせ").font(.headline)
+            NavigationLink {
+                SeparationView()
+            } label: {
+                HStack {
+                    Label(roster.separations.isEmpty ? "設定する"
+                          : "\(roster.separations.count)組 設定中", systemImage: "person.2.slash")
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                }
+            }
+
             Text(summary)
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -483,7 +613,10 @@ struct MakeTeamsView: View {
 
     func makeTeams() {
         let sport = spreadSport.isEmpty ? nil : spreadSport
-        teams = TeamMaker.make(targets, teamCount: plannedTeamCount, spreadSport: sport)
+        let previous = avoidRecent > 0 ? roster.previousPairs(recent: avoidRecent) : [:]
+        teams = TeamMaker.make(targets, teamCount: plannedTeamCount, spreadSport: sport,
+                               separated: roster.separatedPairs, previous: previous)
+        usedPrevious = previous
         savedEntryID = nil
         usedSport = spreadSport
 
@@ -506,6 +639,75 @@ struct MakeTeamsView: View {
                  showLevel: pdfShowLevel)
     }
 
+    // 同じチームに入ってしまった「一緒にしない組み合わせ」
+    var conflictPairs: [(Student, Student, Int)] {
+        let separated = roster.separatedPairs
+        var result: [(Student, Student, Int)] = []
+        for team in teams {
+            let m = team.members
+            for i in m.indices {
+                for j in m.indices where i < j && separated.contains(pairKey(m[i].key, m[j].key)) {
+                    result.append((m[i], m[j], team.number))
+                }
+            }
+        }
+        return result
+    }
+    var conflictKeys: Set<String> { Set(conflictPairs.flatMap { [$0.0.key, $0.1.key] }) }
+
+    // 前回（または直近）も同じチームだった組み合わせ
+    var repeatPairs: [(Student, Student)] {
+        guard !usedPrevious.isEmpty else { return [] }
+        var result: [(Student, Student)] = []
+        for team in teams {
+            let m = team.members
+            for i in m.indices {
+                for j in m.indices where i < j && usedPrevious[pairKey(m[i].key, m[j].key)] != nil {
+                    result.append((m[i], m[j]))
+                }
+            }
+        }
+        return result
+    }
+    var repeatKeys: Set<String> { Set(repeatPairs.flatMap { [$0.0.key, $0.1.key] }) }
+
+    var checkSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(conflictPairs.indices, id: \.self) { i in
+                let p = conflictPairs[i]
+                Label("\(p.0.name) と \(p.1.name) が同じチーム\(p.2)に入っています（一緒にしない組み合わせ）",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+            }
+            if !usedPrevious.isEmpty {
+                if repeatPairs.isEmpty {
+                    Label("前回と同じチームだった組み合わせはありません。", systemImage: "checkmark.circle")
+                        .foregroundStyle(.green)
+                } else {
+                    Label("前回も同じチームだった組み合わせ：\(repeatPairs.count)組（↺ の生徒）",
+                          systemImage: "arrow.triangle.2.circlepath")
+                        .foregroundStyle(.orange)
+                }
+            }
+            Text("生徒を長押しして別のチームへドラッグするか、長押しのメニューから移せます。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .font(.callout)
+    }
+
+    // 生徒を別のチームへ移す（手で調整）
+    func move(studentID: UUID, to number: Int) {
+        guard let from = teams.firstIndex(where: { $0.members.contains { $0.id == studentID } }),
+              let to = teams.firstIndex(where: { $0.number == number }),
+              from != to,
+              let k = teams[from].members.firstIndex(where: { $0.id == studentID }) else { return }
+        let student = teams[from].members.remove(at: k)
+        teams[to].members.append(student)
+        teams[to].members.sort(by: Student.rosterOrder)
+        savedEntryID = nil   // 変えたので、もう一度保存できるようにする
+    }
+
     var sendSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("④ 保存する・生徒に送る").font(.headline)
@@ -526,7 +728,7 @@ struct MakeTeamsView: View {
                 .disabled(savedEntryID != nil)
 
                 FileShareLink(title: "PDFにして送る", systemImage: "square.and.arrow.up", wide: true,
-                              key: "\(pdfItem.title)|\(pdfShowLevel)|\(teams.map { $0.id.uuidString }.joined())") {
+                              key: "\(pdfItem.title)|\(pdfShowLevel)|\(teams.map { t in t.members.map(\.key).joined(separator: ",") }.joined(separator: "/"))") {
                     try PDFMaker.makeFile(pdfItem)
                 }
                 .buttonStyle(.bordered)
@@ -894,6 +1096,12 @@ let teamColors: [Color] = [.red, .blue, .green, .orange, .purple, .pink,
 struct TeamCard: View {
     let team: Team
     let sport: String
+    var warnKeys: Set<String> = []          // 一緒にしない組み合わせに当たっている生徒
+    var repeatKeys: Set<String> = []        // 前回も同じチームだった生徒
+    var teamCount = 0
+    var onMove: ((UUID, Int) -> Void)? = nil  // 手で移すとき（履歴の画面では使わない）
+
+    @State var isTargeted = false
 
     var color: Color { teamColors[(team.number - 1) % teamColors.count] }
 
@@ -911,26 +1119,124 @@ struct TeamCard: View {
             }
             Divider()
             ForEach(team.members) { m in
-                HStack(spacing: 6) {
-                    Text("\(m.className)-\(m.number)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(m.name)
-                    if !sport.isEmpty && m.sports.contains(sport) {
-                        Image(systemName: "star.fill")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
-                    Spacer()
-                    Text(m.gender.rawValue).foregroundStyle(genderColor(m.gender))
-                    LevelBadge(level: m.level)
-                }
+                memberRow(m)
             }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 12).fill(color.opacity(0.1)))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(color, lineWidth: 2))
+        .background(RoundedRectangle(cornerRadius: 12).fill(color.opacity(isTargeted ? 0.3 : 0.1)))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(color, lineWidth: isTargeted ? 4 : 2))
+        .dropDestination(for: String.self) { items, _ in
+            guard let onMove = onMove, let text = items.first, let id = UUID(uuidString: text) else { return false }
+            onMove(id, team.number)
+            return true
+        } isTargeted: { isTargeted = $0 && onMove != nil }
+    }
+
+    @ViewBuilder
+    func memberRow(_ m: Student) -> some View {
+        let row = HStack(spacing: 6) {
+            Text("\(m.className)-\(m.number)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(m.name)
+            if !sport.isEmpty && m.sports.contains(sport) {
+                Image(systemName: "star.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+            if warnKeys.contains(m.key) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+            if repeatKeys.contains(m.key) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+            Spacer()
+            Text(m.gender.rawValue).foregroundStyle(genderColor(m.gender))
+            LevelBadge(level: m.level)
+        }
+        .contentShape(Rectangle())
+
+        if let onMove = onMove {
+            row
+                .draggable(m.id.uuidString) {
+                    Text(m.name)
+                        .padding(8)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(color.opacity(0.3)))
+                }
+                .contextMenu {
+                    ForEach(1...max(1, teamCount), id: \.self) { n in
+                        if n != team.number {
+                            Button("チーム \(n) へ移す") { onMove(m.id, n) }
+                        }
+                    }
+                }
+        } else {
+            row
+        }
+    }
+}
+
+// MARK: - 一緒にしない組み合わせの設定
+
+struct SeparationView: View {
+    @EnvironmentObject var roster: Roster
+    @State var first = ""
+    @State var second = ""
+
+    var alreadyAdded: Bool {
+        roster.separatedPairs.contains(pairKey(first, second))
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("1人目", selection: $first) {
+                    Text("選んでください").tag("")
+                    ForEach(roster.students) { Text($0.shortLabel).tag($0.key) }
+                }
+                .pickerStyle(.navigationLink)
+                Picker("2人目", selection: $second) {
+                    Text("選んでください").tag("")
+                    ForEach(roster.students) { Text($0.shortLabel).tag($0.key) }
+                }
+                .pickerStyle(.navigationLink)
+                Button {
+                    roster.separations.append(Separation(a: first, b: second))
+                    first = ""
+                    second = ""
+                } label: {
+                    Label("この2人を別のチームにする", systemImage: "plus.circle.fill")
+                }
+                .disabled(first.isEmpty || second.isEmpty || first == second || alreadyAdded)
+                if alreadyAdded {
+                    Text("この組み合わせは、もう登録されています。").font(.caption).foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("組み合わせを追加")
+            } footer: {
+                Text("登録した2人は、チーム分けのときに別々のチームになるようにします。人数やレベルの都合でどうしても同じチームになるときは、結果の画面に赤い ⚠ で知らせます。")
+            }
+
+            Section("登録している組み合わせ") {
+                if roster.separations.isEmpty {
+                    Text("まだありません。").foregroundStyle(.secondary)
+                }
+                ForEach(roster.separations) { sep in
+                    HStack {
+                        Text(roster.label(for: sep.a))
+                        Image(systemName: "arrow.left.and.right").foregroundStyle(.red)
+                        Text(roster.label(for: sep.b))
+                    }
+                }
+                .onDelete { roster.separations.remove(atOffsets: $0) }
+            }
+        }
+        .navigationTitle("一緒にしない組み合わせ")
     }
 }
 
