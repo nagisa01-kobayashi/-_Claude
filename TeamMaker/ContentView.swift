@@ -491,7 +491,7 @@ struct MakeTeamsView: View {
         let classes = selectedClasses.isEmpty ? "全学級"
             : selectedClasses.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
                 .joined(separator: "・")
-        var parts = [Date().formatted(date: .long, time: .omitted),
+        var parts = [jpDate(Date(), time: false),
                      "\(classes)／\(genderFilter.rawValue)",
                      "\(teams.count)チーム"]
         if !spreadSport.isEmpty { parts.append("★＝#\(spreadSport) 経験者") }
@@ -525,12 +525,9 @@ struct MakeTeamsView: View {
                 .buttonStyle(.bordered)
                 .disabled(savedEntryID != nil)
 
-                ShareLink(item: pdfItem,
-                          preview: SharePreview(pdfItem.title, image: Image(systemName: "doc.richtext"))) {
-                    Label("PDFにして送る", systemImage: "square.and.arrow.up")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
+                FileShareLink(title: "PDFにして送る", systemImage: "square.and.arrow.up", wide: true,
+                              key: "\(pdfItem.title)|\(pdfShowLevel)|\(teams.map { $0.id.uuidString }.joined())") {
+                    try PDFMaker.makeFile(pdfItem)
                 }
                 .buttonStyle(.bordered)
             }
@@ -559,13 +556,13 @@ struct HistoryView: View {
                     Text("まだ履歴がありません。チームを分けたあと「履歴に保存」を押すと、ここに残ります。")
                         .foregroundStyle(.secondary)
                 }
-                ForEach($roster.history) { $entry in
+                ForEach(roster.history) { entry in
                     NavigationLink {
-                        HistoryDetailView(entry: $entry)
+                        HistoryDetailView(entryID: entry.id)
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(entry.title).font(.headline)
-                            Text(entry.date.formatted(date: .long, time: .shortened))
+                            Text(jpDate(entry.date, time: true))
                                 .font(.caption)
                             Text("\(entry.teams.count)チーム・\(entry.memberCount)人　\(entry.subtitle)")
                                 .font(.caption)
@@ -587,33 +584,54 @@ struct HistoryView: View {
 }
 
 struct HistoryDetailView: View {
-    @Binding var entry: HistoryEntry
+    @EnvironmentObject var roster: Roster
+    let entryID: UUID
     @State var showLevel = false
+    @State var titleDraft = ""
+    @FocusState var titleFocused: Bool
 
-    var pdfItem: TeamsPDF {
-        TeamsPDF(title: entry.title, subtitle: entry.subtitle, teams: entry.teams,
-                 sport: entry.sport, showLevel: showLevel)
-    }
+    var entry: HistoryEntry? { roster.history.first { $0.id == entryID } }
 
     var body: some View {
-        ScrollView {
+        if let entry = entry {
+            content(entry)
+        } else {
+            Text("この履歴は削除されました。").foregroundStyle(.secondary)
+        }
+    }
+
+    func content(_ entry: HistoryEntry) -> some View {
+        let pdf = TeamsPDF(title: entry.title, subtitle: entry.subtitle, teams: entry.teams,
+                           sport: entry.sport, showLevel: showLevel)
+        return ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 10) {
-                    TextField("タイトル", text: $entry.title)
-                        .font(.title2.bold())
-                        .textFieldStyle(.roundedBorder)
-                    Text("保存した日時：\(entry.date.formatted(date: .long, time: .shortened))")
+                    // 入力中は保存せず、「完了」や「タイトルを保存」を押したときに保存する
+                    // （1文字ごとに保存すると、日本語の変換中に入力が途切れるため）
+                    HStack {
+                        TextField("タイトル", text: $titleDraft)
+                            .font(.title2.bold())
+                            .textFieldStyle(.roundedBorder)
+                            .focused($titleFocused)
+                            .submitLabel(.done)
+                            .onSubmit { saveTitle() }
+                        if titleDraft != entry.title {
+                            Button("タイトルを保存") {
+                                saveTitle()
+                                titleFocused = false
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    }
+                    Text("保存した日時：\(jpDate(entry.date, time: true))")
                         .font(.callout)
                     Text(entry.subtitle)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                     Toggle("技能レベルも載せる（生徒に送るときはオフがおすすめ）", isOn: $showLevel)
-                    ShareLink(item: pdfItem,
-                              preview: SharePreview(pdfItem.title, image: Image(systemName: "doc.richtext"))) {
-                        Label("このチームをPDFにして送る", systemImage: "square.and.arrow.up")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
+                    FileShareLink(title: "このチームをPDFにして送る", systemImage: "square.and.arrow.up",
+                                  wide: true, key: "\(entry.title)|\(showLevel)") {
+                        try PDFMaker.makeFile(pdf)
                     }
                     .buttonStyle(.bordered)
                 }
@@ -630,12 +648,79 @@ struct HistoryDetailView: View {
         }
         .navigationTitle(entry.title)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { titleDraft = entry.title }
+        .onDisappear { saveTitle() }
     }
+
+    func saveTitle() {
+        let title = titleDraft.trimmingCharacters(in: .whitespaces)
+        guard !title.isEmpty,
+              let i = roster.history.firstIndex(where: { $0.id == entryID }),
+              roster.history[i].title != title else { return }
+        roster.history[i].title = title
+    }
+}
+
+// 日付を「2026年11月17日(火) 9:13」の形にする
+func jpDate(_ date: Date, time: Bool) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "ja_JP")
+    formatter.dateFormat = time ? "yyyy年M月d日(E) H:mm" : "yyyy年M月d日(E)"
+    return formatter.string(from: date)
+}
+
+// 先にファイルを作っておき、共有ボタンではそのファイルを渡す
+// （共有先のアプリがファイルを確実に受け取れるようにするため）
+struct FileShareLink<Key: Equatable>: View {
+    let title: String
+    let systemImage: String
+    var wide = false
+    let key: Key                                  // これが変わったらファイルを作り直す
+    let makeFile: @MainActor () throws -> URL
+    @State var url: URL?
+    @State var failed = false
+
+    var body: some View {
+        Group {
+            if let url = url {
+                ShareLink(item: url) { label(title) }
+            } else {
+                label(failed ? "ファイルを作れませんでした" : "準備中…")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .task(id: key) { await refresh() }
+    }
+
+    func label(_ text: String) -> some View {
+        Label(text, systemImage: systemImage)
+            .font(wide ? .headline : .body)
+            .frame(maxWidth: wide ? .infinity : nil)
+            .padding(.vertical, wide ? 6 : 0)
+    }
+
+    @MainActor func refresh() {
+        do {
+            url = try makeFile()
+            failed = false
+        } catch {
+            url = nil
+            failed = true
+        }
+    }
+}
+
+// ファイルごとに別のフォルダを作って、ほかの画面が作ったファイルと混ざらないようにする
+func newExportURL(_ fileName: String) throws -> URL {
+    let folder = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    return folder.appendingPathComponent(fileName)
 }
 
 // MARK: - PDF にして送る
 
-struct TeamsPDF: Transferable, Sendable {
+struct TeamsPDF: Sendable {
     let title: String
     let subtitle: String
     let teams: [Team]
@@ -650,13 +735,6 @@ struct TeamsPDF: Transferable, Sendable {
         formatter.dateFormat = "yyyyMMdd"
         return "\(safeTitle)_\(formatter.string(from: Date())).pdf"
     }
-
-    // 共有ボタンを押したときに、その場で最新のチームから PDF を作ります
-    static var transferRepresentation: some TransferRepresentation {
-        FileRepresentation(exportedContentType: .pdf) { pdf in
-            SentTransferredFile(try await PDFMaker.makeFile(pdf))
-        }
-    }
 }
 
 @MainActor
@@ -667,8 +745,7 @@ enum PDFMaker {
     enum PDFError: Error { case cannotCreate }
 
     static func makeFile(_ pdf: TeamsPDF) throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(pdf.fileName)
-        try? FileManager.default.removeItem(at: url)
+        let url = try newExportURL(pdf.fileName)
 
         var box = CGRect(origin: .zero, size: pageSize)
         guard let context = CGContext(url as CFURL, mediaBox: &box, nil) else {
@@ -1086,16 +1163,15 @@ struct ImportView: View {
                     """)
                     .font(.callout)
 
-                    ShareLink(item: RosterSheet(students: [], sports: templateSports,
-                                                fileName: "名簿入力用.xlsx"),
-                              preview: SharePreview("名簿入力用.xlsx", image: Image(systemName: "tablecells"))) {
-                        Label("入力用の Excel ファイルを書き出す", systemImage: "square.and.arrow.up")
+                    FileShareLink(title: "入力用の Excel ファイルを書き出す",
+                                  systemImage: "square.and.arrow.up", key: templateSports) {
+                        try writeRosterFile(students: [], sports: templateSports, fileName: "名簿入力用.xlsx")
                     }
                     if !roster.students.isEmpty {
-                        ShareLink(item: RosterSheet(students: roster.students, sports: templateSports,
-                                                    fileName: "名簿（\(todayStamp())）.xlsx"),
-                                  preview: SharePreview("今の名簿.xlsx", image: Image(systemName: "tablecells"))) {
-                            Label("今の名簿を Excel に書き出す（直したいとき）", systemImage: "square.and.arrow.up")
+                        FileShareLink(title: "今の名簿を Excel に書き出す（直したいとき）",
+                                      systemImage: "square.and.arrow.up", key: roster.students) {
+                            try writeRosterFile(students: roster.students, sports: templateSports,
+                                                fileName: "名簿（\(todayStamp())）.xlsx")
                         }
                     }
                     Button {
@@ -1230,22 +1306,12 @@ extension UTType {
     static var xlsx: UTType { UTType("org.openxmlformats.spreadsheetml.sheet") ?? .data }
 }
 
-// 共有ボタンから書き出す名簿の Excel ファイル（students が空なら入力用テンプレート）
-struct RosterSheet: Transferable, Sendable {
-    let students: [Student]
-    let sports: [String]
-    let fileName: String
-
-    static var transferRepresentation: some TransferRepresentation {
-        FileRepresentation(exportedContentType: .xlsx) { sheet in
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent(sheet.fileName)
-            try? FileManager.default.removeItem(at: url)
-            let data = XLSXWriter.roster(students: sheet.students.sorted(by: Student.rosterOrder),
-                                         sports: sheet.sports)
-            try data.write(to: url, options: .atomic)
-            return SentTransferredFile(url)
-        }
-    }
+// 名簿の Excel ファイルを作る（students が空なら入力用テンプレート）
+func writeRosterFile(students: [Student], sports: [String], fileName: String) throws -> URL {
+    let url = try newExportURL(fileName)
+    let data = XLSXWriter.roster(students: students.sorted(by: Student.rosterOrder), sports: sports)
+    try data.write(to: url, options: .atomic)
+    return url
 }
 
 enum XLSXWriter {
