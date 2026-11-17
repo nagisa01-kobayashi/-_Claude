@@ -200,7 +200,7 @@ enum RosterParser {
         let half = (s.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? s)
             .trimmingCharacters(in: .whitespaces)
         if let n = Int(half) { return n }
-        if let d = Double(half), d.isFinite { return Int(d.rounded()) }
+        if let d = Double(half), abs(d) < 1e15 { return Int(d.rounded()) }
         return nil
     }
 
@@ -1558,7 +1558,7 @@ final class SheetParser: NSObject, XMLParserDelegate {
             if cellType == "s", let i = Int(value), i >= 0, i < shared.count { text = shared[i] }
             if cellType == "e" { text = "" }
             // 数値のセルは「4.0」のように保存されていることがあるので「4」にそろえる
-            if cellType == "" || cellType == "n", let d = Double(text), d.isFinite, d == d.rounded() {
+            if cellType == "" || cellType == "n", let d = Double(text), abs(d) < 1e15, d == d.rounded() {
                 text = String(Int(d))
             }
             text = text.trimmingCharacters(in: .whitespacesAndNewlines)
