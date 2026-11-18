@@ -307,106 +307,262 @@ struct Team: Identifiable, Codable, Sendable {
     }
     func count(_ g: Gender) -> Int { members.filter { $0.gender == g }.count }
     func experienced(_ sport: String) -> Int { members.filter { $0.sports.contains(sport) }.count }
+
+    // 「2-1：5人　2-3：5人」のようなクラスの内訳
+    var classKinds: Int { Set(members.map(\.className)).count }
+    var classBreakdown: String {
+        let counts = Dictionary(grouping: members, by: \.className).mapValues(\.count)
+        return counts.keys
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+            .map { "\($0)：\(counts[$0] ?? 0)人" }
+            .joined(separator: "　")
+    }
+}
+
+// そろえる項目（並べた順に優先する）
+enum Criterion: String, CaseIterable, Identifiable {
+    case classBalance, level, gender, experience, previous
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .classBalance: return "クラスの人数をそろえる"
+        case .level: return "レベルをそろえる"
+        case .gender: return "男女の人数をそろえる"
+        case .experience: return "経験者を散らす"
+        case .previous: return "前回と同じチームを避ける"
+        }
+    }
+
+    static let defaultOrder: [Criterion] = [.classBalance, .level, .gender, .experience, .previous]
+
+    static func decode(_ text: String) -> [Criterion] {
+        var list: [Criterion] = []
+        for part in text.split(separator: ",") {
+            if let c = Criterion(rawValue: String(part)), !list.contains(c) { list.append(c) }
+        }
+        for c in defaultOrder where !list.contains(c) { list.append(c) }
+        return list
+    }
+
+    static func encode(_ list: [Criterion]) -> String {
+        list.map(\.rawValue).joined(separator: ",")
+    }
 }
 
 enum TeamMaker {
     // 考え方：
-    // 1. 経験者を先に、次にレベルの高い順に並べる（同じレベルの中はランダム）
-    // 2. 1人ずつ「人数が少ない → 一緒にしない相手がいない → 経験者が少ない → 同じ性別が少ない
-    //    → レベル合計が低い」チームに入れる
-    // 3. 最後に、性別・経験・レベルが同じ生徒どうしを入れ替えて、
-    //    「一緒にしない組み合わせ」と「前回も同じチーム」を減らす（バランスはくずれません）
+    // ・チームの人数はいつもそろえる。「一緒にしない組み合わせ」はいつも最優先。
+    // ・そのほかは priorities の順に重みをつけた「ばらつきの点数」を計算する
+    //   （1番目 16倍、2番目 8倍、3番目 4倍…。上の項目ほど重く、下の項目も少しは効く）。
+    // ・1人ずつ点数がいちばん小さくなるチームに入れたあと、
+    //   2人を入れ替えて点数が下がるなら入れ替える、をくり返す。
+    // ・これを最初の並びを変えて6回行い、いちばん点数の小さい分け方を使う。
     static func make(_ students: [Student], teamCount: Int, spreadSport: String?,
-                     separated: Set<String> = [], previous: [String: Int] = [:]) -> [Team] {
+                     separated: Set<String> = [], previous: [String: Int] = [:],
+                     priorities: [Criterion] = Criterion.defaultOrder) -> [Team] {
         guard !students.isEmpty else { return [] }
-        let n = max(1, min(teamCount, students.count))
+        let n = students.count
+        let k = max(1, min(teamCount, n))
 
-        func isExp(_ s: Student) -> Bool {
-            guard let sp = spreadSport else { return false }
-            return s.sports.contains(sp)
+        // 優先順位ごとの重み
+        let rankWeights: [Double] = [16, 8, 4, 2, 1]
+        var weight: [Criterion: Double] = [:]
+        for (rank, c) in priorities.enumerated() {
+            weight[c] = rankWeights[min(rank, rankWeights.count - 1)]
         }
-        func conflict(_ a: Student, _ b: Student) -> Int {
-            separated.contains(pairKey(a.key, b.key)) ? 1 : 0
-        }
-        func penalty(_ a: Student, _ b: Student) -> Int {
-            conflict(a, b) * 1000 + (previous[pairKey(a.key, b.key)] ?? 0)
-        }
+        let wClass = weight[.classBalance] ?? 0
+        let wLevel = weight[.level] ?? 0
+        let wGender = weight[.gender] ?? 0
+        let wExp = weight[.experience] ?? 0
+        let wPrev = weight[.previous] ?? 0
 
-        let order = students
-            .map { ($0, Double.random(in: 0..<1)) }
-            .sorted { a, b in
-                if isExp(a.0) != isExp(b.0) { return isExp(a.0) }
-                if a.0.level != b.0.level { return a.0.level > b.0.level }
-                return a.1 < b.1
-            }
-            .map { $0.0 }
+        // 生徒ごとの情報を番号で持つ
+        let classNames = Array(Set(students.map(\.className))).sorted()
+        let classCountTotal = classNames.count
+        let classOf = students.map { s in classNames.firstIndex(of: s.className) ?? 0 }
+        let levelOf = students.map(\.level)
+        let maleOf = students.map { $0.gender == .male }
+        let femaleOf = students.map { $0.gender == .female }
+        let expOf = students.map { s in spreadSport.map { s.sports.contains($0) } ?? false }
+        let meanLevel = Double(levelOf.reduce(0, +)) / Double(n)
 
-        var groups = Array(repeating: [Student](), count: n)
-        for s in order {
-            func score(_ g: [Student]) -> (Int, Int, Int, Int, Int) {
-                (g.count,
-                 g.reduce(0) { $0 + conflict(s, $1) },
-                 isExp(s) ? g.filter(isExp).count : 0,
-                 g.filter { $0.gender == s.gender }.count,
-                 g.reduce(0) { $0 + $1.level })
-            }
-            // 同点のときはランダムなチームに入るよう、順番を混ぜてから選ぶ
-            let best = groups.indices.shuffled().min { score(groups[$0]) < score(groups[$1]) }!
-            groups[best].append(s)
-        }
-
+        var conf = Array(repeating: Array(repeating: false, count: n), count: n)
+        var prev = Array(repeating: Array(repeating: 0, count: n), count: n)
         if !separated.isEmpty || !previous.isEmpty {
-            // まずはレベルも同じ生徒どうしで入れ替える
-            improve(&groups, tolerance: 0, isExp: isExp, penalty: penalty)
-            // それでも「一緒にしない組み合わせ」が残るときは、レベルの差を少しずつ広げて入れ替える
-            for tolerance in [1, 2, 4] where hasConflict(groups, conflict) {
-                improve(&groups, tolerance: tolerance, isExp: isExp) { conflict($0, $1) }
+            let keys = students.map(\.key)
+            for a in 0..<n {
+                for b in (a + 1)..<n {
+                    let pk = pairKey(keys[a], keys[b])
+                    if separated.contains(pk) { conf[a][b] = true; conf[b][a] = true }
+                    if let count = previous[pk] { prev[a][b] = count; prev[b][a] = count }
+                }
             }
         }
 
-        return groups.shuffled().enumerated().map { index, members in
-            Team(number: index + 1, members: members.sorted(by: Student.rosterOrder))
-        }
-    }
+        // チームごとの集計（runOnce の最初でリセットする）
+        var members: [[Int]] = []
+        var size: [Int] = []
+        var levelSum: [Int] = []
+        var male: [Int] = []
+        var female: [Int] = []
+        var exp: [Int] = []
+        var classCount: [[Int]] = []
+        var conflicts = 0
+        var repeats = 0
 
-    private static func hasConflict(_ groups: [[Student]],
-                                    _ conflict: (Student, Student) -> Int) -> Bool {
-        groups.contains { g in
-            g.indices.contains { i in g.indices.contains { j in i < j && conflict(g[i], g[j]) > 0 } }
+        func spread(_ value: (Int) -> Double) -> Double {
+            var lo = Double.infinity
+            var hi = -Double.infinity
+            for t in 0..<k {
+                let v = value(t)
+                if v < lo { lo = v }
+                if v > hi { hi = v }
+            }
+            return hi - lo
         }
-    }
 
-    private static func improve(_ groups: inout [[Student]], tolerance: Int,
-                                isExp: (Student) -> Bool,
-                                penalty: (Student, Student) -> Int) {
-        // x がグループ g に入ったときのペナルティ（except の生徒は抜けるものとして数えない）
-        func cost(_ x: Student, _ g: [Student], except: UUID) -> Int {
-            g.reduce(0) { $1.id == except || $1.id == x.id ? $0 : $0 + penalty(x, $1) }
+        func cost() -> Double {
+            var c = Double(conflicts) * 1_000_000
+            if wClass > 0 {
+                for ci in 0..<classCountTotal { c += wClass * spread { Double(classCount[$0][ci]) } }
+            }
+            if wLevel > 0 {
+                c += wLevel * spread { Double(levelSum[$0]) - meanLevel * Double(size[$0]) }
+            }
+            if wGender > 0 {
+                c += wGender * (spread { Double(male[$0]) } + spread { Double(female[$0]) })
+            }
+            if wExp > 0 { c += wExp * spread { Double(exp[$0]) } }
+            if wPrev > 0 { c += wPrev * Double(repeats) }
+            return c
         }
-        var rounds = 0
-        var improved = true
-        while improved && rounds < 30 {
-            improved = false
-            rounds += 1
-            for i in groups.indices {
-                for j in groups.indices where i < j {
-                    for ai in groups[i].indices {
-                        for bi in groups[j].indices {
-                            let a = groups[i][ai]
-                            let b = groups[j][bi]
-                            guard a.gender == b.gender, isExp(a) == isExp(b),
-                                  abs(a.level - b.level) <= tolerance else { continue }
-                            let before = cost(a, groups[i], except: a.id) + cost(b, groups[j], except: b.id)
-                            let after = cost(a, groups[j], except: b.id) + cost(b, groups[i], except: a.id)
-                            if after < before {
-                                groups[i][ai] = b
-                                groups[j][bi] = a
-                                improved = true
+
+        // 生徒 i とチーム t のほかのメンバーとの「一緒にしない」「前回も同じ」の数
+        func pairSums(_ i: Int, _ t: Int) -> (Int, Int) {
+            var c = 0
+            var p = 0
+            for j in members[t] where j != i {
+                if conf[i][j] { c += 1 }
+                p += prev[i][j]
+            }
+            return (c, p)
+        }
+
+        func changeStats(_ i: Int, _ t: Int, _ d: Int) {
+            size[t] += d
+            levelSum[t] += levelOf[i] * d
+            if maleOf[i] { male[t] += d }
+            if femaleOf[i] { female[t] += d }
+            if expOf[i] { exp[t] += d }
+            classCount[t][classOf[i]] += d
+        }
+
+        func add(_ i: Int, _ t: Int) {
+            let (c, p) = pairSums(i, t)
+            conflicts += c
+            repeats += p
+            members[t].append(i)
+            changeStats(i, t, 1)
+        }
+
+        func removeLast(_ t: Int) {
+            let i = members[t].removeLast()
+            let (c, p) = pairSums(i, t)
+            conflicts -= c
+            repeats -= p
+            changeStats(i, t, -1)
+        }
+
+        // チーム ta の ia 番目と、チーム tb の ib 番目を入れ替える（もう一度呼ぶと元に戻る）
+        func swapAt(_ ta: Int, _ ia: Int, _ tb: Int, _ ib: Int) {
+            let a = members[ta][ia]
+            let b = members[tb][ib]
+            let (ca1, pa1) = pairSums(a, ta)
+            let (cb1, pb1) = pairSums(b, tb)
+            members[ta][ia] = b
+            members[tb][ib] = a
+            let (ca2, pa2) = pairSums(a, tb)
+            let (cb2, pb2) = pairSums(b, ta)
+            conflicts += ca2 + cb2 - ca1 - cb1
+            repeats += pa2 + pb2 - pa1 - pb1
+            changeStats(a, ta, -1); changeStats(b, ta, 1)
+            changeStats(b, tb, -1); changeStats(a, tb, 1)
+        }
+
+        func runOnce() -> (Double, [[Int]]) {
+            members = Array(repeating: [Int](), count: k)
+            size = Array(repeating: 0, count: k)
+            levelSum = Array(repeating: 0, count: k)
+            male = Array(repeating: 0, count: k)
+            female = Array(repeating: 0, count: k)
+            exp = Array(repeating: 0, count: k)
+            classCount = Array(repeating: Array(repeating: 0, count: classCountTotal), count: k)
+            conflicts = 0
+            repeats = 0
+
+            // 1. 経験者 → レベルの高い順（同じならランダム）に、1人ずつ点数が小さくなるチームへ
+            let order = (0..<n)
+                .map { ($0, Double.random(in: 0..<1)) }
+                .sorted { a, b in
+                    if expOf[a.0] != expOf[b.0] { return expOf[a.0] }
+                    if levelOf[a.0] != levelOf[b.0] { return levelOf[a.0] > levelOf[b.0] }
+                    return a.1 < b.1
+                }
+                .map { $0.0 }
+            for i in order {
+                let minSize = size.min() ?? 0
+                var best = 0
+                var bestCost = Double.infinity
+                for t in (0..<k).shuffled() where size[t] == minSize {
+                    add(i, t)
+                    let c = cost()
+                    removeLast(t)
+                    if c < bestCost {
+                        bestCost = c
+                        best = t
+                    }
+                }
+                add(i, best)
+            }
+
+            // 2. 2人を入れ替えて点数が下がるなら入れ替える（人数は変わらない）
+            var current = cost()
+            var improved = true
+            var passes = 0
+            while improved && passes < 30 {
+                improved = false
+                passes += 1
+                for ta in 0..<k {
+                    for tb in (ta + 1)..<k {
+                        for ia in members[ta].indices {
+                            for ib in members[tb].indices {
+                                swapAt(ta, ia, tb, ib)
+                                let c = cost()
+                                if c < current - 1e-9 {
+                                    current = c
+                                    improved = true
+                                } else {
+                                    swapAt(ta, ia, tb, ib)   // 元に戻す
+                                }
                             }
                         }
                     }
                 }
             }
+
+            return (current, members)
+        }
+
+        // 6回やって、いちばん点数の小さい分け方を使う
+        var bestRun = runOnce()
+        for _ in 1..<6 {
+            let run = runOnce()
+            if run.0 < bestRun.0 { bestRun = run }
+        }
+
+        return bestRun.1.shuffled().enumerated().map { index, list in
+            Team(number: index + 1, members: list.map { students[$0] }.sorted(by: Student.rosterOrder))
         }
     }
 }
@@ -462,6 +618,41 @@ struct MakeTeamsView: View {
     @State var savedEntryID: UUID?   // 今のチームを履歴に保存したか
     @State var avoidRecent = 0       // 0 ＝ 使わない、1 ＝ 前回、3 ＝ 直近3回
     @State var usedPrevious: [String: Int] = [:]
+    @AppStorage("teamMaker.balanceClass") var balanceClass = true
+    @AppStorage("teamMaker.priorityOrder") var priorityText = Criterion.encode(Criterion.defaultOrder)
+
+    var priorityOrder: [Criterion] { Criterion.decode(priorityText) }
+
+    var multipleClassesTargeted: Bool { Set(targets.map(\.className)).count > 1 }
+
+    // 今の設定で、その項目を使うかどうか
+    func isActive(_ c: Criterion) -> Bool {
+        switch c {
+        case .classBalance: return balanceClass && multipleClassesTargeted
+        case .level: return true
+        case .gender: return genderFilter == .all
+        case .experience: return !spreadSport.isEmpty
+        case .previous: return avoidRecent > 0 && !roster.history.isEmpty
+        }
+    }
+
+    func inactiveReason(_ c: Criterion) -> String {
+        switch c {
+        case .classBalance: return balanceClass ? "（1クラスだけのときは使いません）" : "（オフ）"
+        case .level: return ""
+        case .gender: return "（男子だけ・女子だけのときは使いません）"
+        case .experience: return "（③で競技を選ぶと使います）"
+        case .previous: return "（④で選ぶと使います）"
+        }
+    }
+
+    func movePriority(_ index: Int, by offset: Int) {
+        var list = priorityOrder
+        let target = index + offset
+        guard list.indices.contains(index), list.indices.contains(target) else { return }
+        list.swapAt(index, target)
+        priorityText = Criterion.encode(list)
+    }
 
     // 絞り込んだ対象の生徒（参加がオンの人だけ）
     var targets: [Student] {
@@ -559,6 +750,10 @@ struct MakeTeamsView: View {
                 }
             }
 
+            if multipleClassesTargeted {
+                Toggle("クラスの人数をチームごとに均等にする", isOn: $balanceClass)
+            }
+
             Text("② チームの数").font(.headline)
             Picker("決め方", selection: $mode) {
                 ForEach(SplitMode.allCases) { Text($0.rawValue).tag($0) }
@@ -603,6 +798,39 @@ struct MakeTeamsView: View {
                 }
             }
 
+            Text("⑥ そろえる順番（上ほど優先）").font(.headline)
+            VStack(spacing: 6) {
+                ForEach(Array(priorityOrder.enumerated()), id: \.element) { index, c in
+                    HStack(spacing: 10) {
+                        Text("\(index + 1)")
+                            .font(.headline)
+                            .frame(width: 28, height: 28)
+                            .background(Circle().fill(isActive(c) ? Color.accentColor.opacity(0.2) : Color.gray.opacity(0.15)))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(c.label)
+                            if !isActive(c) {
+                                Text(inactiveReason(c)).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        Button { movePriority(index, by: -1) } label: { Image(systemName: "arrow.up") }
+                            .disabled(index == 0)
+                        Button { movePriority(index, by: 1) } label: { Image(systemName: "arrow.down") }
+                            .disabled(index == priorityOrder.count - 1)
+                    }
+                    .buttonStyle(.bordered)
+                    .opacity(isActive(c) ? 1 : 0.55)
+                }
+            }
+            HStack {
+                Text("チームの人数と「一緒にしない組み合わせ」は、いつも最優先です。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("最初の順番に戻す") { priorityText = Criterion.encode(Criterion.defaultOrder) }
+                    .font(.caption)
+            }
+
             Text(summary)
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -615,7 +843,8 @@ struct MakeTeamsView: View {
         let sport = spreadSport.isEmpty ? nil : spreadSport
         let previous = avoidRecent > 0 ? roster.previousPairs(recent: avoidRecent) : [:]
         teams = TeamMaker.make(targets, teamCount: plannedTeamCount, spreadSport: sport,
-                               separated: roster.separatedPairs, previous: previous)
+                               separated: roster.separatedPairs, previous: previous,
+                               priorities: priorityOrder.filter { isActive($0) })
         usedPrevious = previous
         savedEntryID = nil
         usedSport = spreadSport
@@ -1112,6 +1341,9 @@ struct TeamCard: View {
                 .foregroundStyle(color)
             Text("\(team.members.count)人　男\(team.count(.male)) 女\(team.count(.female))　レベル合計 \(team.levelTotal)（平均 \(String(format: "%.1f", team.levelAverage))）")
                 .font(.caption)
+            if team.classKinds > 1 {
+                Text(team.classBreakdown).font(.caption)
+            }
             if !sport.isEmpty {
                 Text("#\(sport) 経験者 \(team.experienced(sport))人")
                     .font(.caption.bold())
