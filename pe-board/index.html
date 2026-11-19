@@ -1,0 +1,380 @@
+<title>保体 施設・用具ボード</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap">
+<style>
+/* Layout: 体育館の床（木目の淡色）＋コートラインの緑。上に週の操作、下に 6限×5日 の時間割グリッド。 */
+:root{
+  --bg:#f5f3ee; --surface:#ffffff; --surface-2:#efece4; --line:#d9d4c8;
+  --fg:#22241f; --muted:#6b6e63; --accent:#1f7a53; --accent-ink:#ffffff; --accent-soft:#dcefe5;
+  --ok:#1f7a53; --ok-soft:#dcefe5; --warn:#9a5b00; --warn-soft:#fbe9c8; --alert:#b3261e; --alert-soft:#f9dedb;
+  --today:#fff8e1;
+  --f-display:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  --f-body:"BIZ UDPGothic","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#171a17; --surface:#20241f; --surface-2:#2a2e28; --line:#3a3f37;
+  --fg:#ecece6; --muted:#a2a597; --accent:#5cc48f; --accent-ink:#0f1a13; --accent-soft:#1f3a2c;
+  --ok:#6fd29e; --ok-soft:#1f3a2c; --warn:#f0b75a; --warn-soft:#3d2f17; --alert:#f28b82; --alert-soft:#45201d;
+  --today:#2b2a1c; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#171a17; --surface:#20241f; --surface-2:#2a2e28; --line:#3a3f37;
+  --fg:#ecece6; --muted:#a2a597; --accent:#5cc48f; --accent-ink:#0f1a13; --accent-soft:#1f3a2c;
+  --ok:#6fd29e; --ok-soft:#1f3a2c; --warn:#f0b75a; --warn-soft:#3d2f17; --alert:#f28b82; --alert-soft:#45201d;
+  --today:#2b2a1c; color-scheme:dark;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 40px}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;justify-content:space-between}
+h1{font-family:var(--f-display);font-weight:900;font-size:1.45rem;margin:0;letter-spacing:.02em;text-wrap:balance}
+h1 small{display:block;font-family:var(--f-body);font-weight:400;font-size:.8rem;color:var(--muted);letter-spacing:0}
+.weeknav{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;min-height:38px}
+.btn:hover{background:var(--surface-2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.btn.danger{color:var(--alert);border-color:var(--alert)}
+.btn.danger.armed{background:var(--alert);color:var(--surface)}
+.range{font-family:var(--f-display);font-weight:700;font-size:1.05rem;padding:0 6px;font-variant-numeric:tabular-nums}
+.tools{display:flex;gap:6px;flex-wrap:wrap}
+.status{font-size:.82rem;color:var(--muted)}
+.status.err{color:var(--alert)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:.8rem;color:var(--muted);align-items:center}
+.gridbox{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:900px;table-layout:fixed}
+th,td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);vertical-align:top}
+tr>*:last-child{border-right:0} tbody tr:last-child>*{border-bottom:0}
+thead th{background:var(--surface-2);font-family:var(--f-display);font-weight:700;padding:8px;font-size:.95rem;text-align:left}
+thead th .date{font-family:var(--f-body);font-weight:400;color:var(--muted);font-size:.8rem;margin-left:4px;font-variant-numeric:tabular-nums}
+thead th.today{background:var(--accent);color:var(--accent-ink)} thead th.today .date{color:var(--accent-ink)}
+th.per{width:56px;text-align:center;font-family:var(--f-display);font-size:1.2rem;background:var(--surface-2);padding-top:10px}
+th.per span{display:block;font-family:var(--f-body);font-size:.7rem;color:var(--muted);font-weight:400}
+td{padding:6px;height:1px}
+td.today{background:var(--today)}
+.cell{display:flex;flex-direction:column;gap:6px;height:100%;min-height:92px}
+.carry{font-size:.76rem;background:var(--warn-soft);color:var(--warn);border-radius:6px;padding:4px 6px;line-height:1.35}
+.card{text-align:left;border:1px solid var(--line);border-left:5px solid var(--pc,var(--accent));background:var(--surface);border-radius:7px;padding:6px 7px;display:flex;flex-direction:column;gap:3px;width:100%}
+.card:hover{border-color:var(--pc,var(--accent))}
+.card .top{display:flex;justify-content:space-between;gap:6px;align-items:baseline;flex-wrap:wrap}
+.card .place{font-weight:700;font-size:.86rem}
+.card .who{font-size:.76rem;color:var(--muted)}
+.card .eq{font-size:.8rem;overflow-wrap:anywhere}
+.card .memo{font-size:.75rem;color:var(--muted);overflow-wrap:anywhere}
+.pill{display:inline-block;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 8px;white-space:nowrap}
+.pill.put{background:var(--ok-soft);color:var(--ok)}
+.pill.next{background:var(--warn-soft);color:var(--warn)}
+.pill.later{background:var(--warn-soft);color:var(--warn)}
+.pill.clash{background:var(--alert-soft);color:var(--alert)}
+.add{margin-top:auto;border:1px dashed var(--line);background:transparent;border-radius:7px;color:var(--muted);padding:4px;font-size:.8rem;min-height:30px}
+.add:hover{border-color:var(--accent);color:var(--accent)}
+.empty-note{font-size:.85rem;color:var(--muted);background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:10px 14px}
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(10,14,10,.45);display:flex;align-items:flex-start;justify-content:center;z-index:20;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));overflow-y:auto}
+.modal{background:var(--surface);border-radius:12px;width:100%;max-width:640px;padding:18px;display:flex;flex-direction:column;gap:14px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.modal h2{font-family:var(--f-display);font-weight:900;font-size:1.2rem;margin:0}
+.field{display:flex;flex-direction:column;gap:6px}
+.field>.lbl{font-weight:700;font-size:.85rem;display:flex;gap:8px;align-items:baseline}
+.field>.lbl em{font-style:normal;font-weight:400;color:var(--muted);font-size:.75rem}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;min-height:36px;font-size:.88rem}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.chip.sq{border-radius:8px;min-width:44px}
+.opt{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 12px;text-align:left;flex:1 1 170px}
+.opt b{display:block;font-size:.9rem} .opt span{font-size:.75rem;color:var(--muted)}
+.opt[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input[type=text],textarea,select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+textarea{min-height:110px;resize:vertical}
+select{width:auto}
+.actions{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px}
+.actions .r{display:flex;gap:8px;margin-left:auto}
+.hint{font-size:.78rem;color:var(--muted)}
+.setgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.setgrid>*{min-width:0}
+@media (prefers-reduced-motion:no-preference){.card,.chip,.opt{transition:background .12s,border-color .12s}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>保体 施設・用具ボード<small>どの時間に・どこで・何を使い・使ったあとどうするか</small></h1>
+    <div class="weeknav">
+      <button class="btn" id="prevW" aria-label="前の週">◀</button>
+      <span class="range" id="range"></span>
+      <button class="btn" id="nextW" aria-label="次の週">▶</button>
+      <button class="btn" id="thisW">今週</button>
+    </div>
+    <div class="tools">
+      <button class="btn" id="copyW">先週の予定をコピー</button>
+      <button class="btn" id="openSet">設定</button>
+    </div>
+  </header>
+  <div class="legend">
+    <span><span class="pill put">片付ける</span> 授業後に片付け</span>
+    <span><span class="pill next">次の時間へ</span> 出したまま、次の時間の人が使う</span>
+    <span><span class="pill later">あとで片付け</span> 出したまま、自分で後から片付け</span>
+    <span><span class="pill clash">重なり</span> 同じ時間・同じ場所に予定が2つ</span>
+    <span class="status" id="status">読み込み中…</span>
+  </div>
+  <div id="notice" hidden class="empty-note"></div>
+  <div class="gridbox"><table id="grid"></table></div>
+  <p class="hint">空いているマスの「＋ 追加」から入力します。入っている予定を押すと変更・削除できます。この画面のURLを共有すると、他の先生にも同じ内容が表示されます。</p>
+</div>
+
+<div class="overlay" id="ov" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle" id="modal"></div></div>
+
+<script>
+(function(){
+const DAYS=["月","火","水","木","金"];
+const PERIODS=[1,2,3,4,5,6];
+const AFTER={put:{label:"片付ける",sub:"授業の終わりに片付ける",cls:"put",short:"片付ける"},
+  next:{label:"出したまま（次の時間へ）",sub:"次の時間の人がそのまま使う",cls:"next",short:"次の時間へ"},
+  later:{label:"出したまま（あとで片付け）",sub:"放課後などに自分で片付ける",cls:"later",short:"あとで片付け"}};
+const DEFAULT_CFG={
+  teachers:[],
+  places:["体育館（全面）","体育館（ステージ側）","体育館（入口側）","武道場","グラウンド","テニスコート","プール","教室"],
+  equipment:["マット","跳び箱","踏み切り板","平均台","ハードル","バレー支柱・ネット","バドミントン支柱・ネット","卓球台","バスケットボール","バレーボール","サッカーボール","コーン","ビブス","ラインカー","得点板","長なわ","ストップウォッチ","タブレット・プロジェクター"],
+  grades:3, classes:5
+};
+const HUES=["#1f7a53","#2f6db5","#b5552f","#7a4fb3","#a07a00","#2a8a8a","#b03a6a","#5a6b2a","#6b5a4a","#3a5aa0"];
+let cfg=JSON.parse(JSON.stringify(DEFAULT_CFG));
+let db=null, canWrite=true, bookings=[], unsub=null, loadTimer=null;
+let weekStart=mondayOf(new Date());
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function mondayOf(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());const w=(x.getDay()+6)%7;x.setDate(x.getDate()-w);return x;}
+function key(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
+function md(d){return (d.getMonth()+1)+"/"+d.getDate();}
+function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function placeColor(p){const i=cfg.places.indexOf(p);return HUES[(i<0?cfg.places.length:i)%HUES.length];}
+function setStatus(t,err){const s=$("status");s.textContent=t;s.classList.toggle("err",!!err);}
+
+/* ---------- grid ---------- */
+function render(){
+  const ws=key(weekStart);
+  $("range").textContent=weekStart.getFullYear()+"年 "+md(weekStart)+"〜"+md(addDays(weekStart,4));
+  const todayKey=key(new Date());
+  let h="<thead><tr><th class='per' scope='col'></th>";
+  DAYS.forEach((d,i)=>{const dt=addDays(weekStart,i);const t=key(dt)===todayKey;h+=`<th scope="col" class="${t?"today":""}">${d}<span class="date">${md(dt)}</span></th>`;});
+  h+="</tr></thead><tbody>";
+  const at=(day,p)=>bookings.filter(b=>b.day===day&&b.period===p);
+  PERIODS.forEach(p=>{
+    h+=`<tr><th class="per" scope="row">${p}<span>限</span></th>`;
+    DAYS.forEach((d,day)=>{
+      const t=key(addDays(weekStart,day))===todayKey;
+      const list=at(day,p).sort((a,b)=>cfg.places.indexOf(a.place)-cfg.places.indexOf(b.place));
+      let c="";
+      // 前の時間から出たままの用具
+      if(p>1){
+        at(day,p-1).filter(b=>b.after&&b.after!=="put"&&(b.equipment||[]).length).forEach(b=>{
+          c+=`<div class="carry">前の時間から：${esc(b.place)}に ${esc(b.equipment.join("・"))} が出ています（${AFTER[b.after]?.short||""}）</div>`;
+        });
+      }
+      list.forEach(b=>{
+        const clash=list.filter(o=>o.place===b.place).length>1;
+        const a=AFTER[b.after]||AFTER.put;
+        c+=`<button class="card" data-id="${esc(b.id)}" style="--pc:${placeColor(b.place)}">
+          <span class="top"><span class="place">${esc(b.place||"場所未定")}</span><span class="pill ${a.cls}">${a.short}</span></span>
+          <span class="who">${esc(b.cls||"")}${b.teacher?"　"+esc(b.teacher):""}</span>
+          ${(b.equipment||[]).length?`<span class="eq">${esc(b.equipment.join("・"))}</span>`:`<span class="eq hint">用具なし</span>`}
+          ${clash?`<span><span class="pill clash">重なり</span></span>`:""}
+          ${b.memo?`<span class="memo">${esc(b.memo)}</span>`:""}
+        </button>`;
+      });
+      if(canWrite) c+=`<button class="add" data-day="${day}" data-p="${p}" aria-label="${d}曜${p}限に追加">＋ 追加</button>`;
+      h+=`<td class="${t?"today":""}"><div class="cell">${c}</div></td>`;
+    });
+    h+="</tr>";
+  });
+  h+="</tbody>";
+  $("grid").innerHTML=h;
+  $("copyW").hidden=!canWrite;
+}
+$("grid").addEventListener("click",e=>{
+  const card=e.target.closest(".card"); if(card){const b=bookings.find(x=>x.id===card.dataset.id); if(b) openForm(b); return;}
+  const add=e.target.closest(".add"); if(add) openForm(null,+add.dataset.day,+add.dataset.p);
+});
+
+/* ---------- subscribe ---------- */
+function subscribe(){
+  if(unsub){unsub();unsub=null;}
+  bookings=[]; render();
+  if(!db){return;}
+  const wk=key(weekStart);
+  setStatus("読み込み中…");
+  clearTimeout(loadTimer);
+  loadTimer=setTimeout(()=>setStatus("データにまだ接続できません。しばらく待つか、通信を確認してください。",true),10000);
+  unsub=db.collection("bookings").where("week","==",wk).onSnapshot(snap=>{
+    if(wk!==key(weekStart)) return;
+    bookings=snap.docs.map(d=>({id:d.id,...d.data()}));
+    if(!snap.metadata.fromCache){clearTimeout(loadTimer);setStatus("最新の状態です（自動で更新されます）");}
+    render();
+  },err=>{clearTimeout(loadTimer);setStatus("読み込めませんでした（"+err.code+"）。ページを開き直してください。",true);});
+}
+function goWeek(n){weekStart=n===0?mondayOf(new Date()):addDays(weekStart,7*n);copyArmed=false;$("copyW").textContent="先週の予定をコピー";subscribe();}
+$("prevW").onclick=()=>goWeek(-1); $("nextW").onclick=()=>goWeek(1); $("thisW").onclick=()=>goWeek(0);
+
+/* ---------- copy previous week ---------- */
+let copyArmed=false;
+$("copyW").onclick=async()=>{
+  if(!db) return;
+  const btn=$("copyW");
+  if(!copyArmed){copyArmed=true;btn.textContent="もう一度押すとコピーします";btn.classList.add("primary");setTimeout(()=>{if(copyArmed){copyArmed=false;btn.textContent="先週の予定をコピー";btn.classList.remove("primary");}},5000);return;}
+  copyArmed=false;btn.classList.remove("primary");btn.disabled=true;btn.textContent="コピー中…";
+  try{
+    const prev=await db.collection("bookings").where("week","==",key(addDays(weekStart,-7))).get();
+    if(prev.empty){setStatus("先週の予定はありません");}
+    else{
+      const wk=key(weekStart);
+      for(const d of prev.docs){const x={...d.data()};x.week=wk;x.updatedAt=Date.now();await db.collection("bookings").add(x);}
+      setStatus(prev.size+"件コピーしました");
+    }
+  }catch(e){setStatus("コピーできませんでした（"+(e.code||"error")+"）",true);}
+  btn.disabled=false;btn.textContent="先週の予定をコピー";
+};
+
+/* ---------- modal helpers ---------- */
+let lastFocus=null;
+function openModal(html){lastFocus=document.activeElement;$("modal").innerHTML=html;$("ov").hidden=false;const f=$("modal").querySelector("button,input");f&&f.focus();}
+function closeModal(){$("ov").hidden=true;$("modal").innerHTML="";lastFocus&&lastFocus.focus&&lastFocus.focus();}
+$("ov").addEventListener("click",e=>{if(e.target===$("ov"))closeModal();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("ov").hidden)closeModal();});
+function chips(name,items,selected,multi,sq){
+  return `<div class="chips" data-name="${name}" data-multi="${multi?1:0}">`+items.map(v=>`<button type="button" class="chip${sq?" sq":""}" data-v="${esc(v)}" aria-pressed="${(multi?selected.includes(v):selected===v)?"true":"false"}">${esc(v)}</button>`).join("")+`</div>`;
+}
+function bindChips(root){
+  root.querySelectorAll(".chips").forEach(g=>g.addEventListener("click",e=>{
+    const b=e.target.closest(".chip,.opt");if(!b)return;
+    if(g.dataset.multi==="1"){b.setAttribute("aria-pressed",b.getAttribute("aria-pressed")==="true"?"false":"true");}
+    else{const on=b.getAttribute("aria-pressed")==="true";g.querySelectorAll(".chip,.opt").forEach(x=>x.setAttribute("aria-pressed","false"));if(!on||g.dataset.req==="1")b.setAttribute("aria-pressed","true");}
+  }));
+}
+const picked=(root,name)=>[...root.querySelectorAll(`.chips[data-name="${name}"] [aria-pressed="true"]`)].map(b=>b.dataset.v);
+
+/* ---------- booking form ---------- */
+function parseCls(s){const m=/^(\d)年(.+)組$/.exec(s||"");if(!m)return{g:null,c:[]};return{g:m[1],c:m[2].split("・")};}
+function openForm(b,day,period){
+  const isNew=!b; b=b||{day,period,teacher:lsGet("pe-teacher")||"",place:"",equipment:[],after:"put",memo:"",cls:""};
+  const pc=parseCls(b.cls);
+  const grades=Array.from({length:cfg.grades},(_,i)=>String(i+1));
+  const classes=Array.from({length:cfg.classes},(_,i)=>String(i+1));
+  const teachers=[...cfg.teachers]; if(b.teacher&&!teachers.includes(b.teacher))teachers.push(b.teacher);
+  const places=[...cfg.places]; if(b.place&&!places.includes(b.place))places.push(b.place);
+  const eq=[...cfg.equipment]; (b.equipment||[]).forEach(x=>{if(!eq.includes(x))eq.push(x)});
+  const ro=!canWrite;
+  openModal(`
+    <h2 id="mTitle">${isNew?"予定を追加":"予定の確認・変更"}</h2>
+    <div class="row">
+      <select id="fDay" aria-label="曜日">${DAYS.map((d,i)=>`<option value="${i}"${i===b.day?" selected":""}>${d}曜（${md(addDays(weekStart,i))}）</option>`).join("")}</select>
+      <select id="fPer" aria-label="時限">${PERIODS.map(p=>`<option value="${p}"${p===b.period?" selected":""}>${p}限</option>`).join("")}</select>
+    </div>
+    <div class="field"><span class="lbl">先生</span>
+      ${teachers.length?chips("teacher",teachers,b.teacher,false):`<span class="hint">先生の名前がまだ登録されていません。下の欄に名前を入れるか、「設定」から登録してください。</span>`}
+      <div class="row"><input type="text" id="fNewT" placeholder="名前を追加（例：小林）" style="max-width:240px"><button type="button" class="btn" id="fAddT">追加</button></div>
+    </div>
+    <div class="field"><span class="lbl">クラス <em>合同授業は組を複数選べます</em></span>
+      <div class="row">${chips("grade",grades.map(g=>g+"年"),pc.g?pc.g+"年":"",false,true)}</div>
+      <div class="row">${chips("klass",classes.map(c=>c+"組"),pc.c.map(c=>c+"組"),true,true)}</div>
+    </div>
+    <div class="field"><span class="lbl">場所</span>${chips("place",places,b.place,false)}</div>
+    <div class="field"><span class="lbl">使う用具 <em>いくつでも選べます</em></span>${chips("equipment",eq,b.equipment||[],true)}</div>
+    <div class="field"><span class="lbl">使ったあと</span>
+      <div class="chips" data-name="after" data-multi="0" data-req="1">${Object.entries(AFTER).map(([k,a])=>`<button type="button" class="opt" data-v="${k}" aria-pressed="${b.after===k?"true":"false"}"><b>${a.label}</b><span>${a.sub}</span></button>`).join("")}</div>
+    </div>
+    <div class="field"><label class="lbl" for="fMemo">メモ <em>任意</em></label><input type="text" id="fMemo" maxlength="80" value="${esc(b.memo)}" placeholder="例：マットは6枚、倉庫側に置きます"></div>
+    <p class="hint" id="fErr" role="alert"></p>
+    <div class="actions">
+      ${!isNew&&!ro?`<button type="button" class="btn danger" id="fDel">削除</button>`:""}
+      <div class="r"><button type="button" class="btn" id="fCancel">${ro?"閉じる":"キャンセル"}</button>${ro?"":`<button type="button" class="btn primary" id="fSave">保存</button>`}</div>
+    </div>`);
+  const m=$("modal"); bindChips(m);
+  if(ro){m.querySelectorAll("button.chip,button.opt,input,select").forEach(x=>x.disabled=true);}
+  $("fCancel").onclick=closeModal;
+  $("fAddT").onclick=()=>{
+    const v=$("fNewT").value.trim(); if(!v)return;
+    let g=m.querySelector('.chips[data-name="teacher"]');
+    if(!g){const holder=$("fNewT").closest(".field");holder.querySelector(".hint")?.remove();holder.querySelector(".row").insertAdjacentHTML("beforebegin",chips("teacher",[],"",false));g=m.querySelector('.chips[data-name="teacher"]');bindChips(holder);}
+    g.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed","false"));
+    let ex=[...g.querySelectorAll(".chip")].find(x=>x.dataset.v===v);
+    if(!ex){g.insertAdjacentHTML("beforeend",`<button type="button" class="chip" data-v="${esc(v)}" aria-pressed="true">${esc(v)}</button>`);}else ex.setAttribute("aria-pressed","true");
+    $("fNewT").value="";
+    if(!cfg.teachers.includes(v)){cfg.teachers.push(v);saveCfg();}
+  };
+  $("fNewT").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("fAddT").click();}});
+  if($("fDel")){let armed=false;$("fDel").onclick=async()=>{
+    if(!armed){armed=true;$("fDel").textContent="本当に削除する";$("fDel").classList.add("armed");return;}
+    try{await db.collection("bookings").doc(b.id).delete();closeModal();setStatus("削除しました");}catch(e){$("fErr").textContent="削除できませんでした（"+(e.code||"error")+"）";}
+  };}
+  if($("fSave")) $("fSave").onclick=async()=>{
+    const teacher=picked(m,"teacher")[0]||"";
+    const g=picked(m,"grade")[0]||""; const ks=picked(m,"klass").map(x=>x.replace("組","")).sort((a,b)=>a-b);
+    const place=picked(m,"place")[0]||"";
+    if(!place){$("fErr").textContent="場所を選んでください。";return;}
+    const data={week:key(weekStart),day:+$("fDay").value,period:+$("fPer").value,teacher,
+      cls:g?(g+(ks.length?ks.join("・")+"組":"")):"",place,equipment:picked(m,"equipment"),
+      after:picked(m,"after")[0]||"put",memo:$("fMemo").value.trim(),updatedAt:Date.now()};
+    if(teacher)lsSet("pe-teacher",teacher);
+    if(!db){$("fErr").textContent="保存先に接続できていません。";return;}
+    $("fSave").disabled=true;$("fSave").textContent="保存中…";
+    try{
+      if(isNew) await db.collection("bookings").add(data); else await db.collection("bookings").doc(b.id).set(data);
+      closeModal();setStatus("保存しました");
+    }catch(e){
+      $("fSave").disabled=false;$("fSave").textContent="保存";
+      if(e.code==="invalid_argument"){$("fErr").textContent="この画面では保存できない権限です。共有した先生に「編集できる」権限を付けてもらってください。";}
+      else $("fErr").textContent="保存できませんでした（"+(e.code||"error")+"）。もう一度お試しください。";
+    }
+  };
+}
+
+/* ---------- settings ---------- */
+async function saveCfg(){if(!db||!canWrite)return;try{await db.doc("config/main").set({...cfg});}catch(e){setStatus("設定を保存できませんでした（"+(e.code||"error")+"）",true);}}
+$("openSet").onclick=()=>{
+  const ro=!canWrite;
+  openModal(`<h2 id="mTitle">設定</h2>
+    <p class="hint">1行に1つずつ書きます。ここで決めた内容が、入力画面の選択肢になります（全員共通）。</p>
+    <div class="setgrid">
+      <div class="field"><label class="lbl" for="sT">先生</label><textarea id="sT">${esc(cfg.teachers.join("\n"))}</textarea></div>
+      <div class="field"><label class="lbl" for="sP">場所</label><textarea id="sP">${esc(cfg.places.join("\n"))}</textarea></div>
+      <div class="field"><label class="lbl" for="sE">用具</label><textarea id="sE">${esc(cfg.equipment.join("\n"))}</textarea></div>
+    </div>
+    <div class="row">
+      <label for="sG">学年の数</label><select id="sG">${[1,2,3,4,5,6].map(n=>`<option${n===cfg.grades?" selected":""}>${n}</option>`).join("")}</select>
+      <label for="sC">1学年の組の数</label><select id="sC">${Array.from({length:12},(_,i)=>i+1).map(n=>`<option${n===cfg.classes?" selected":""}>${n}</option>`).join("")}</select>
+    </div>
+    <p class="hint" id="sErr" role="alert"></p>
+    <div class="actions"><div class="r"><button type="button" class="btn" id="sCancel">${ro?"閉じる":"キャンセル"}</button>${ro?"":`<button type="button" class="btn primary" id="sSave">設定を保存</button>`}</div></div>`);
+  if(ro)$("modal").querySelectorAll("textarea,select").forEach(x=>x.disabled=true);
+  $("sCancel").onclick=closeModal;
+  if($("sSave"))$("sSave").onclick=async()=>{
+    const lines=id=>[...new Set($(id).value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean))];
+    const places=lines("sP");
+    if(!places.length){$("sErr").textContent="場所を1つ以上書いてください。";return;}
+    cfg={teachers:lines("sT"),places,equipment:lines("sE"),grades:+$("sG").value,classes:+$("sC").value};
+    await saveCfg();closeModal();render();setStatus("設定を保存しました");
+  };
+};
+
+/* ---------- boot ---------- */
+render();
+(async()=>{
+  const c=window.claude;
+  db=c&&c.use?await c.use("db"):null;
+  if(!db){
+    setStatus("共有データに接続できません",true);
+    $("notice").hidden=false;$("notice").textContent="このページは、共有されたURLからサインインして開くと、先生同士で予定を入力・共有できます。";
+    canWrite=false;render();return;
+  }
+  try{const u=await c.use("user");const w=u?await u.can("data.write"):null;if(w===false)canWrite=false;}catch(e){}
+  if(!canWrite){$("notice").hidden=false;$("notice").textContent="閲覧のみの権限で開いています。入力するには、共有した先生に「編集できる」権限を付けてもらってください。";}
+  db.doc("config/main").onSnapshot(s=>{
+    if(s.exists){const d=s.data();cfg={teachers:d.teachers||[],places:(d.places&&d.places.length)?d.places:DEFAULT_CFG.places,equipment:d.equipment||[],grades:d.grades||3,classes:d.classes||5};render();}
+  },()=>{});
+  subscribe();
+})();
+})();
+</script>
