@@ -302,7 +302,7 @@ function openForm(b,day,period){
     let ex=[...g.querySelectorAll(".chip")].find(x=>x.dataset.v===v);
     if(!ex){g.insertAdjacentHTML("beforeend",`<button type="button" class="chip" data-v="${esc(v)}" aria-pressed="true">${esc(v)}</button>`);}else ex.setAttribute("aria-pressed","true");
     $("fNewT").value="";
-    if(!cfg.teachers.includes(v)){cfg.teachers.push(v);saveCfg();}
+    if(!cfg.teachers.includes(v)){cfg={...cfg,teachers:[...cfg.teachers,v]};saveCfg();}
   };
   $("fNewT").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("fAddT").click();}});
   if($("fDel")){let armed=false;$("fDel").onclick=async()=>{
@@ -317,7 +317,7 @@ function openForm(b,day,period){
     const data={week:key(weekStart),day:+$("fDay").value,period:+$("fPer").value,teacher,
       cls:g?(g+(ks.length?ks.join("・")+"組":"")):"",place,equipment:picked(m,"equipment"),
       after:picked(m,"after")[0]||"put",memo:$("fMemo").value.trim(),updatedAt:Date.now()};
-    if(teacher)lsSet("pe-teacher",teacher);
+    if(teacher){lsSet("pe-teacher",teacher);if(!cfg.teachers.includes(teacher)){cfg={...cfg,teachers:[...cfg.teachers,teacher]};saveCfg();}}
     if(!db){$("fErr").textContent="保存先に接続できていません。";return;}
     $("fSave").disabled=true;$("fSave").textContent="保存中…";
     try{
@@ -332,7 +332,7 @@ function openForm(b,day,period){
 }
 
 /* ---------- settings ---------- */
-async function saveCfg(){if(!db||!canWrite)return;try{await db.doc("config/main").set({...cfg});}catch(e){setStatus("設定を保存できませんでした（"+(e.code||"error")+"）",true);}}
+async function saveCfg(){if(!db||!canWrite)return;try{await db.doc("config/main").set({teachers:[...cfg.teachers],places:[...cfg.places],equipment:[...cfg.equipment],grades:cfg.grades,classes:cfg.classes});}catch(e){setStatus("設定を保存できませんでした（"+(e.code||"error")+"）",true);}}
 $("openSet").onclick=()=>{
   const ro=!canWrite;
   openModal(`<h2 id="mTitle">設定</h2>
@@ -372,7 +372,7 @@ render();
   try{const u=await c.use("user");const w=u?await u.can("data.write"):null;if(w===false)canWrite=false;}catch(e){}
   if(!canWrite){$("notice").hidden=false;$("notice").textContent="閲覧のみの権限で開いています。入力するには、共有した先生に「編集できる」権限を付けてもらってください。";}
   db.doc("config/main").onSnapshot(s=>{
-    if(s.exists){const d=s.data();cfg={teachers:d.teachers||[],places:(d.places&&d.places.length)?d.places:DEFAULT_CFG.places,equipment:d.equipment||[],grades:d.grades||3,classes:d.classes||5};render();}
+    if(s.exists){const d=s.data();cfg={teachers:[...(d.teachers||[])],places:[...((d.places&&d.places.length)?d.places:DEFAULT_CFG.places)],equipment:[...(d.equipment||[])],grades:d.grades||3,classes:d.classes||5};render();}
   },()=>{});
   subscribe();
 })();
