@@ -82,6 +82,12 @@ td.today{background:var(--today)}
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;min-height:36px;font-size:.88rem}
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
 .chip.sq{border-radius:8px;min-width:44px}
+.chip:disabled{opacity:.35;cursor:not-allowed;border-style:dashed}
+.chip.s{padding:3px 10px;min-height:30px;font-size:.8rem}
+.hint.auto{color:var(--accent);font-weight:700}
+.maprow{display:grid;grid-template-columns:minmax(0,11em) minmax(0,1fr);gap:6px 10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.maprow .mname{font-size:.85rem;font-weight:700;overflow-wrap:anywhere}
+@media (max-width:520px){.maprow{grid-template-columns:minmax(0,1fr)}}
 .opt{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 12px;text-align:left;flex:1 1 170px}
 .opt b{display:block;font-size:.9rem} .opt span{font-size:.75rem;color:var(--muted)}
 .opt[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
@@ -134,10 +140,15 @@ const AFTER={put:{label:"片付ける",sub:"授業の終わりに片付ける",c
   later:{label:"出したまま（あとで片付け）",sub:"放課後などに自分で片付ける",cls:"later",short:"あとで片付け"}};
 const DEFAULT_CFG={
   teachers:[],
-  places:["体育館（全面）","体育館（ステージ側）","体育館（入口側）","武道場","グラウンド","テニスコート","プール","教室"],
+  places:["体育館","武道場","グラウンド","テニスコート","プール","教室"],
   equipment:["マット","跳び箱","踏み切り板","平均台","ハードル","バレー支柱・ネット","バドミントン支柱・ネット","卓球台","バスケットボール","バレーボール","サッカーボール","コーン","ビブス","ラインカー","得点板","長なわ","ストップウォッチ","タブレット・プロジェクター"],
-  grades:3, classes:5
+  grades:3, classes:5,
+  /* 用具 → 使える場所（書いていない用具はどこでも使える） */
+  eqPlaces:{"マット":["体育館"],"跳び箱":["体育館"],"踏み切り板":["体育館"],"平均台":["体育館"],"バレー支柱・ネット":["体育館"],
+    "バドミントン支柱・ネット":["体育館"],"卓球台":["体育館"],"バスケットボール":["体育館"],"バレーボール":["体育館"],
+    "ハードル":["グラウンド"],"サッカーボール":["グラウンド"],"ラインカー":["グラウンド"],"長なわ":["体育館","グラウンド"]}
 };
+const clone=o=>JSON.parse(JSON.stringify(o||{}));
 const HUES=["#1f7a53","#2f6db5","#b5552f","#7a4fb3","#a07a00","#2a8a8a","#b03a6a","#5a6b2a","#6b5a4a","#3a5aa0"];
 let cfg=JSON.parse(JSON.stringify(DEFAULT_CFG));
 let db=null, canWrite=true, bookings=[], unsub=null, loadTimer=null;
@@ -280,8 +291,8 @@ function openForm(b,day,period){
       <div class="row">${chips("grade",grades.map(g=>g+"年"),pc.g?pc.g+"年":"",false,true)}</div>
       <div class="row">${chips("klass",classes.map(c=>c+"組"),pc.c.map(c=>c+"組"),true,true)}</div>
     </div>
-    <div class="field"><span class="lbl">場所</span>${chips("place",places,b.place,false)}</div>
-    <div class="field"><span class="lbl">使う用具 <em>いくつでも選べます</em></span>${chips("equipment",eq,b.equipment||[],true)}</div>
+    <div class="field"><span class="lbl">場所</span>${chips("place",places,b.place,false)}<span class="hint auto" id="fPlaceHint" aria-live="polite"></span></div>
+    <div class="field"><span class="lbl">使う用具 <em>いくつでも選べます</em></span>${chips("equipment",eq,b.equipment||[],true)}<span class="hint" id="fEqHint" aria-live="polite"></span></div>
     <div class="field"><span class="lbl">使ったあと</span>
       <div class="chips" data-name="after" data-multi="0" data-req="1">${Object.entries(AFTER).map(([k,a])=>`<button type="button" class="opt" data-v="${k}" aria-pressed="${b.after===k?"true":"false"}"><b>${a.label}</b><span>${a.sub}</span></button>`).join("")}</div>
     </div>
@@ -293,6 +304,35 @@ function openForm(b,day,period){
     </div>`);
   const m=$("modal"); bindChips(m);
   if(ro){m.querySelectorAll("button.chip,button.opt,input,select").forEach(x=>x.disabled=true);}
+  else{
+    /* 用具と場所の連動 */
+    const placeG=m.querySelector('.chips[data-name="place"]'), eqG=m.querySelector('.chips[data-name="equipment"]');
+    const sync=(changed)=>{
+      const selEq=picked(m,"equipment");
+      let allowed=null;
+      selEq.forEach(e=>{const l=allowedPlaces(e);if(l)allowed=allowed?allowed.filter(p=>l.includes(p)):[...l];});
+      let note="";
+      let place=picked(m,"place")[0]||"";
+      if(allowed&&changed==="equipment"){
+        if(allowed.length===1&&place!==allowed[0]){
+          const t=[...placeG.children].find(x=>x.dataset.v===allowed[0]);
+          if(t){placeG.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed","false"));t.setAttribute("aria-pressed","true");place=allowed[0];
+            note=selEq.filter(e=>allowedPlaces(e)).join("・")+" は"+allowed[0]+"で使うため、場所を「"+allowed[0]+"」にしました。";}
+        }else if(place&&!allowed.includes(place)){
+          placeG.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed","false"));place="";
+        }
+      }
+      if(allowed&&allowed.length===0) note="選んだ用具を同じ場所で使う組み合わせがありません。用具を見直してください。";
+      placeG.querySelectorAll(".chip").forEach(x=>{x.disabled=!!allowed&&!allowed.includes(x.dataset.v)&&x.getAttribute("aria-pressed")!=="true";});
+      let off=0;
+      eqG.querySelectorAll(".chip").forEach(x=>{const l=allowedPlaces(x.dataset.v);const dis=!!place&&!!l&&!l.includes(place)&&x.getAttribute("aria-pressed")!=="true";x.disabled=dis;if(dis)off++;});
+      if(changed) $("fPlaceHint").textContent=note;
+      $("fEqHint").textContent=off?`${place}で使えない用具はグレーになっています。場所をもう一度押して外すと、すべての用具を選べます。`:"";
+    };
+    placeG.addEventListener("click",e=>{if(e.target.closest(".chip"))sync("place");});
+    eqG.addEventListener("click",e=>{if(e.target.closest(".chip"))sync("equipment");});
+    sync(null);
+  }
   $("fCancel").onclick=closeModal;
   $("fAddT").onclick=()=>{
     const v=$("fNewT").value.trim(); if(!v)return;
@@ -332,7 +372,14 @@ function openForm(b,day,period){
 }
 
 /* ---------- settings ---------- */
-async function saveCfg(){if(!db||!canWrite)return;try{await db.doc("config/main").set({teachers:[...cfg.teachers],places:[...cfg.places],equipment:[...cfg.equipment],grades:cfg.grades,classes:cfg.classes});}catch(e){setStatus("設定を保存できませんでした（"+(e.code||"error")+"）",true);}}
+function allowedPlaces(e){const l=cfg.eqPlaces&&cfg.eqPlaces[e];return l&&l.length?l:null;}
+function mapRows(eqList,placeList,map){
+  return eqList.map((e,i)=>`<div class="maprow"><span class="mname">${esc(e)}</span><div class="chips" data-name="map${i}" data-eq="${esc(e)}" data-multi="1">`+
+    placeList.map(p=>`<button type="button" class="chip s" data-v="${esc(p)}" aria-pressed="${(map[e]||[]).includes(p)?"true":"false"}">${esc(p)}</button>`).join("")+
+    `</div></div>`).join("")||`<p class="hint">用具が登録されていません。</p>`;
+}
+function readMap(root){const o={};root.querySelectorAll('.chips[data-eq]').forEach(g=>{const v=[...g.querySelectorAll('[aria-pressed="true"]')].map(b=>b.dataset.v);if(v.length)o[g.dataset.eq]=v;});return o;}
+async function saveCfg(){if(!db||!canWrite)return;try{await db.doc("config/main").set({teachers:[...cfg.teachers],places:[...cfg.places],equipment:[...cfg.equipment],grades:cfg.grades,classes:cfg.classes,eqPlaces:clone(cfg.eqPlaces)});}catch(e){setStatus("設定を保存できませんでした（"+(e.code||"error")+"）",true);}}
 $("openSet").onclick=()=>{
   const ro=!canWrite;
   openModal(`<h2 id="mTitle">設定</h2>
@@ -346,15 +393,25 @@ $("openSet").onclick=()=>{
       <label for="sG">学年の数</label><select id="sG">${[1,2,3,4,5,6].map(n=>`<option${n===cfg.grades?" selected":""}>${n}</option>`).join("")}</select>
       <label for="sC">1学年の組の数</label><select id="sC">${Array.from({length:12},(_,i)=>i+1).map(n=>`<option${n===cfg.classes?" selected":""}>${n}</option>`).join("")}</select>
     </div>
+    <div class="field"><span class="lbl">用具を使える場所</span>
+      <span class="hint">用具ごとに、使える場所を押して選びます。何も選ばない用具は、どこでも使えます。入力画面では、ここで1か所だけ選んだ用具を選ぶと、その場所が自動で選ばれます。</span>
+      <div id="sMap">${mapRows(cfg.equipment,cfg.places,cfg.eqPlaces||{})}</div>
+    </div>
     <p class="hint" id="sErr" role="alert"></p>
     <div class="actions"><div class="r"><button type="button" class="btn" id="sCancel">${ro?"閉じる":"キャンセル"}</button>${ro?"":`<button type="button" class="btn primary" id="sSave">設定を保存</button>`}</div></div>`);
-  if(ro)$("modal").querySelectorAll("textarea,select").forEach(x=>x.disabled=true);
+  bindChips($("sMap"));
+  if(ro)$("modal").querySelectorAll("textarea,select,button.chip").forEach(x=>x.disabled=true);
+  const relist=id=>[...new Set($(id).value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean))];
+  const refreshMap=()=>{const cur=readMap($("sMap"));$("sMap").innerHTML=mapRows(relist("sE"),relist("sP"),cur);bindChips($("sMap"));};
+  $("sE").addEventListener("change",refreshMap);$("sP").addEventListener("change",refreshMap);
   $("sCancel").onclick=closeModal;
   if($("sSave"))$("sSave").onclick=async()=>{
     const lines=id=>[...new Set($(id).value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean))];
     const places=lines("sP");
     if(!places.length){$("sErr").textContent="場所を1つ以上書いてください。";return;}
-    cfg={teachers:lines("sT"),places,equipment:lines("sE"),grades:+$("sG").value,classes:+$("sC").value};
+    refreshMap();
+    const map=readMap($("sMap"));Object.keys(map).forEach(k=>{map[k]=map[k].filter(p=>places.includes(p));if(!map[k].length)delete map[k];});
+    cfg={teachers:lines("sT"),places,equipment:lines("sE"),grades:+$("sG").value,classes:+$("sC").value,eqPlaces:map};
     await saveCfg();closeModal();render();setStatus("設定を保存しました");
   };
 };
@@ -372,7 +429,7 @@ render();
   try{const u=await c.use("user");const w=u?await u.can("data.write"):null;if(w===false)canWrite=false;}catch(e){}
   if(!canWrite){$("notice").hidden=false;$("notice").textContent="閲覧のみの権限で開いています。入力するには、共有した先生に「編集できる」権限を付けてもらってください。";}
   db.doc("config/main").onSnapshot(s=>{
-    if(s.exists){const d=s.data();cfg={teachers:[...(d.teachers||[])],places:[...((d.places&&d.places.length)?d.places:DEFAULT_CFG.places)],equipment:[...(d.equipment||[])],grades:d.grades||3,classes:d.classes||5};render();}
+    if(s.exists){const d=s.data();cfg={teachers:[...(d.teachers||[])],places:[...((d.places&&d.places.length)?d.places:DEFAULT_CFG.places)],equipment:[...(d.equipment||[])],grades:d.grades||3,classes:d.classes||5,eqPlaces:clone(d.eqPlaces||DEFAULT_CFG.eqPlaces)};render();}
   },()=>{});
   subscribe();
 })();
