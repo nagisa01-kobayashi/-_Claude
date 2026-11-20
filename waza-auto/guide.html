@@ -1,0 +1,864 @@
+<title>技ビデオ 自動録画の設定ガイド</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: 一本の縦の手順書。左に大きな手順番号、右に作業内容とコピー欄。 */
+:root {
+  --floor: #f6efe3; --floor-2: #ece0cb; --card: #fffdf9; --ink: #1f2430; --muted: #6b6457; --line: #ddd0b8;
+  --mat: #24407a; --mat-soft: #dfe6f5; --box: #c2412d; --box-soft: #f7e0da;
+  --display: "Dela Gothic One", "Hiragino Sans", "Yu Gothic", sans-serif;
+  --body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --floor: #1a1915; --floor-2: #24221c; --card: #2a2821; --ink: #f1ece2; --muted: #b0a794; --line: #3d392f;
+  --mat: #8fa9e6; --mat-soft: #263252; --box: #f08a74; --box-soft: #4a2820; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --floor: #1a1915; --floor-2: #24221c; --card: #2a2821; --ink: #f1ece2; --muted: #b0a794; --line: #3d392f;
+  --mat: #8fa9e6; --mat-soft: #263252; --box: #f08a74; --box-soft: #4a2820; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--floor); color: var(--ink); font-family: var(--body); font-size: 15.5px; line-height: 1.75;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 64px; }
+main { max-width: 820px; margin: 0 auto; display: grid; gap: 28px; }
+h1, h2 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap: balance; letter-spacing: .02em; }
+h1 { font-size: clamp(1.5rem, 4.5vw, 2.2rem); line-height: 1.25; }
+h2 { font-size: 1.15rem; line-height: 1.4; }
+p { margin: 0; }
+.lead { color: var(--muted); max-width: 62ch; }
+.flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-weight: 700; font-size: 14px; }
+.flow span { background: var(--card); border: 2px solid var(--line); border-radius: 10px; padding: 6px 12px; }
+.flow i { font-style: normal; color: var(--muted); }
+ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: s; }
+ol.steps > li { counter-increment: s; display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 14px; background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 16px; }
+ol.steps > li::before { content: counter(s); font-family: var(--display); font-size: 1.9rem; line-height: 1; color: var(--mat); text-align: center; padding-top: 2px; }
+.body { display: grid; gap: 8px; min-width: 0; }
+ul { margin: 0; padding-left: 1.2em; }
+b.ui { background: var(--floor-2); border-radius: 6px; padding: 0 6px; font-weight: 700; }
+textarea { width: 100%; height: 150px; font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--ink); background: var(--floor); border: 2px solid var(--line); border-radius: 10px; padding: 10px; resize: vertical; }
+.copyrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+button { font: inherit; font-weight: 700; border: 2px solid var(--mat); background: var(--mat); color: var(--card); border-radius: 10px; padding: 8px 16px; min-height: 44px; cursor: pointer; }
+button:focus-visible, textarea:focus-visible { outline: 3px solid var(--box); outline-offset: 2px; }
+.ok { color: var(--mat); font-weight: 700; font-size: 14px; }
+.note { background: var(--mat-soft); border-radius: 12px; padding: 12px 14px; font-size: 14.5px; }
+.warn { background: var(--box-soft); border-radius: 12px; padding: 12px 14px; font-size: 14.5px; }
+section.box { background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 10px; }
+code { font-family: var(--mono); font-size: .9em; background: var(--floor-2); border-radius: 5px; padding: 0 5px; word-break: break-all; }
+</style>
+<main>
+  <header style="display:grid;gap:10px">
+    <h1>技ビデオ 自動録画の設定ガイド</h1>
+    <p class="lead">マットや跳び箱の範囲で人が動くと録画が始まり、止まると自動で終わって先生のGoogleドライブに保存されます。最初に一度だけ、Google Apps Script にコードを貼り付けて公開してください。15分ほどで終わります。</p>
+    <div class="flow" aria-label="しくみ"><span>撮影用の端末（カメラ1〜4）</span><i>→</i><span>先生のGoogleドライブ「技ビデオ」</span><i>→</i><span>別の端末で一覧を見る</span></div>
+  </header>
+
+  <ol class="steps">
+    <li><div class="body"><h2>Apps Script のプロジェクトを作る</h2>
+      <p>パソコンで学校のGoogleアカウントにログインし、<a href="https://script.google.com/home" target="_blank" rel="noopener">script.google.com</a> を開いて <b class="ui">新しいプロジェクト</b> を押します。左上の「無題のプロジェクト」を押して「技ビデオ」などの名前にします。</p></div></li>
+
+    <li><div class="body"><h2>「コード.gs」を貼り付ける</h2>
+      <p>最初から入っている <code>function myFunction() {…}</code> をすべて消し、下の中身を貼り付けます。</p>
+      <textarea id="t1" readonly spellcheck="false">/**
+ * マット・跳び箱 技ビデオ（自動録画版）— Google Apps Script 側
+ *
+ * 撮った映像は、このスクリプトを作った先生のGoogleドライブの
+ * 「技ビデオ」フォルダ（カメラごとのサブフォルダ）に保存されます。
+ */
+
+// ===== 設定 =====
+const ROOT_FOLDER_NAME = &#x27;技ビデオ&#x27;;
+// true にすると「技ビデオ」フォルダを学校のドメイン内で閲覧できるよう共有します（別の先生の端末で見るため）
+const SHARE_IN_DOMAIN = true;
+// 空のままなら誰でも保存できます（アクセスできる人の範囲はデプロイ設定で決まります）。
+// 文字を入れると、アプリの設定に同じ合言葉を入れた端末だけが保存できます。
+const UPLOAD_KEY = &#x27;&#x27;;
+// ================
+
+function doGet(e) {
+  const p = (e &amp;&amp; e.parameter) || {};
+  if (p.api) return json_(handleApi_(p.api, p));
+  return HtmlService.createHtmlOutputFromFile(&#x27;index&#x27;)
+    .setTitle(&#x27;技ビデオ 自動録画&#x27;)
+    .addMetaTag(&#x27;viewport&#x27;, &#x27;width=device-width, initial-scale=1&#x27;)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// 別のサイトに置いたアプリから使う場合の入口（通常は使いません）
+function doPost(e) {
+  let body = {};
+  try { body = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: &#x27;bad_request&#x27; }); }
+  return json_(handleApi_(body.api, body));
+}
+
+function handleApi_(api, p) {
+  try {
+    if (api === &#x27;config&#x27;) return { ok: true, data: getConfig() };
+    if (api === &#x27;list&#x27;) return { ok: true, data: listClips(p.camera) };
+    if (api === &#x27;upload&#x27;) return { ok: true, data: uploadClip(p.meta, p.data, p.mimeType, p.key) };
+    return { ok: false, error: &#x27;unknown_api&#x27; };
+  } catch (err) {
+    return { ok: false, error: String(err &amp;&amp; err.message || err) };
+  }
+}
+
+function json_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ----- アプリから呼ばれる関数 -----
+
+function getConfig() {
+  const me = Session.getActiveUser().getEmail();
+  const owner = Session.getEffectiveUser().getEmail();
+  return {
+    url: ScriptApp.getService().getUrl(),
+    folderUrl: rootFolder_().getUrl(),
+    canManage: !!me &amp;&amp; me === owner,
+    needKey: !!UPLOAD_KEY
+  };
+}
+
+function uploadClip(meta, base64, mimeType, key) {
+  if (UPLOAD_KEY &amp;&amp; key !== UPLOAD_KEY) throw new Error(&#x27;合言葉が違います&#x27;);
+  meta = meta || {};
+  const camera = Math.max(1, Math.min(99, parseInt(meta.camera, 10) || 1));
+  const takenAt = Number(meta.takenAt) || Date.now();
+  const type = String(mimeType || &#x27;video/mp4&#x27;).split(&#x27;;&#x27;)[0];
+  const ext = type.indexOf(&#x27;webm&#x27;) &gt;= 0 ? &#x27;webm&#x27; : type.indexOf(&#x27;quicktime&#x27;) &gt;= 0 ? &#x27;mov&#x27; : &#x27;mp4&#x27;;
+  const stamp = Utilities.formatDate(new Date(takenAt), Session.getScriptTimeZone() || &#x27;Asia/Tokyo&#x27;, &#x27;yyyyMMdd_HHmmss&#x27;);
+  const clean = (s) =&gt; String(s || &#x27;&#x27;).replace(/[\\/:*?&quot;&lt;&gt;|\n\r]/g, &#x27; &#x27;).trim().slice(0, 40);
+  const name = [stamp, clean(meta.skill), clean(meta.group), clean(meta.student)].filter(String).join(&#x27;_&#x27;) + &#x27;.&#x27; + ext;
+
+  const blob = Utilities.newBlob(Utilities.base64Decode(base64), type, name);
+  const info = {
+    camera: camera,
+    event: meta.event === &#x27;vault&#x27; ? &#x27;vault&#x27; : &#x27;mat&#x27;,
+    skill: clean(meta.skill) || &#x27;（技名なし）&#x27;,
+    group: clean(meta.group),
+    student: clean(meta.student),
+    takenAt: takenAt,
+    durationSec: Number(meta.durationSec) || null
+  };
+  const file = cameraFolder_(camera).createFile(blob);
+  file.setDescription(JSON.stringify(info));
+  return { id: file.getId(), name: name };
+}
+
+function listClips(camera) {
+  const cam = parseInt(camera, 10) || 0;
+  const root = rootFolder_();
+  const folders = [];
+  if (cam) {
+    const it = root.getFoldersByName(&#x27;カメラ&#x27; + cam);
+    if (it.hasNext()) folders.push(it.next());
+  } else {
+    const it = root.getFolders();
+    while (it.hasNext()) folders.push(it.next());
+  }
+  const out = [];
+  folders.forEach(function (f) {
+    const files = f.getFiles();
+    while (files.hasNext()) {
+      const file = files.next();
+      if (file.isTrashed()) continue;
+      let info = {};
+      try { info = JSON.parse(file.getDescription() || &#x27;{}&#x27;); } catch (e) {}
+      out.push({
+        id: file.getId(),
+        name: file.getName(),
+        camera: info.camera || parseInt(f.getName().replace(/\D/g, &#x27;&#x27;), 10) || 0,
+        event: info.event || &#x27;mat&#x27;,
+        skill: info.skill || file.getName(),
+        group: info.group || &#x27;&#x27;,
+        student: info.student || &#x27;&#x27;,
+        takenAt: info.takenAt || file.getDateCreated().getTime(),
+        durationSec: info.durationSec || null,
+        sizeBytes: file.getSize()
+      });
+    }
+  });
+  out.sort(function (a, b) { return b.takenAt - a.takenAt; });
+  return out.slice(0, 500);
+}
+
+function updateClip(id, patch) {
+  requireOwner_();
+  const file = DriveApp.getFileById(id);
+  let info = {};
+  try { info = JSON.parse(file.getDescription() || &#x27;{}&#x27;); } catch (e) {}
+  [&#x27;skill&#x27;, &#x27;group&#x27;, &#x27;student&#x27;].forEach(function (k) { if (patch[k] !== undefined) info[k] = String(patch[k]).slice(0, 40); });
+  if (patch.event) info.event = patch.event === &#x27;vault&#x27; ? &#x27;vault&#x27; : &#x27;mat&#x27;;
+  file.setDescription(JSON.stringify(info));
+  return true;
+}
+
+function deleteClip(id) {
+  requireOwner_();
+  DriveApp.getFileById(id).setTrashed(true); // ドライブのゴミ箱に移すだけ（30日以内なら戻せます）
+  return true;
+}
+
+// ----- 内部 -----
+
+function requireOwner_() {
+  const me = Session.getActiveUser().getEmail();
+  if (!me || me !== Session.getEffectiveUser().getEmail()) throw new Error(&#x27;直したり削除したりできるのは、このアプリを作った先生だけです&#x27;);
+}
+
+function rootFolder_() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty(&#x27;ROOT_FOLDER_ID&#x27;);
+  if (id) {
+    try { const f = DriveApp.getFolderById(id); if (!f.isTrashed()) return f; } catch (e) {}
+  }
+  const f = DriveApp.createFolder(ROOT_FOLDER_NAME);
+  if (SHARE_IN_DOMAIN) {
+    try { f.setSharing(DriveApp.Access.DOMAIN_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+  }
+  props.setProperty(&#x27;ROOT_FOLDER_ID&#x27;, f.getId());
+  return f;
+}
+
+function cameraFolder_(cam) {
+  const root = rootFolder_();
+  const it = root.getFoldersByName(&#x27;カメラ&#x27; + cam);
+  return it.hasNext() ? it.next() : root.createFolder(&#x27;カメラ&#x27; + cam);
+}
+
+// 最初に一度だけ実行して、ドライブの許可を出すための関数
+function setup() {
+  const f = rootFolder_();
+  Logger.log(&#x27;保存先フォルダ: &#x27; + f.getUrl());
+}
+</textarea>
+      <div class="copyrow"><button type="button" data-copy="t1">コード.gs をコピー</button><span class="ok" id="m_t1" role="status"></span></div></div></li>
+
+    <li><div class="body"><h2>「index.html」を作って貼り付ける</h2>
+      <p>左の「ファイル」の横の <b class="ui">＋</b> → <b class="ui">HTML</b> を選び、名前を <code>index</code> にします（.html は自動で付きます）。中身をすべて消して、下を貼り付けます。</p>
+      <textarea id="t2" readonly spellcheck="false">&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;ja&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;title&gt;技ビデオ 自動録画&lt;/title&gt;
+&lt;link rel=&quot;preconnect&quot; href=&quot;https://fonts.googleapis.com&quot;&gt;
+&lt;link rel=&quot;stylesheet&quot; href=&quot;https://fonts.googleapis.com/css2?family=Dela+Gothic+One&amp;family=Zen+Kaku+Gothic+New:wght@400;500;700&amp;display=swap&quot;&gt;
+&lt;style&gt;
+/* 体育館の床（メープル）の上に、マットの紺と跳び箱の赤。撮影画面は左にカメラ映像、右に操作。 */
+:root {
+  --floor: #f6efe3; --floor-2: #ece0cb; --card: #fffdf9; --ink: #1f2430; --muted: #6b6457; --line: #ddd0b8;
+  --mat: #24407a; --mat-soft: #dfe6f5; --box: #c2412d; --box-soft: #f7e0da; --ok: #2f7a4b; --ok-soft: #dcefe2; --warn: #a56a00; --bad: #b3261e;
+  --display: &quot;Dela Gothic One&quot;, &quot;Hiragino Sans&quot;, &quot;Yu Gothic&quot;, sans-serif;
+  --body: &quot;Zen Kaku Gothic New&quot;, &quot;Hiragino Sans&quot;, &quot;Yu Gothic&quot;, &quot;Meiryo&quot;, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --floor: #1a1915; --floor-2: #24221c; --card: #2a2821; --ink: #f1ece2; --muted: #b0a794; --line: #3d392f;
+    --mat: #8fa9e6; --mat-soft: #263252; --box: #f08a74; --box-soft: #4a2820; --ok: #7fcf9b; --ok-soft: #1f3a29; --warn: #e6b24f; --bad: #ff8a80;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--floor); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.6; padding: 16px max(16px, env(safe-area-inset-right)) 40px max(16px, env(safe-area-inset-left)); }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 18px; }
+h1, h2 { font-family: var(--display); font-weight: 400; margin: 0; letter-spacing: .02em; }
+h1 { font-size: clamp(1.3rem, 3.5vw, 1.9rem); line-height: 1.2; }
+h2 { font-size: 1.1rem; }
+p { margin: 0; }
+.muted { color: var(--muted); } .small { font-size: 13px; }
+a { color: inherit; }
+button, .btn {
+  font: inherit; font-weight: 700; border: 2px solid var(--ink); background: var(--card); color: var(--ink); border-radius: 10px;
+  padding: 8px 14px; min-height: 44px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none;
+}
+button:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, .btn:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--mat); outline-offset: 2px; }
+.btn-mat { background: var(--mat); border-color: var(--mat); color: var(--card); }
+.btn-box { background: var(--box); border-color: var(--box); color: #fff; }
+.btn-ghost { border-color: var(--line); }
+.btn-danger { border-color: var(--bad); color: var(--bad); }
+input[type=text], input[type=password], select { font: inherit; color: var(--ink); background: var(--card); border: 2px solid var(--line); border-radius: 10px; padding: 8px 12px; min-height: 44px; width: 100%; }
+label.field { display: grid; gap: 4px; font-weight: 700; font-size: 13px; min-width: 0; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; gap: 12px; align-items: center; text-decoration: none; }
+.panel { background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+.notice { border-radius: 12px; padding: 12px 14px; background: var(--box-soft); font-size: 14px; }
+.notice.info { background: var(--mat-soft); }
+.pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 10px; font-size: 13px; font-weight: 700; }
+.pill.mat { background: var(--mat-soft); color: var(--mat); } .pill.vault { background: var(--box-soft); color: var(--box); }
+
+/* home */
+.cams { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.cam-no { font-family: var(--display); font-size: 1.5rem; line-height: 1; }
+.cam-no b { font-weight: 400; font-size: 2.3rem; color: var(--mat); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* shoot */
+.shoot { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 860px) { .shoot { grid-template-columns: 1fr; } }
+.stage { position: relative; background: #000; border-radius: 14px; overflow: hidden; aspect-ratio: 16 / 9; max-width: 100%; touch-action: none; }
+.stage video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.status {
+  position: absolute; left: 12px; top: 12px; display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px;
+  font-family: var(--display); font-size: 1rem; color: #fff; background: rgba(0,0,0,.6);
+}
+.status i { width: 12px; height: 12px; border-radius: 50%; background: #9aa; }
+.status.armed i { background: #4cd07d; }
+.status.rec { background: rgba(194,65,45,.92); }
+.status.rec i { background: #fff; animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: .2; } }
+.camlabel { position: absolute; right: 12px; top: 12px; font-family: var(--display); color: #fff; background: rgba(0,0,0,.6); border-radius: 10px; padding: 4px 12px; }
+.meter { position: relative; height: 14px; background: var(--floor-2); border-radius: 7px; overflow: hidden; }
+.meter i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ok); width: 0; transition: width .1s; }
+.meter b { position: absolute; top: -2px; bottom: -2px; width: 3px; background: var(--box); }
+.bigrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bigrow button { min-height: 64px; font-size: 1.05rem; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; min-height: 46px; }
+.seg button + button { border-left: 2px solid var(--ink); }
+.seg button[aria-pressed=&quot;true&quot;][data-ev=&quot;mat&quot;] { background: var(--mat); color: var(--card); }
+.seg button[aria-pressed=&quot;true&quot;][data-ev=&quot;vault&quot;] { background: var(--box); color: #fff; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1.5px solid var(--line); background: var(--floor); border-radius: 999px; padding: 4px 12px; min-height: 36px; font-weight: 500; font-size: 14px; }
+.chip[aria-pressed=&quot;true&quot;] { background: var(--ink); color: var(--floor); border-color: var(--ink); font-weight: 700; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+details { border-top: 1.5px solid var(--line); padding-top: 10px; }
+summary { cursor: pointer; font-weight: 700; }
+.slider { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; font-size: 13px; font-weight: 700; }
+.slider input { grid-column: 1 / -1; width: 100%; }
+.slider output { font-variant-numeric: tabular-nums; color: var(--muted); }
+.jobs { display: grid; gap: 6px; }
+.job { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; border: 1.5px solid var(--line); border-radius: 10px; padding: 6px 10px; font-size: 13px; }
+.st-ok { color: var(--ok); font-weight: 700; } .st-bad { color: var(--bad); font-weight: 700; } .st-busy { color: var(--warn); font-weight: 700; }
+.job button { min-height: 30px; padding: 2px 10px; font-size: 12px; border-width: 1.5px; }
+
+/* list */
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.clip { background: var(--card); border: 2px solid var(--line); border-radius: 14px; overflow: hidden; min-width: 0; }
+.thumb { position: relative; aspect-ratio: 16 / 9; background: #111; display: grid; place-items: center; cursor: pointer; border: 0; width: 100%; padding: 0; border-radius: 0; min-height: 0; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb span { position: absolute; width: 54px; height: 54px; border-radius: 50%; background: rgba(0,0,0,.55); display: grid; place-items: center; }
+.thumb span::after { content: &quot;&quot;; border-left: 18px solid #fff; border-top: 11px solid transparent; border-bottom: 11px solid transparent; margin-left: 5px; }
+.thumb em { position: absolute; color: #ddd; font-style: normal; font-size: 13px; }
+.clip iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; background: #000; }
+.clip-body { padding: 10px 12px; display: grid; gap: 4px; }
+.meta { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+.tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.tools button { min-height: 30px; padding: 2px 10px; font-size: 12px; border-width: 1.5px; }
+.empty { border: 2px dashed var(--line); border-radius: 14px; padding: 30px 16px; text-align: center; color: var(--muted); display: grid; gap: 6px; }
+.big { font-family: var(--display); font-size: 1.9rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; padding: 16px; z-index: 50; }
+.modal { background: var(--card); border-radius: 16px; padding: 18px; width: min(440px, 100%); display: grid; gap: 12px; }
+.modal .acts { display: flex; justify-content: flex-end; gap: 8px; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 20px; background: var(--ink); color: var(--floor); padding: 10px 18px; border-radius: 999px; font-weight: 700; z-index: 60; max-width: calc(100% - 32px); }
+@media (prefers-reduced-motion: reduce) { .status.rec i { animation: none; } * { transition: none !important; } }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div class=&quot;wrap&quot;&gt;
+  &lt;header class=&quot;top&quot;&gt;
+    &lt;a class=&quot;brand&quot; id=&quot;homeLink&quot; href=&quot;#&quot; target=&quot;_top&quot;&gt;
+      &lt;svg width=&quot;42&quot; height=&quot;42&quot; viewBox=&quot;0 0 44 44&quot; aria-hidden=&quot;true&quot;&gt;
+        &lt;rect x=&quot;2&quot; y=&quot;30&quot; width=&quot;40&quot; height=&quot;10&quot; rx=&quot;3&quot; fill=&quot;var(--mat)&quot;&gt;&lt;/rect&gt;
+        &lt;path d=&quot;M10 30 L14 12 H30 L34 30 Z&quot; fill=&quot;var(--box)&quot;&gt;&lt;/path&gt;
+        &lt;rect x=&quot;13&quot; y=&quot;12&quot; width=&quot;18&quot; height=&quot;5&quot; rx=&quot;1.5&quot; fill=&quot;var(--card)&quot;&gt;&lt;/rect&gt;
+      &lt;/svg&gt;
+      &lt;div&gt;&lt;h1&gt;技ビデオ 自動録画&lt;/h1&gt;&lt;p class=&quot;muted small&quot;&gt;動いたら録画開始、止まったら保存。Googleドライブにカメラごとに残ります。&lt;/p&gt;&lt;/div&gt;
+    &lt;/a&gt;
+    &lt;nav id=&quot;nav&quot;&gt;&lt;/nav&gt;
+  &lt;/header&gt;
+  &lt;main id=&quot;app&quot; class=&quot;wrap&quot;&gt;&lt;div class=&quot;empty&quot;&gt;読み込んでいます…&lt;/div&gt;&lt;/main&gt;
+&lt;/div&gt;
+&lt;div id=&quot;modalRoot&quot;&gt;&lt;/div&gt;&lt;div id=&quot;toastRoot&quot;&gt;&lt;/div&gt;
+
+&lt;script&gt;
+(function () {
+  &quot;use strict&quot;;
+  var CAMERA_COUNT = 4;
+  var SKILLS = {
+    mat: [&quot;前転&quot;, &quot;後転&quot;, &quot;開脚前転&quot;, &quot;開脚後転&quot;, &quot;伸膝前転&quot;, &quot;伸膝後転&quot;, &quot;後転倒立&quot;, &quot;倒立前転&quot;, &quot;側方倒立回転&quot;, &quot;ロンダート&quot;, &quot;倒立ブリッジ&quot;, &quot;前方倒立回転&quot;, &quot;跳び前転&quot;, &quot;首はねおき&quot;, &quot;頭はねおき&quot;, &quot;ハンドスプリング&quot;],
+    vault: [&quot;開脚跳び&quot;, &quot;かかえ込み跳び&quot;, &quot;屈身跳び&quot;, &quot;台上前転&quot;, &quot;伸膝台上前転&quot;, &quot;首はね跳び&quot;, &quot;頭はね跳び&quot;, &quot;前方屈腕倒立回転跳び&quot;, &quot;前方倒立回転跳び&quot;]
+  };
+  var EV = { mat: &quot;マット&quot;, vault: &quot;跳び箱&quot; };
+  var IN_GAS = typeof google !== &quot;undefined&quot; &amp;&amp; google.script &amp;&amp; google.script.run;
+
+  var S = {
+    cfg: { url: &quot;&quot;, folderUrl: &quot;&quot;, canManage: false, needKey: false },
+    params: {}, clips: [], loaded: false, listError: &quot;&quot;,
+    event: &quot;mat&quot;, skill: &quot;&quot;, group: &quot;&quot;, student: &quot;&quot;, key: &quot;&quot;, apiUrl: &quot;&quot;,
+    det: { thr: 28, trigger: 3, still: 2, max: 20, min: 1.2, audio: false },
+    zone: null, jobs: [], filter: { ev: &quot;&quot;, skill: &quot;&quot;, q: &quot;&quot; }
+  };
+  function load() {
+    try {
+      var s = JSON.parse(localStorage.getItem(&quot;waza-auto&quot;) || &quot;{}&quot;);
+      [&quot;event&quot;, &quot;skill&quot;, &quot;group&quot;, &quot;key&quot;, &quot;apiUrl&quot;].forEach(function (k) { if (typeof s[k] === &quot;string&quot;) S[k] = s[k]; });
+      if (s.det) Object.assign(S.det, s.det);
+    } catch (e) {}
+  }
+  function save() {
+    try { localStorage.setItem(&quot;waza-auto&quot;, JSON.stringify({ event: S.event, skill: S.skill, group: S.group, key: S.key, apiUrl: S.apiUrl, det: S.det })); } catch (e) {}
+  }
+  function loadZone(cam) { try { var z = JSON.parse(localStorage.getItem(&quot;waza-zone-&quot; + cam) || &quot;null&quot;); if (z &amp;&amp; z.w &gt; 0.02) return z; } catch (e) {} return { x: 0.1, y: 0.15, w: 0.8, h: 0.8 }; }
+  function saveZone(cam, z) { try { localStorage.setItem(&quot;waza-zone-&quot; + cam, JSON.stringify(z)); } catch (e) {} }
+  load();
+
+  var $app = document.getElementById(&quot;app&quot;), $nav = document.getElementById(&quot;nav&quot;);
+  function esc(s) { return String(s == null ? &quot;&quot; : s).replace(/[&amp;&lt;&gt;&quot;&#x27;]/g, function (c) { return { &quot;&amp;&quot;: &quot;&amp;amp;&quot;, &quot;&lt;&quot;: &quot;&amp;lt;&quot;, &quot;&gt;&quot;: &quot;&amp;gt;&quot;, &#x27;&quot;&#x27;: &quot;&amp;quot;&quot;, &quot;&#x27;&quot;: &quot;&amp;#39;&quot; }[c]; }); }
+  function toast(m) { var r = document.getElementById(&quot;toastRoot&quot;); r.innerHTML = &#x27;&lt;div class=&quot;toast&quot; role=&quot;status&quot;&gt;&#x27; + esc(m) + &quot;&lt;/div&gt;&quot;; clearTimeout(toast.t); toast.t = setTimeout(function () { r.innerHTML = &quot;&quot;; }, 2600); }
+  function fmtTime(ms) { var d = new Date(ms), p = function (n) { return (&quot;0&quot; + n).slice(-2); }; return (d.getMonth() + 1) + &quot;/&quot; + d.getDate() + &quot; &quot; + p(d.getHours()) + &quot;:&quot; + p(d.getMinutes()); }
+  function fmtSize(b) { return b &gt; 1048576 ? (b / 1048576).toFixed(1) + &quot;MB&quot; : Math.max(1, Math.round(b / 1024)) + &quot;KB&quot;; }
+
+  /* ---------- サーバー呼び出し ---------- */
+  function gas(fn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (res, rej) {
+      var r = google.script.run.withSuccessHandler(res).withFailureHandler(function (e) { rej(new Error(e &amp;&amp; e.message || String(e))); });
+      r[fn].apply(r, args);
+    });
+  }
+  function http(api, body) {
+    if (!S.apiUrl) return Promise.reject(new Error(&quot;設定でApps ScriptのURLを入れてください&quot;));
+    var req = body
+      ? fetch(S.apiUrl, { method: &quot;POST&quot;, headers: { &quot;Content-Type&quot;: &quot;text/plain;charset=utf-8&quot; }, body: JSON.stringify(Object.assign({ api: api }, body)) })
+      : fetch(S.apiUrl + (S.apiUrl.indexOf(&quot;?&quot;) &gt;= 0 ? &quot;&amp;&quot; : &quot;?&quot;) + &quot;api=&quot; + api + &quot;&amp;camera=&quot; + (S.params.list || &quot;&quot;));
+    return req.then(function (r) { return r.json(); }).then(function (j) { if (!j.ok) throw new Error(j.error); return j.data; });
+  }
+  var api = {
+    config: function () { return IN_GAS ? gas(&quot;getConfig&quot;) : http(&quot;config&quot;); },
+    list: function (cam) { return IN_GAS ? gas(&quot;listClips&quot;, cam) : http(&quot;list&quot;); },
+    upload: function (meta, b64, type) { return IN_GAS ? gas(&quot;uploadClip&quot;, meta, b64, type, S.key) : http(&quot;upload&quot;, { meta: meta, data: b64, mimeType: type, key: S.key }); },
+    update: function (id, patch) { return gas(&quot;updateClip&quot;, id, patch); },
+    remove: function (id) { return gas(&quot;deleteClip&quot;, id); }
+  };
+  function link(q) { return (S.cfg.url || location.href.split(&quot;?&quot;)[0]) + (q ? &quot;?&quot; + q : &quot;&quot;); }
+
+  /* ---------- 画面の切り替え ---------- */
+  function render() {
+    stopCamera();
+    document.getElementById(&quot;homeLink&quot;).href = link(&quot;&quot;);
+    var p = S.params;
+    $nav.innerHTML = (p.cam || p.list) ? &#x27;&lt;a class=&quot;btn btn-ghost&quot; target=&quot;_top&quot; href=&quot;&#x27; + esc(link(&quot;&quot;)) + &#x27;&quot;&gt;カメラ選択に戻る&lt;/a&gt;&#x27;
+      : &#x27;&lt;a class=&quot;btn btn-ghost&quot; target=&quot;_top&quot; href=&quot;&#x27; + esc(link(&quot;list=all&quot;)) + &#x27;&quot;&gt;すべての映像&lt;/a&gt;&#x27;;
+    if (p.cam) renderShoot(parseInt(p.cam, 10) || 1);
+    else if (p.list) renderList(p.list === &quot;all&quot; ? 0 : parseInt(p.list, 10) || 1);
+    else renderHome();
+  }
+
+  function renderHome() {
+    var cams = &quot;&quot;;
+    for (var i = 1; i &lt;= CAMERA_COUNT; i++) {
+      cams += &#x27;&lt;article class=&quot;panel&quot;&gt;&lt;div class=&quot;cam-no&quot;&gt;カメラ&lt;b&gt;&#x27; + i + &#x27;&lt;/b&gt;&lt;/div&gt;&lt;div class=&quot;two&quot;&gt;&#x27; +
+        &#x27;&lt;a class=&quot;btn btn-box&quot; target=&quot;_top&quot; href=&quot;&#x27; + esc(link(&quot;cam=&quot; + i)) + &#x27;&quot;&gt;撮影する&lt;/a&gt;&#x27; +
+        &#x27;&lt;a class=&quot;btn&quot; target=&quot;_top&quot; href=&quot;&#x27; + esc(link(&quot;list=&quot; + i)) + &#x27;&quot;&gt;一覧を見る&lt;/a&gt;&lt;/div&gt;&#x27; +
+        &#x27;&lt;p class=&quot;small muted&quot; style=&quot;word-break:break-all&quot;&gt;一覧のリンク：&#x27; + esc(link(&quot;list=&quot; + i)) + &quot;&lt;/p&gt;&lt;/article&gt;&quot;;
+    }
+    $app.innerHTML = setupCard() + &#x27;&lt;section class=&quot;cams&quot;&gt;&#x27; + cams + &#x27;&lt;/section&gt;&#x27; +
+      &#x27;&lt;section class=&quot;panel&quot;&gt;&lt;h2&gt;使い方&lt;/h2&gt;&lt;ol style=&quot;margin:0;padding-left:1.3em&quot;&gt;&#x27; +
+      &quot;&lt;li&gt;撮影する端末で「カメラ○ → 撮影する」を開き、カメラの使用を許可します。&lt;/li&gt;&quot; +
+      &quot;&lt;li&gt;映像の上を指でなぞって、マットや跳び箱の範囲を囲みます（その範囲の動きだけを見ます）。&lt;/li&gt;&quot; +
+      &quot;&lt;li&gt;種目と技を選んで「自動録画をはじめる」。範囲の中で人が動くと録画が始まり、&quot; + S.det.still + &quot;秒ほど止まると自動で保存されます。&lt;/li&gt;&quot; +
+      &quot;&lt;li&gt;別の端末で「一覧を見る」のリンクを開くと、そのカメラの映像がすべて見られます。&lt;/li&gt;&lt;/ol&gt;&quot; +
+      (S.cfg.folderUrl ? &#x27;&lt;p class=&quot;small&quot;&gt;&lt;a target=&quot;_blank&quot; href=&quot;&#x27; + esc(S.cfg.folderUrl) + &#x27;&quot;&gt;Googleドライブの保存先フォルダを開く&lt;/a&gt;&lt;/p&gt;&#x27; : &quot;&quot;) + &quot;&lt;/section&gt;&quot;;
+    bindSetup();
+  }
+  function setupCard() {
+    var need = (!IN_GAS &amp;&amp; !S.apiUrl) || S.cfg.needKey;
+    if (!need) return &quot;&quot;;
+    return &#x27;&lt;section class=&quot;panel&quot;&gt;&lt;h2&gt;この端末の設定&lt;/h2&gt;&#x27; +
+      (!IN_GAS ? &#x27;&lt;label class=&quot;field&quot;&gt;Apps Script のURL（…/exec）&lt;input type=&quot;text&quot; id=&quot;apiUrl&quot; value=&quot;&#x27; + esc(S.apiUrl) + &#x27;&quot;&gt;&lt;/label&gt;&#x27; : &quot;&quot;) +
+      (S.cfg.needKey || !IN_GAS ? &#x27;&lt;label class=&quot;field&quot;&gt;合言葉（設定した場合のみ）&lt;input type=&quot;password&quot; id=&quot;key&quot; value=&quot;&#x27; + esc(S.key) + &#x27;&quot;&gt;&lt;/label&gt;&#x27; : &quot;&quot;) +
+      &#x27;&lt;div&gt;&lt;button type=&quot;button&quot; class=&quot;btn-mat&quot; id=&quot;saveSetup&quot;&gt;保存&lt;/button&gt;&lt;/div&gt;&lt;/section&gt;&#x27;;
+  }
+  function bindSetup() {
+    var b = document.getElementById(&quot;saveSetup&quot;);
+    if (!b) return;
+    b.onclick = function () {
+      var u = document.getElementById(&quot;apiUrl&quot;), k = document.getElementById(&quot;key&quot;);
+      if (u) S.apiUrl = u.value.trim(); if (k) S.key = k.value; save(); toast(&quot;保存しました&quot;); boot();
+    };
+  }
+
+  /* ---------- 撮影画面 ---------- */
+  var cam = { stream: null, timer: 0, rec: null, chunks: [], recStart: 0, lastMotion: 0, hits: 0, armed: false, cooldownUntil: 0, prev: null, cameraNo: 1, mime: &quot;&quot; };
+
+  function renderShoot(n) {
+    cam.cameraNo = n;
+    S.zone = loadZone(n);
+    var d = S.det;
+    $app.innerHTML = setupCard() + &#x27;&lt;div class=&quot;shoot&quot;&gt;&#x27; +
+      &#x27;&lt;section style=&quot;display:grid;gap:12px;min-width:0&quot;&gt;&#x27; +
+        &#x27;&lt;div class=&quot;stage&quot; id=&quot;stage&quot;&gt;&lt;video id=&quot;vid&quot; playsinline muted autoplay&gt;&lt;/video&gt;&lt;canvas id=&quot;ov&quot;&gt;&lt;/canvas&gt;&#x27; +
+          &#x27;&lt;div class=&quot;status&quot; id=&quot;status&quot;&gt;&lt;i&gt;&lt;/i&gt;&lt;span&gt;カメラを準備中&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;camlabel&quot;&gt;カメラ &#x27; + n + &#x27;&lt;/div&gt;&lt;/div&gt;&#x27; +
+        &#x27;&lt;div style=&quot;display:grid;gap:4px&quot;&gt;&lt;div class=&quot;small&quot; style=&quot;display:flex;justify-content:space-between&quot;&gt;&lt;b&gt;動きの量&lt;/b&gt;&lt;span class=&quot;muted&quot;&gt;赤い線をこえると録画が始まります&lt;/span&gt;&lt;/div&gt;&#x27; +
+          &#x27;&lt;div class=&quot;meter&quot;&gt;&lt;i id=&quot;mFill&quot;&gt;&lt;/i&gt;&lt;b id=&quot;mLine&quot;&gt;&lt;/b&gt;&lt;/div&gt;&lt;/div&gt;&#x27; +
+        &#x27;&lt;div class=&quot;bigrow&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;btn-mat&quot; id=&quot;armBtn&quot;&gt;自動録画をはじめる&lt;/button&gt;&lt;button type=&quot;button&quot; class=&quot;btn-box&quot; id=&quot;manBtn&quot;&gt;手動で録画&lt;/button&gt;&lt;/div&gt;&#x27; +
+        &#x27;&lt;p class=&quot;small muted&quot;&gt;映像の上を指（マウス）でなぞると、動きを見る範囲を囲み直せます。範囲の外で動く人には反応しません。&lt;/p&gt;&#x27; +
+        &#x27;&lt;div id=&quot;camErr&quot;&gt;&lt;/div&gt;&#x27; +
+      &#x27;&lt;/section&gt;&#x27; +
+      &#x27;&lt;section class=&quot;panel&quot;&gt;&#x27; +
+        &#x27;&lt;div class=&quot;seg&quot; role=&quot;group&quot; aria-label=&quot;種目&quot;&gt;&lt;button type=&quot;button&quot; data-ev=&quot;mat&quot; aria-pressed=&quot;&#x27; + (S.event === &quot;mat&quot;) + &#x27;&quot;&gt;マット運動&lt;/button&gt;&lt;button type=&quot;button&quot; data-ev=&quot;vault&quot; aria-pressed=&quot;&#x27; + (S.event === &quot;vault&quot;) + &#x27;&quot;&gt;跳び箱運動&lt;/button&gt;&lt;/div&gt;&#x27; +
+        &#x27;&lt;div class=&quot;chips&quot; id=&quot;chips&quot;&gt;&#x27; + chipsHtml() + &quot;&lt;/div&gt;&quot; +
+        &#x27;&lt;label class=&quot;field&quot;&gt;一覧にない技&lt;input type=&quot;text&quot; id=&quot;skillFree&quot; value=&quot;&#x27; + esc(SKILLS[S.event].indexOf(S.skill) &gt;= 0 ? &quot;&quot; : S.skill) + &#x27;&quot; placeholder=&quot;例：補助倒立&quot;&gt;&lt;/label&gt;&#x27; +
+        &#x27;&lt;div class=&quot;row2&quot;&gt;&lt;label class=&quot;field&quot;&gt;学年・組&lt;input type=&quot;text&quot; id=&quot;group&quot; value=&quot;&#x27; + esc(S.group) + &#x27;&quot; placeholder=&quot;2年3組&quot;&gt;&lt;/label&gt;&#x27; +
+        &#x27;&lt;label class=&quot;field&quot;&gt;次の人（任意）&lt;input type=&quot;text&quot; id=&quot;student&quot; value=&quot;&#x27; + esc(S.student) + &#x27;&quot; placeholder=&quot;12 小林&quot;&gt;&lt;/label&gt;&lt;/div&gt;&#x27; +
+        &#x27;&lt;p class=&quot;small muted&quot;&gt;「次の人」は1本保存するたびに空になります。空のままでも保存できます。&lt;/p&gt;&#x27; +
+        &quot;&lt;details&gt;&lt;summary&gt;感度の調整&lt;/summary&gt;&lt;div style=\&quot;display:grid;gap:10px;margin-top:10px\&quot;&gt;&quot; +
+          slider(&quot;trigger&quot;, &quot;録画を始める動きの量&quot;, 1, 20, 1, d.trigger, &quot;%&quot;) +
+          slider(&quot;thr&quot;, &quot;小さな変化を無視する強さ&quot;, 10, 60, 1, d.thr, &quot;&quot;) +
+          slider(&quot;still&quot;, &quot;止まってから保存するまで&quot;, 1, 5, 0.5, d.still, &quot;秒&quot;) +
+          slider(&quot;max&quot;, &quot;1本の最長時間&quot;, 5, 40, 1, d.max, &quot;秒&quot;) +
+          &#x27;&lt;label class=&quot;small&quot; style=&quot;display:flex;gap:8px;align-items:center&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;audio&quot; &#x27; + (d.audio ? &quot;checked&quot; : &quot;&quot;) + &quot;&gt; 音も録る（次にカメラを開いた時から）&lt;/label&gt;&quot; +
+        &quot;&lt;/div&gt;&lt;/details&gt;&quot; +
+        &#x27;&lt;h2&gt;保存の状況&lt;/h2&gt;&lt;div class=&quot;jobs&quot; id=&quot;jobs&quot;&gt;&lt;/div&gt;&#x27; +
+        &#x27;&lt;a class=&quot;btn btn-ghost&quot; target=&quot;_top&quot; href=&quot;&#x27; + esc(link(&quot;list=&quot; + n)) + &#x27;&quot;&gt;カメラ&#x27; + n + &#x27;の一覧を見る&lt;/a&gt;&#x27; +
+      &quot;&lt;/section&gt;&lt;/div&gt;&quot;;
+    bindSetup();
+    bindShoot();
+    renderJobs();
+    startCamera();
+  }
+  function slider(id, label, min, max, step, val, unit) {
+    return &#x27;&lt;label class=&quot;slider&quot;&gt;&#x27; + label + &#x27;&lt;output id=&quot;o_&#x27; + id + &#x27;&quot;&gt;&#x27; + val + unit + &#x27;&lt;/output&gt;&lt;input type=&quot;range&quot; id=&quot;s_&#x27; + id + &#x27;&quot; min=&quot;&#x27; + min + &#x27;&quot; max=&quot;&#x27; + max + &#x27;&quot; step=&quot;&#x27; + step + &#x27;&quot; value=&quot;&#x27; + val + &#x27;&quot; data-unit=&quot;&#x27; + unit + &#x27;&quot;&gt;&lt;/label&gt;&#x27;;
+  }
+
+  function bindShoot() {
+    Array.prototype.forEach.call($app.querySelectorAll(&quot;[data-ev]&quot;), function (b) {
+      b.onclick = function () { if (S.event !== b.dataset.ev) { S.event = b.dataset.ev; S.skill = &quot;&quot;; save(); refreshSide(); } };
+    });
+    bindChips();
+    document.getElementById(&quot;skillFree&quot;).onchange = function (e) { var v = e.target.value.trim(); if (v) { S.skill = v; save(); Array.prototype.forEach.call($app.querySelectorAll(&quot;[data-skill]&quot;), function (c) { c.setAttribute(&quot;aria-pressed&quot;, &quot;false&quot;); }); } };
+    document.getElementById(&quot;group&quot;).onchange = function (e) { S.group = e.target.value.trim(); save(); };
+    document.getElementById(&quot;student&quot;).oninput = function (e) { S.student = e.target.value.trim(); };
+    [&quot;trigger&quot;, &quot;thr&quot;, &quot;still&quot;, &quot;max&quot;].forEach(function (k) {
+      var el = document.getElementById(&quot;s_&quot; + k);
+      el.oninput = function () { S.det[k] = parseFloat(el.value); document.getElementById(&quot;o_&quot; + k).textContent = el.value + el.dataset.unit; save(); };
+    });
+    document.getElementById(&quot;audio&quot;).onchange = function (e) { S.det.audio = e.target.checked; save(); };
+    document.getElementById(&quot;armBtn&quot;).onclick = function () { cam.armed = !cam.armed; if (!cam.armed &amp;&amp; cam.rec &amp;&amp; cam.rec.auto) stopRec(); cam.hits = 0; cam.prev = null; updateStatus(); };
+    document.getElementById(&quot;manBtn&quot;).onclick = function () { if (cam.rec) stopRec(); else startRec(false); };
+    bindZone();
+  }
+  function chipsHtml() { return SKILLS[S.event].map(function (s) { return &#x27;&lt;button type=&quot;button&quot; class=&quot;chip&quot; data-skill=&quot;&#x27; + esc(s) + &#x27;&quot; aria-pressed=&quot;&#x27; + (S.skill === s) + &#x27;&quot;&gt;&#x27; + esc(s) + &quot;&lt;/button&gt;&quot;; }).join(&quot;&quot;); }
+  function bindChips() {
+    Array.prototype.forEach.call($app.querySelectorAll(&quot;[data-skill]&quot;), function (b) {
+      b.onclick = function () { S.skill = S.skill === b.dataset.skill ? &quot;&quot; : b.dataset.skill; save(); Array.prototype.forEach.call($app.querySelectorAll(&quot;[data-skill]&quot;), function (c) { c.setAttribute(&quot;aria-pressed&quot;, c.dataset.skill === S.skill); }); document.getElementById(&quot;skillFree&quot;).value = &quot;&quot;; };
+    });
+  }
+  // 録画を止めないよう、種目を変えた時は技のボタンだけ描き直す
+  function refreshSide() {
+    Array.prototype.forEach.call($app.querySelectorAll(&quot;[data-ev]&quot;), function (b) { b.setAttribute(&quot;aria-pressed&quot;, b.dataset.ev === S.event); });
+    document.getElementById(&quot;chips&quot;).innerHTML = chipsHtml(); document.getElementById(&quot;skillFree&quot;).value = &quot;&quot;; bindChips();
+  }
+
+  function bindZone() {
+    var ov = document.getElementById(&quot;ov&quot;), start = null;
+    function pt(e) { var r = ov.getBoundingClientRect(); return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) }; }
+    ov.addEventListener(&quot;pointerdown&quot;, function (e) { start = pt(e); ov.setPointerCapture(e.pointerId); });
+    ov.addEventListener(&quot;pointermove&quot;, function (e) {
+      if (!start) return; var p = pt(e);
+      S.zone = { x: Math.min(start.x, p.x), y: Math.min(start.y, p.y), w: Math.abs(p.x - start.x), h: Math.abs(p.y - start.y) };
+    });
+    ov.addEventListener(&quot;pointerup&quot;, function () { if (start &amp;&amp; S.zone.w &gt; 0.03 &amp;&amp; S.zone.h &gt; 0.03) { saveZone(cam.cameraNo, S.zone); cam.prev = null; toast(&quot;範囲を決めました&quot;); } else S.zone = loadZone(cam.cameraNo); start = null; });
+  }
+
+  function startCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { camError(&quot;この画面ではカメラが使えません。設定ガイドの「カメラが使えないとき」を見てください。&quot;); return; }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: &quot;environment&quot;, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }, audio: !!S.det.audio })
+      .then(function (stream) {
+        cam.stream = stream;
+        var v = document.getElementById(&quot;vid&quot;); if (!v) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+        v.srcObject = stream; v.play().catch(function () {});
+        cam.mime = [&quot;video/mp4;codecs=avc1&quot;, &quot;video/mp4&quot;, &quot;video/webm;codecs=vp9&quot;, &quot;video/webm;codecs=vp8&quot;, &quot;video/webm&quot;].filter(function (t) { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } })[0] || &quot;&quot;;
+        cam.timer = setInterval(tick, 100);
+        updateStatus();
+        try { navigator.wakeLock &amp;&amp; navigator.wakeLock.request(&quot;screen&quot;).then(function (w) { cam.wake = w; }).catch(function () {}); } catch (e) {}
+      })
+      .catch(function (e) {
+        camError(e &amp;&amp; e.name === &quot;NotAllowedError&quot; ? &quot;カメラの使用が許可されていません。ブラウザのアドレスバーの設定からカメラを「許可」にして、読み込み直してください。&quot;
+          : &quot;カメラを開けませんでした（&quot; + esc(e &amp;&amp; (e.name || e.message)) + &quot;）。&quot;);
+      });
+  }
+  function camError(msg) { var el = document.getElementById(&quot;camErr&quot;); if (el) el.innerHTML = &#x27;&lt;div class=&quot;notice&quot;&gt;&#x27; + msg + &quot;&lt;/div&gt;&quot;; var s = document.getElementById(&quot;status&quot;); if (s) s.lastChild.textContent = &quot;カメラが使えません&quot;; }
+  function stopCamera() {
+    clearInterval(cam.timer); cam.timer = 0;
+    if (cam.rec) { try { cam.rec.stop(); } catch (e) {} }
+    if (cam.stream) cam.stream.getTracks().forEach(function (t) { t.stop(); });
+    cam.stream = null; cam.armed = false; cam.prev = null;
+    try { cam.wake &amp;&amp; cam.wake.release(); } catch (e) {} cam.wake = null;
+  }
+
+  // 小さく縮めた映像を前の瞬間と比べて、範囲の中で変わった点の割合を出す
+  var small = document.createElement(&quot;canvas&quot;); small.width = 96; small.height = 54;
+  var sctx = small.getContext(&quot;2d&quot;, { willReadFrequently: true });
+  function tick() {
+    var v = document.getElementById(&quot;vid&quot;), ov = document.getElementById(&quot;ov&quot;);
+    if (!v || !ov || v.readyState &lt; 2) return;
+    sctx.drawImage(v, 0, 0, 96, 54);
+    var z = S.zone, x0 = Math.floor(z.x * 96), y0 = Math.floor(z.y * 54), w = Math.max(2, Math.floor(z.w * 96)), h = Math.max(2, Math.floor(z.h * 54));
+    var img = sctx.getImageData(x0, y0, w, h).data, n = w * h, gray = new Uint8Array(n);
+    for (var i = 0; i &lt; n; i++) gray[i] = (img[i * 4] * 3 + img[i * 4 + 1] * 6 + img[i * 4 + 2]) / 10;
+    var score = 0;
+    if (cam.prev &amp;&amp; cam.prev.length === n) {
+      var changed = 0;
+      for (var j = 0; j &lt; n; j++) if (Math.abs(gray[j] - cam.prev[j]) &gt; S.det.thr) changed++;
+      score = (changed / n) * 100;
+    }
+    cam.prev = gray;
+    drawOverlay(ov, score);
+    var now = Date.now(), moving = score &gt;= S.det.trigger;
+    if (moving) cam.lastMotion = now;
+    if (cam.armed &amp;&amp; !cam.rec &amp;&amp; now &gt; cam.cooldownUntil) {
+      cam.hits = moving ? cam.hits + 1 : 0;
+      if (cam.hits &gt;= 3) startRec(true);
+    }
+    if (cam.rec) {
+      var len = (now - cam.recStart) / 1000;
+      if (cam.rec.auto &amp;&amp; (now - cam.lastMotion &gt; S.det.still * 1000 || len &gt;= S.det.max)) stopRec();
+      else if (!cam.rec.auto &amp;&amp; len &gt;= 60) stopRec();
+      var s = document.getElementById(&quot;status&quot;); if (s) s.lastChild.textContent = &quot;録画中 &quot; + len.toFixed(0) + &quot;秒&quot;;
+    }
+  }
+  function drawOverlay(ov, score) {
+    var r = ov.getBoundingClientRect();
+    if (ov.width !== Math.round(r.width)) { ov.width = Math.round(r.width); ov.height = Math.round(r.height); }
+    var c = ov.getContext(&quot;2d&quot;), z = S.zone;
+    c.clearRect(0, 0, ov.width, ov.height);
+    c.fillStyle = &quot;rgba(0,0,0,0.35)&quot;;
+    c.fillRect(0, 0, ov.width, ov.height);
+    c.clearRect(z.x * ov.width, z.y * ov.height, z.w * ov.width, z.h * ov.height);
+    c.strokeStyle = cam.rec ? &quot;#ff5a3c&quot; : score &gt;= S.det.trigger ? &quot;#ffd34d&quot; : &quot;#4cd07d&quot;;
+    c.lineWidth = 3; c.setLineDash([10, 6]);
+    c.strokeRect(z.x * ov.width, z.y * ov.height, z.w * ov.width, z.h * ov.height);
+    var f = document.getElementById(&quot;mFill&quot;), l = document.getElementById(&quot;mLine&quot;), max = 25;
+    if (f) { f.style.width = Math.min(100, (score / max) * 100) + &quot;%&quot;; f.style.background = score &gt;= S.det.trigger ? &quot;var(--box)&quot; : &quot;var(--ok)&quot;; }
+    if (l) l.style.left = Math.min(99, (S.det.trigger / max) * 100) + &quot;%&quot;;
+  }
+  function updateStatus() {
+    var s = document.getElementById(&quot;status&quot;), b = document.getElementById(&quot;armBtn&quot;), m = document.getElementById(&quot;manBtn&quot;);
+    if (!s) return;
+    s.className = &quot;status&quot; + (cam.rec ? &quot; rec&quot; : cam.armed ? &quot; armed&quot; : &quot;&quot;);
+    s.lastChild.textContent = cam.rec ? &quot;録画中&quot; : cam.armed ? &quot;待機中（動いたら録画）&quot; : cam.stream ? &quot;自動録画オフ&quot; : &quot;カメラを準備中&quot;;
+    b.textContent = cam.armed ? &quot;自動録画をやめる&quot; : &quot;自動録画をはじめる&quot;;
+    b.className = cam.armed ? &quot;btn-ghost&quot; : &quot;btn-mat&quot;;
+    m.textContent = cam.rec ? &quot;録画を止める&quot; : &quot;手動で録画&quot;;
+  }
+
+  function startRec(auto) {
+    if (!cam.stream || cam.rec) return;
+    if (typeof MediaRecorder === &quot;undefined&quot;) { camError(&quot;この端末のブラウザは録画に対応していません。&quot;); return; }
+    var opts = { videoBitsPerSecond: 2500000 }; if (cam.mime) opts.mimeType = cam.mime;
+    var rec; try { rec = new MediaRecorder(cam.stream, opts); } catch (e) { rec = new MediaRecorder(cam.stream); }
+    var chunks = [], meta = {
+      camera: cam.cameraNo, event: S.event, skill: S.skill || document.getElementById(&quot;skillFree&quot;).value.trim() || &quot;（技名なし）&quot;,
+      group: S.group, student: S.student, takenAt: Date.now()
+    };
+    rec.auto = auto;
+    rec.ondataavailable = function (e) { if (e.data &amp;&amp; e.data.size) chunks.push(e.data); };
+    rec.onstop = function () {
+      var dur = (Date.now() - meta.takenAt) / 1000 - (auto ? S.det.still : 0);
+      meta.durationSec = Math.round(Math.max(0, dur) * 10) / 10;
+      var blob = new Blob(chunks, { type: (rec.mimeType || cam.mime || &quot;video/webm&quot;).split(&quot;;&quot;)[0] });
+      if ((Date.now() - meta.takenAt) / 1000 &lt; S.det.min + (auto ? S.det.still : 0) &amp;&amp; auto) { toast(&quot;短すぎる動きだったので保存しませんでした&quot;); return; }
+      if (blob.size) addJob(blob, meta);
+    };
+    rec.start(1000);
+    cam.rec = rec; cam.recStart = Date.now(); cam.lastMotion = Date.now();
+    updateStatus();
+  }
+  function stopRec() {
+    if (!cam.rec) return;
+    try { cam.rec.stop(); } catch (e) {}
+    cam.rec = null; cam.hits = 0; cam.cooldownUntil = Date.now() + 1500;
+    // 次の人に備えて名前を空にする
+    S.student = &quot;&quot;; var st = document.getElementById(&quot;student&quot;); if (st) st.value = &quot;&quot;;
+    updateStatus();
+  }
+
+  /* ---------- 保存（アップロード） ---------- */
+  function addJob(blob, meta) {
+    var job = { id: Math.random().toString(36).slice(2), blob: blob, meta: meta, status: &quot;upload&quot;, error: &quot;&quot; };
+    S.jobs.unshift(job); renderJobs(); runJob(job);
+  }
+  function runJob(job) {
+    job.status = &quot;upload&quot;; job.error = &quot;&quot;; renderJobs();
+    var fr = new FileReader();
+    fr.onload = function () {
+      var b64 = String(fr.result).split(&quot;,&quot;)[1];
+      api.upload(job.meta, b64, job.blob.type).then(function () {
+        job.status = &quot;done&quot;; job.blob = job.blob; renderJobs(); toast(&quot;保存しました：&quot; + job.meta.skill);
+      }).catch(function (e) { job.status = &quot;error&quot;; job.error = e.message; renderJobs(); });
+    };
+    fr.onerror = function () { job.status = &quot;error&quot;; job.error = &quot;映像を読み込めませんでした&quot;; renderJobs(); };
+    fr.readAsDataURL(job.blob);
+  }
+  function renderJobs() {
+    var el = document.getElementById(&quot;jobs&quot;); if (!el) return;
+    if (!S.jobs.length) { el.innerHTML = &#x27;&lt;p class=&quot;small muted&quot;&gt;録画が終わるとここに出て、保存が終わると「保存完了」になります。&lt;/p&gt;&#x27;; return; }
+    el.innerHTML = S.jobs.slice(0, 8).map(function (j) {
+      var st = j.status === &quot;done&quot; ? &#x27;&lt;span class=&quot;st-ok&quot;&gt;保存完了&lt;/span&gt;&#x27; : j.status === &quot;error&quot; ? &#x27;&lt;span class=&quot;st-bad&quot;&gt;失敗：&#x27; + esc(j.error) + &quot;&lt;/span&gt;&quot; : &#x27;&lt;span class=&quot;st-busy&quot;&gt;保存中…&lt;/span&gt;&#x27;;
+      return &#x27;&lt;div class=&quot;job&quot;&gt;&lt;span class=&quot;pill &#x27; + j.meta.event + &#x27;&quot;&gt;&#x27; + EV[j.meta.event] + &#x27;&lt;/span&gt;&lt;span style=&quot;min-width:0&quot;&gt;&lt;b&gt;&#x27; + esc(j.meta.skill) + &quot;&lt;/b&gt; &quot; + esc(j.meta.student || &quot;&quot;) + &quot;&lt;br&gt;&quot; + st + &quot;&lt;/span&gt;&quot; +
+        (j.status === &quot;error&quot; ? &#x27;&lt;button type=&quot;button&quot; data-retry=&quot;&#x27; + j.id + &#x27;&quot;&gt;もう一度&lt;/button&gt;&#x27; : &#x27;&lt;span class=&quot;muted&quot;&gt;&#x27; + fmtSize(j.blob.size) + &quot;&lt;/span&gt;&quot;) + &quot;&lt;/div&gt;&quot;;
+    }).join(&quot;&quot;);
+    Array.prototype.forEach.call(el.querySelectorAll(&quot;[data-retry]&quot;), function (b) { b.onclick = function () { var j = S.jobs.filter(function (x) { return x.id === b.dataset.retry; })[0]; if (j) runJob(j); }; });
+  }
+  window.addEventListener(&quot;beforeunload&quot;, function (e) { if (S.jobs.some(function (j) { return j.status === &quot;upload&quot;; })) { e.preventDefault(); e.returnValue = &quot;&quot;; } });
+
+  /* ---------- 一覧画面 ---------- */
+  var listTimer = 0;
+  function renderList(n) {
+    S.listCam = n;
+    paintList();
+    fetchList();
+    clearInterval(listTimer);
+    listTimer = setInterval(function () { if (document.visibilityState === &quot;visible&quot; &amp;&amp; !document.querySelector(&quot;.clip iframe&quot;)) fetchList(); }, 20000);
+  }
+  function fetchList() {
+    api.list(S.listCam).then(function (rows) { S.clips = rows || []; S.loaded = true; S.listError = &quot;&quot;; paintList(); })
+      .catch(function (e) { S.loaded = true; S.listError = e.message; paintList(); });
+  }
+  function paintList() {
+    var n = S.listCam, f = S.filter, q = f.q.trim().toLowerCase();
+    var skills = S.clips.filter(function (c) { return !f.ev || c.event === f.ev; }).map(function (c) { return c.skill; }).filter(function (s, i, a) { return a.indexOf(s) === i; });
+    var shown = S.clips.filter(function (c) {
+      return (!f.ev || c.event === f.ev) &amp;&amp; (!f.skill || c.skill === f.skill) &amp;&amp; (!q || [c.group, c.student, c.skill].join(&quot; &quot;).toLowerCase().indexOf(q) &gt;= 0);
+    });
+    var focus = document.activeElement &amp;&amp; document.activeElement.id;
+    $app.innerHTML = setupCard() + &#x27;&lt;section class=&quot;panel&quot;&gt;&#x27; +
+      &#x27;&lt;div style=&quot;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start&quot;&gt;&lt;div style=&quot;display:flex;gap:14px;align-items:baseline;flex-wrap:wrap&quot;&gt;&#x27; +
+        &quot;&lt;h2 style=\&quot;font-size:1.35rem\&quot;&gt;&quot; + (n ? &quot;カメラ&quot; + n + &quot;の映像&quot; : &quot;すべてのカメラの映像&quot;) + &#x27;&lt;/h2&gt;&lt;span&gt;&lt;span class=&quot;big&quot;&gt;&#x27; + (S.loaded ? shown.length : &quot;…&quot;) + &quot;&lt;/span&gt; 本&lt;/span&gt;&lt;/div&gt;&quot; +
+        &#x27;&lt;div style=&quot;display:flex;gap:8px;flex-wrap:wrap&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;btn-ghost&quot; id=&quot;reload&quot;&gt;最新にする&lt;/button&gt;&#x27; + (n ? &#x27;&lt;a class=&quot;btn btn-box&quot; target=&quot;_top&quot; href=&quot;&#x27; + esc(link(&quot;cam=&quot; + n)) + &#x27;&quot;&gt;カメラ&#x27; + n + &quot;で撮影&lt;/a&gt;&quot; : &quot;&quot;) + &quot;&lt;/div&gt;&lt;/div&gt;&quot; +
+      &#x27;&lt;p class=&quot;small muted&quot; style=&quot;word-break:break-all&quot;&gt;このページのリンク：&#x27; + esc(link(&quot;list=&quot; + (n || &quot;all&quot;))) + &quot;&lt;/p&gt;&quot; +
+      &#x27;&lt;div class=&quot;filters&quot;&gt;&lt;label class=&quot;field&quot;&gt;種目&lt;select id=&quot;fEv&quot;&gt;&lt;option value=&quot;&quot;&gt;すべて&lt;/option&gt;&lt;option value=&quot;mat&quot;&#x27; + (f.ev === &quot;mat&quot; ? &quot; selected&quot; : &quot;&quot;) + &#x27;&gt;マット&lt;/option&gt;&lt;option value=&quot;vault&quot;&#x27; + (f.ev === &quot;vault&quot; ? &quot; selected&quot; : &quot;&quot;) + &quot;&gt;跳び箱&lt;/option&gt;&lt;/select&gt;&lt;/label&gt;&quot; +
+      &#x27;&lt;label class=&quot;field&quot;&gt;技&lt;select id=&quot;fSkill&quot;&gt;&lt;option value=&quot;&quot;&gt;すべて&lt;/option&gt;&#x27; + skills.map(function (s) { return &quot;&lt;option&quot; + (f.skill === s ? &quot; selected&quot; : &quot;&quot;) + &quot;&gt;&quot; + esc(s) + &quot;&lt;/option&gt;&quot;; }).join(&quot;&quot;) + &quot;&lt;/select&gt;&lt;/label&gt;&quot; +
+      &#x27;&lt;label class=&quot;field&quot;&gt;名前・組で探す&lt;input type=&quot;text&quot; id=&quot;fQ&quot; value=&quot;&#x27; + esc(f.q) + &#x27;&quot; placeholder=&quot;小林&quot;&gt;&lt;/label&gt;&lt;/div&gt;&lt;/section&gt;&#x27; +
+      (S.listError ? &#x27;&lt;div class=&quot;notice&quot;&gt;一覧を読み込めませんでした：&#x27; + esc(S.listError) + &quot;&lt;/div&gt;&quot; : &quot;&quot;) +
+      (!S.loaded ? &#x27;&lt;div class=&quot;empty&quot;&gt;読み込んでいます…&lt;/div&gt;&#x27; : shown.length ? &#x27;&lt;section class=&quot;grid&quot;&gt;&#x27; + shown.map(card).join(&quot;&quot;) + &quot;&lt;/section&gt;&quot;
+        : &#x27;&lt;div class=&quot;empty&quot;&gt;&lt;b&gt;&#x27; + (S.clips.length ? &quot;条件に合う映像がありません&quot; : &quot;まだ映像がありません&quot;) + &#x27;&lt;/b&gt;&lt;span class=&quot;small&quot;&gt;撮影すると、ここに追加されます（20秒ごとに自動で確認します）。&lt;/span&gt;&lt;/div&gt;&#x27;);
+    bindSetup();
+    document.getElementById(&quot;reload&quot;).onclick = fetchList;
+    document.getElementById(&quot;fEv&quot;).onchange = function (e) { f.ev = e.target.value; f.skill = &quot;&quot;; paintList(); };
+    document.getElementById(&quot;fSkill&quot;).onchange = function (e) { f.skill = e.target.value; paintList(); };
+    var fq = document.getElementById(&quot;fQ&quot;);
+    fq.oninput = function () { f.q = fq.value; clearTimeout(paintList.t); paintList.t = setTimeout(paintList, 300); };
+    if (focus === &quot;fQ&quot;) { var x = document.getElementById(&quot;fQ&quot;); x.focus(); x.setSelectionRange(x.value.length, x.value.length); }
+    Array.prototype.forEach.call($app.querySelectorAll(&quot;[data-play]&quot;), function (b) {
+      b.onclick = function () { b.outerHTML = &#x27;&lt;iframe src=&quot;https://drive.google.com/file/d/&#x27; + encodeURIComponent(b.dataset.play) + &#x27;/preview&quot; allow=&quot;autoplay; fullscreen&quot; allowfullscreen&gt;&lt;/iframe&gt;&#x27;; };
+    });
+    Array.prototype.forEach.call($app.querySelectorAll(&quot;img[data-fallback]&quot;), function (img) { img.onerror = function () { img.remove(); }; });
+    Array.prototype.forEach.call($app.querySelectorAll(&quot;[data-edit]&quot;), function (b) { b.onclick = function () { openEdit(b.dataset.edit); }; });
+    Array.prototype.forEach.call($app.querySelectorAll(&quot;[data-del]&quot;), function (b) { b.onclick = function () { openDelete(b.dataset.del); }; });
+  }
+  function card(c) {
+    return &#x27;&lt;article class=&quot;clip&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;thumb&quot; data-play=&quot;&#x27; + esc(c.id) + &#x27;&quot; aria-label=&quot;再生&quot;&gt;&#x27; +
+      &#x27;&lt;em&gt;処理中の場合は少し待ってください&lt;/em&gt;&lt;img data-fallback src=&quot;https://drive.google.com/thumbnail?id=&#x27; + encodeURIComponent(c.id) + &#x27;&amp;sz=w640&quot; alt=&quot;&quot; loading=&quot;lazy&quot;&gt;&lt;span&gt;&lt;/span&gt;&lt;/button&gt;&#x27; +
+      &#x27;&lt;div class=&quot;clip-body&quot;&gt;&lt;div style=&quot;display:flex;gap:8px;align-items:center;flex-wrap:wrap&quot;&gt;&lt;span class=&quot;pill &#x27; + (c.event === &quot;vault&quot; ? &quot;vault&quot; : &quot;mat&quot;) + &#x27;&quot;&gt;&#x27; + EV[c.event === &quot;vault&quot; ? &quot;vault&quot; : &quot;mat&quot;] + &quot;&lt;/span&gt;&lt;b&gt;&quot; + esc(c.skill) + &quot;&lt;/b&gt;&lt;/div&gt;&quot; +
+      ((c.group || c.student) ? &#x27;&lt;div class=&quot;small&quot;&gt;&#x27; + esc([c.group, c.student].filter(Boolean).join(&quot; &quot;)) + &quot;&lt;/div&gt;&quot; : &quot;&quot;) +
+      &#x27;&lt;div class=&quot;meta&quot;&gt;&lt;span&gt;&#x27; + fmtTime(c.takenAt) + &quot;・カメラ&quot; + c.camera + &quot;&lt;/span&gt;&lt;span&gt;&quot; + (c.durationSec ? Math.round(c.durationSec) + &quot;秒・&quot; : &quot;&quot;) + fmtSize(c.sizeBytes || 0) + &quot;&lt;/span&gt;&lt;/div&gt;&quot; +
+      (S.cfg.canManage &amp;&amp; IN_GAS ? &#x27;&lt;div class=&quot;tools&quot;&gt;&lt;button type=&quot;button&quot; data-edit=&quot;&#x27; + esc(c.id) + &#x27;&quot;&gt;名前・技を直す&lt;/button&gt;&lt;button type=&quot;button&quot; class=&quot;btn-danger&quot; data-del=&quot;&#x27; + esc(c.id) + &#x27;&quot;&gt;削除&lt;/button&gt;&lt;/div&gt;&#x27; : &quot;&quot;) +
+      &quot;&lt;/div&gt;&lt;/article&gt;&quot;;
+  }
+  function modal(html, bind) {
+    var r = document.getElementById(&quot;modalRoot&quot;);
+    r.innerHTML = &#x27;&lt;div class=&quot;overlay&quot;&gt;&lt;div class=&quot;modal&quot; role=&quot;dialog&quot; aria-modal=&quot;true&quot;&gt;&#x27; + html + &quot;&lt;/div&gt;&lt;/div&gt;&quot;;
+    var close = function () { r.innerHTML = &quot;&quot;; };
+    r.querySelector(&quot;.overlay&quot;).onclick = function (e) { if (e.target.className === &quot;overlay&quot;) close(); };
+    bind(r, close);
+  }
+  function openEdit(id) {
+    var c = S.clips.filter(function (x) { return x.id === id; })[0]; if (!c) return;
+    modal(&#x27;&lt;h2&gt;映像の情報を直す&lt;/h2&gt;&lt;label class=&quot;field&quot;&gt;技&lt;input type=&quot;text&quot; id=&quot;eSkill&quot; value=&quot;&#x27; + esc(c.skill) + &#x27;&quot;&gt;&lt;/label&gt;&#x27; +
+      &#x27;&lt;div class=&quot;row2&quot;&gt;&lt;label class=&quot;field&quot;&gt;学年・組&lt;input type=&quot;text&quot; id=&quot;eGroup&quot; value=&quot;&#x27; + esc(c.group) + &#x27;&quot;&gt;&lt;/label&gt;&lt;label class=&quot;field&quot;&gt;番号・名前&lt;input type=&quot;text&quot; id=&quot;eStudent&quot; value=&quot;&#x27; + esc(c.student) + &#x27;&quot;&gt;&lt;/label&gt;&lt;/div&gt;&#x27; +
+      &#x27;&lt;label class=&quot;field&quot;&gt;種目&lt;select id=&quot;eEv&quot;&gt;&lt;option value=&quot;mat&quot;&#x27; + (c.event !== &quot;vault&quot; ? &quot; selected&quot; : &quot;&quot;) + &#x27;&gt;マット&lt;/option&gt;&lt;option value=&quot;vault&quot;&#x27; + (c.event === &quot;vault&quot; ? &quot; selected&quot; : &quot;&quot;) + &quot;&gt;跳び箱&lt;/option&gt;&lt;/select&gt;&lt;/label&gt;&quot; +
+      &#x27;&lt;div class=&quot;acts&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;btn-ghost&quot; id=&quot;mC&quot;&gt;やめる&lt;/button&gt;&lt;button type=&quot;button&quot; class=&quot;btn-mat&quot; id=&quot;mS&quot;&gt;保存&lt;/button&gt;&lt;/div&gt;&#x27;, function (r, close) {
+        r.querySelector(&quot;#mC&quot;).onclick = close;
+        r.querySelector(&quot;#mS&quot;).onclick = function (e) {
+          e.currentTarget.disabled = true;
+          var patch = { skill: r.querySelector(&quot;#eSkill&quot;).value.trim(), group: r.querySelector(&quot;#eGroup&quot;).value.trim(), student: r.querySelector(&quot;#eStudent&quot;).value.trim(), event: r.querySelector(&quot;#eEv&quot;).value };
+          api.update(id, patch).then(function () { Object.assign(c, patch); close(); paintList(); toast(&quot;直しました&quot;); }).catch(function (err) { close(); toast(err.message); });
+        };
+      });
+  }
+  function openDelete(id) {
+    var c = S.clips.filter(function (x) { return x.id === id; })[0]; if (!c) return;
+    modal(&quot;&lt;h2&gt;この映像を削除しますか？&lt;/h2&gt;&lt;p&gt;&quot; + esc(c.skill) + &quot; &quot; + esc(c.student) + &quot;（&quot; + fmtTime(c.takenAt) + &quot;）&lt;/p&gt;&lt;p class=\&quot;small muted\&quot;&gt;Googleドライブのゴミ箱に移ります。30日以内ならドライブから戻せます。&lt;/p&gt;&quot; +
+      &#x27;&lt;div class=&quot;acts&quot;&gt;&lt;button type=&quot;button&quot; class=&quot;btn-ghost&quot; id=&quot;mC&quot;&gt;やめる&lt;/button&gt;&lt;button type=&quot;button&quot; class=&quot;btn-danger&quot; id=&quot;mD&quot;&gt;削除する&lt;/button&gt;&lt;/div&gt;&#x27;, function (r, close) {
+        r.querySelector(&quot;#mC&quot;).onclick = close;
+        r.querySelector(&quot;#mD&quot;).onclick = function (e) {
+          e.currentTarget.disabled = true;
+          api.remove(id).then(function () { S.clips = S.clips.filter(function (x) { return x.id !== id; }); close(); paintList(); toast(&quot;削除しました&quot;); }).catch(function (err) { close(); toast(err.message); });
+        };
+      });
+  }
+
+  /* ---------- 起動 ---------- */
+  function boot() {
+    var go = function (params) {
+      S.params = params || {};
+      api.config().then(function (cfg) { S.cfg = cfg || S.cfg; }).catch(function () {}).then(render);
+    };
+    if (IN_GAS &amp;&amp; google.script.url) google.script.url.getLocation(function (loc) { go(loc.parameter); });
+    else { var p = {}; new URLSearchParams(location.search).forEach(function (v, k) { p[k] = v; }); go(p); }
+  }
+  boot();
+})();
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</textarea>
+      <div class="copyrow"><button type="button" data-copy="t2">index.html をコピー</button><span class="ok" id="m_t2" role="status"></span></div></div></li>
+
+    <li><div class="body"><h2>保存して、ドライブの使用を許可する</h2>
+      <p>保存ボタン（フロッピーの絵）を押します。上の関数の選択欄で <code>setup</code> を選び、<b class="ui">実行</b> を押します。</p>
+      <p>「承認が必要です」と出たら、自分のアカウントを選んで許可します。「このアプリは Google で確認されていません」と出た場合は <b class="ui">詳細</b> → <b class="ui">技ビデオ（安全ではないページ）に移動</b> → <b class="ui">許可</b> の順に進みます。自分で作ったスクリプトなので問題ありません。</p>
+      <p>実行ログに「保存先フォルダ: https://drive.google.com/…」と出れば成功です。ドライブに「技ビデオ」フォルダができています。</p></div></li>
+
+    <li><div class="body"><h2>ウェブアプリとして公開する</h2>
+      <p>右上の <b class="ui">デプロイ</b> → <b class="ui">新しいデプロイ</b> を押し、歯車から種類に <b class="ui">ウェブアプリ</b> を選びます。</p>
+      <ul><li>次のユーザーとして実行：<b>自分</b></li><li>アクセスできるユーザー：<b>（学校のドメイン）内の全員</b></li></ul>
+      <p><b class="ui">デプロイ</b> を押すと、<code>https://script.google.com/a/macros/…/exec</code> のようなURLが出ます。これがアプリのURLです。コピーしておきます。</p>
+      <div class="note">撮影用の端末も見る端末も、学校のGoogleアカウントでログインしたブラウザで開いてください。</div></div></li>
+
+    <li><div class="body"><h2>撮影用の端末で開く</h2>
+      <p>iPad などでアプリのURLを開き、<b class="ui">カメラ1 → 撮影する</b> を押します。カメラの使用を聞かれたら <b>許可</b> します。</p>
+      <ul>
+        <li>端末は三脚などで<b>横向きに固定</b>し、マットや跳び箱の全体が映るように置きます。</li>
+        <li>映像の上を指でなぞって、動きを見る範囲を囲みます。待っている人や通る人が入らない範囲にすると、間違って録画が始まりにくくなります。</li>
+        <li>種目と技を選んで <b class="ui">自動録画をはじめる</b>。範囲の中で動くと赤い「録画中」になり、止まって2秒ほどで保存されます。</li>
+        <li>反応しすぎる・しなさすぎる時は「感度の調整」で変えられます。</li>
+        <li>録画中は画面を開いたままにし、充電しながら使ってください。</li>
+      </ul></div></li>
+
+    <li><div class="body"><h2>別の端末で一覧を見る</h2>
+      <p>ホーム画面の各カメラの「一覧を見る」のリンク（URLの最後が <code>?list=2</code> など）を開くと、そのカメラで撮った映像がすべて並びます。20秒ごとに新しい映像を確認します。</p>
+      <p>撮った直後はGoogleドライブが映像を処理しているため、再生できるまで1〜2分かかることがあります。</p></div></li>
+  </ol>
+
+  <section class="box">
+    <h2>カメラが使えないとき</h2>
+    <p>学校の端末やブラウザの設定によっては、Apps Script の画面の中でカメラが使えないことがあります。その場合は「この画面ではカメラが使えません」と表示されます。</p>
+    <p>そのときは index.html をカメラが使える別の場所（GitHub Pages など）に置き、Apps Script はデータの保存だけに使う方法に切り替えられます。この方法ではデプロイの「アクセスできるユーザー」を「全員」にする必要があるため、コード.gs の <code>UPLOAD_KEY</code> に合言葉を入れて使います。切り替えが必要になったら声をかけてください。</p>
+  </section>
+
+  <section class="box">
+    <h2>知っておくこと</h2>
+    <ul>
+      <li>映像は先生のGoogleドライブの容量を使います。720pで1本10秒ならおよそ3MBです。</li>
+      <li>「技ビデオ」フォルダは学校のドメイン内で閲覧できるよう共有されます（見る端末で再生するため）。共有したくない場合は、コード.gs の <code>SHARE_IN_DOMAIN</code> を <code>false</code> にしてから <code>setup</code> を実行してください。</li>
+      <li>技名の修正と削除は、アプリを作った先生のアカウントだけができます。削除した映像はドライブのゴミ箱に入り、30日以内なら戻せます。</li>
+      <li>コードを直した時は <b class="ui">デプロイ</b> → <b class="ui">デプロイを管理</b> → 鉛筆 → バージョン「新バージョン」→ <b class="ui">デプロイ</b> で反映されます。URLは変わりません。</li>
+      <li>生徒の映像を扱うため、学校の個人情報の取り扱いの決まりを確認してから使ってください。</li>
+    </ul>
+  </section>
+</main>
+<script>
+document.querySelectorAll("[data-copy]").forEach(function (b) {
+  b.addEventListener("click", function () {
+    var id = b.dataset.copy, t = document.getElementById(id), m = document.getElementById("m_" + id);
+    navigator.clipboard.writeText(t.value).then(function () { m.textContent = "コピーしました"; })
+      .catch(function () { t.focus(); t.select(); m.textContent = "選択しました。Ctrl+C（⌘+C）でコピーしてください"; });
+  });
+});
+</script>
