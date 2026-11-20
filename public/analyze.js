@@ -2,10 +2,10 @@
 // 骨格推定は MediaPipe Pose Landmarker を使い、すべて端末（iPad）の中で行います。
 // 動画そのものはどこにも送信しません。
 
-const VISION_VERSION = "0.10.14";
-const VISION_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VISION_VERSION}`;
-const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
+// MediaPipe の本体とモデルは、アプリと同じ場所（vendor/）に置いてあります。
+// 学校のネットワークで外部サイトが使えなくても動き、一度開けばオフラインでも使えます。
+const VISION_URL = new URL("./vendor/mediapipe", import.meta.url).href;
+const MODEL_URL = new URL("./vendor/models/pose_landmarker_full.task", import.meta.url).href;
 
 // 骨格の番号（MediaPipe の33点）
 export const LM = {
@@ -321,7 +321,57 @@ export function computeMetrics(pose, motion = "") {
   if (bodyLen < H * 0.25 && bodyLen < W * 0.25) warnings.push("体が小さく映っています。もう少し近くから撮ると正確になります。");
   if (!rotating.length && motion !== "handstand") warnings.push("回転している場面をはっきり見つけられませんでした。");
 
-  return { summary, timeline, keyframes, warnings, direction, floorY, bodyLen };
+  // コーチ機能が判定に使う値
+  const median = (xs) => {
+    const v = xs.filter((x) => x != null).sort((a, b) => a - b);
+    return v.length ? v[Math.floor(v.length / 2)] : null;
+  };
+  const argMin = (arr, key) => arr.filter((f) => f[key] != null).reduce((a, b) => (!a || b[key] < a[key] ? b : a), null);
+  const beforeRoll = F.filter((f) => f.t < rollStart.t);
+  const afterPeak = rollPhase.filter((f) => f.t >= peak.t);
+  const nearPeak = F.filter((f) => Math.abs(f.t - peak.t) <= 0.25);
+  // 逆さま（体幹150度以上）が続いた時間
+  let hold = 0, run = 0;
+  for (let k = 1; k < F.length; k++) {
+    if (F[k].torsoTilt >= 150 && F[k - 1].torsoTilt >= 150) {
+      run += F[k].t - F[k - 1].t;
+      hold = Math.max(hold, run);
+    } else run = 0;
+  }
+  const neckMinFrame = argMin(rollPhase, "neck");
+  const raw = {
+    detectionRate,
+    rotated: peak.torsoTilt >= 120,
+    peakTilt: peak.torsoTilt,
+    peakT: peak.t,
+    rollDur: rotating.length ? rollEnd.t - rollStart.t : null,
+    rollStartT: rollStart.t,
+    minHipRoll: minOf(rollPhase, "hip"),
+    tightestT: tightest.t,
+    minNeckRoll: neckMinFrame?.neck ?? null,
+    neckT: neckMinFrame?.t ?? peak.t,
+    medianKneeRoll: median(rollPhase.map((f) => f.knee)),
+    minKneeRoll: minOf(rollPhase, "kneeMin"),
+    maxElbowAfterPeak: maxOf(afterPeak, "elbow"),
+    peakElbow: median(nearPeak.map((f) => f.elbow)),
+    peakHip: median(nearPeak.map((f) => f.hip)),
+    peakKnee: median(nearPeak.map((f) => f.knee)),
+    peakSpread: maxOf(nearPeak, "legSpread"),
+    maxFeetH: highestFeet.feetHeight,
+    highestFeetT: highestFeet.t,
+    handsDownT: handsDown?.t ?? null,
+    startHipH: beforeRoll.length ? maxOf(beforeRoll.filter((f) => f.wristHeight < 0.2), "hipHeight") : null,
+    maxSpreadRise: maxOf(risePhase.length ? risePhase : after, "legSpread"),
+    riseT: risePhase.length ? risePhase[Math.floor(risePhase.length / 2)].t : standUp?.t ?? peak.t,
+    standKnee: standUp ? standUp.knee : null,
+    standT: standUp?.t ?? null,
+    handsAtRise,
+    stoodUp: !!(standUp && standUp.hipHeight > 0.45),
+    invertedHold: hold,
+    endT: F[F.length - 1].t,
+  };
+
+  return { summary, raw, timeline, keyframes, warnings, direction, floorY, bodyLen };
 }
 
 // ---------- 描画 ----------

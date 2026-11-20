@@ -1,5 +1,6 @@
 import { SKILLS, SELF_RATINGS, findSkill } from "./skills.js";
 import { loadLandmarker, detectPoses, computeMetrics, drawSkeleton, renderStickFigure } from "./analyze.js";
+import { makeCoaching } from "./coach.js";
 
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -111,7 +112,7 @@ async function onVideoSelected(file) {
 
   show($("step-progress"), false);
   showResult();
-  requestCoach();
+  runCoach();
 }
 
 function setProgress(p, text) {
@@ -240,74 +241,39 @@ function renderRatings() {
   }
 }
 
-// ---------- AIコーチ ----------
-async function getPasscode(force = false) {
-  const cfg = await fetch("api/config").then((r) => r.json()).catch(() => ({}));
-  if (!cfg.needPasscode) return "";
-  let code = store.get("passcode", "");
-  if (!code || force) {
-    const dlg = $("passDialog");
-    $("passInput").value = "";
-    dlg.showModal();
-    await new Promise((resolve) => dlg.addEventListener("close", resolve, { once: true }));
-    code = $("passInput").value.trim();
-    store.set("passcode", code);
-  }
-  return code;
-}
-
-async function requestCoach(forcePass = false) {
-  show($("coachLoading"));
+// ---------- コーチ ----------
+function runCoach() {
   show($("coachError"), false);
   show($("coachBody"), false);
-  state.coach = null;
-  try {
-    const passcode = await getPasscode(forcePass);
-    const body = {
-      skillId: state.skill.id,
-      goal: $("goal").value.trim(),
-      selfRating: state.rating,
-      metrics: {
-        summary: state.metrics.summary,
-        timeline: state.metrics.timeline,
-        warnings: state.metrics.warnings,
-      },
-      keyframes: state.keyframes.map((k) => ({
-        label: k.label,
-        t: Math.round(k.t * 100) / 100,
-        image: k.dataUrl.split(",")[1],
-      })),
-    };
-    const res = await fetch("api/coach", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-app-passcode": passcode },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.status === 401 && data.needPasscode && !forcePass) return requestCoach(true);
-    if (!res.ok) throw new Error(data.error || "AIコーチにつながりませんでした。");
-    state.coach = data.coach;
-    renderCoach(data.coach, data.mock);
-  } catch (e) {
-    show($("coachLoading"), false);
-    const err = $("coachError");
-    err.innerHTML = `${esc(e.message)}<div class="row"><button class="primary" id="retryCoach">もう一度ためす</button></div>`;
-    show(err);
-    $("retryCoach").onclick = () => requestCoach();
-  }
+  show($("coachLoading"));
+  // 少しだけ「考えている」間をとってから表示する
+  setTimeout(() => {
+    try {
+      state.coach = makeCoaching(state.skill, state.metrics, { goal: $("goal").value });
+      renderCoach(state.coach);
+    } catch (e) {
+      console.error(e);
+      show($("coachLoading"), false);
+      $("coachError").textContent = "コメントを作れませんでした。撮り直してためしてください。";
+      show($("coachError"));
+    }
+  }, 700);
 }
 
-function renderCoach(c, mock) {
+function renderCoach(c) {
   show($("coachLoading"), false);
   const timeBtn = (t) =>
     typeof t === "number" && t >= 0 ? `<button class="jump" data-t="${t}">▶ ${t.toFixed(1)}秒の場面を見る</button>` : "";
   const html = [
-    mock ? `<div class="warn">お試しモードです（AIは使わず、見本の回答を表示しています）</div>` : "",
     `<div class="bubble">${esc(c.summary)}</div>`,
+    `<div class="checklist">${c.checks
+      .map((k) => `<span class="chk ${k.ok === true ? "ok" : k.ok === false ? "ng" : "na"}">${k.ok === true ? "◎" : k.ok === false ? "△" : "－"} ${esc(k.title)}</span>`)
+      .join("")}</div>`,
     c.goal_feedback ? `<div class="sec-title">🎯 めあてについて</div><p>${esc(c.goal_feedback)}</p>` : "",
     `<div class="sec-title">👍 よかったところ</div>`,
     ...c.good_points.map((g) => `<div class="item good"><b>${esc(g.title)}</b><p>${esc(g.detail)}</p></div>`),
     `<div class="sec-title">💡 もっとよくなるポイント</div>`,
+    c.improvements.length ? "" : `<p>今回の動画では、大きく直すところは見つかりませんでした。すばらしいです！</p>`,
     ...c.improvements.map(
       (m, i) => `<div class="item tip"><b>${i + 1}. ${esc(m.title)}</b><p>${esc(m.detail)}</p>
         <div class="howto">👉 ${esc(m.how_to)}</div>${timeBtn(m.time_sec)}</div>`
@@ -412,3 +378,8 @@ function init() {
 }
 
 init();
+
+// 一度開いたらオフラインでも使えるようにする
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  navigator.serviceWorker.register("./sw.js").catch((e) => console.warn("オフライン機能を有効にできませんでした", e));
+}
