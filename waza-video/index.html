@@ -1,0 +1,694 @@
+<title>マット・跳び箱 技ビデオ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: 体育館の床（メープル）の上に、マットの紺と跳び箱の赤。上部にカメラ番号の大きな札、下に操作と一覧。 */
+:root {
+  --floor: #f6efe3;
+  --floor-2: #ece0cb;
+  --card: #fffdf9;
+  --ink: #1f2430;
+  --muted: #6b6457;
+  --line: #ddd0b8;
+  --mat: #24407a;
+  --mat-soft: #dfe6f5;
+  --box: #c2412d;
+  --box-soft: #f7e0da;
+  --ok: #2f7a4b;
+  --warn: #a56a00;
+  --bad: #b3261e;
+  --display: "Dela Gothic One", "Hiragino Sans", "Yu Gothic", sans-serif;
+  --body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --floor: #1a1915; --floor-2: #24221c; --card: #2a2821; --ink: #f1ece2; --muted: #b0a794;
+    --line: #3d392f; --mat: #8fa9e6; --mat-soft: #263252; --box: #f08a74; --box-soft: #4a2820;
+    --ok: #7fcf9b; --warn: #e6b24f; --bad: #ff8a80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --floor: #1a1915; --floor-2: #24221c; --card: #2a2821; --ink: #f1ece2; --muted: #b0a794;
+  --line: #3d392f; --mat: #8fa9e6; --mat-soft: #263252; --box: #f08a74; --box-soft: #4a2820;
+  --ok: #7fcf9b; --warn: #e6b24f; --bad: #ff8a80; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--floor); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 20px; }
+h1, h2, .display { font-family: var(--display); font-weight: 400; letter-spacing: .02em; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(1.5rem, 4vw, 2.1rem); line-height: 1.2; }
+h2 { font-size: 1.15rem; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+button, .btn {
+  font: inherit; font-weight: 700; border: 2px solid var(--ink); background: var(--card); color: var(--ink);
+  border-radius: 10px; padding: 10px 16px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  text-decoration: none; min-height: 44px;
+}
+button:focus-visible, .btn:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--mat); outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.btn-mat { background: var(--mat); border-color: var(--mat); color: var(--card); }
+.btn-ghost { border-color: var(--line); }
+.btn-danger { border-color: var(--bad); color: var(--bad); }
+input[type=text], select {
+  font: inherit; color: var(--ink); background: var(--card); border: 2px solid var(--line); border-radius: 10px;
+  padding: 8px 12px; min-height: 44px; width: 100%;
+}
+label.field { display: grid; gap: 4px; font-weight: 700; font-size: 13px; min-width: 0; }
+
+/* Top bar */
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark { width: 44px; height: 44px; flex: none; }
+.crumbs { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Home */
+.cams { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.cam {
+  background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 12px;
+}
+.cam-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cam-no { font-family: var(--display); font-size: 1.6rem; line-height: 1; }
+.cam-no b { font-weight: 400; font-size: 2.4rem; color: var(--mat); }
+.cam-count { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+.cam-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.linkrow { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.linkrow code {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px;
+  background: var(--floor-2); border-radius: 6px; padding: 6px 8px; user-select: all;
+}
+.linkrow button { min-height: 32px; padding: 4px 10px; font-size: 12px; border-width: 1.5px; }
+
+.howto { background: var(--floor-2); border-radius: 14px; padding: 16px 18px; display: grid; gap: 8px; }
+.howto ol { margin: 0; padding-left: 1.4em; display: grid; gap: 4px; }
+
+/* Camera (record) */
+.shoot { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 760px) { .shoot { grid-template-columns: 1fr; } }
+.panel { background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 16px; min-width: 0; }
+.tag-cam {
+  display: inline-flex; align-items: center; gap: 10px; font-family: var(--display); font-size: 1.1rem;
+  background: var(--ink); color: var(--floor); border-radius: 10px; padding: 6px 14px;
+}
+.tag-cam b { font-weight: 400; font-size: 1.8rem; line-height: 1; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; min-height: 52px; font-size: 1.05rem; background: var(--card); }
+.seg button + button { border-left: 2px solid var(--ink); }
+.seg button[aria-pressed="true"][data-ev="mat"] { background: var(--mat); color: var(--card); }
+.seg button[aria-pressed="true"][data-ev="vault"] { background: var(--box); color: var(--card); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border: 1.5px solid var(--line); background: var(--floor); border-radius: 999px; padding: 6px 14px; min-height: 38px;
+  font-weight: 500; font-size: 14px;
+}
+.chip[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--floor); font-weight: 700; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 420px) { .row2 { grid-template-columns: 1fr; } }
+
+.rec {
+  position: relative; display: grid; place-items: center; gap: 6px; text-align: center; cursor: pointer;
+  border-radius: 18px; padding: 22px 16px; background: var(--box); color: #fff; border: 0; min-height: 140px;
+  font-family: var(--display); font-size: 1.5rem;
+}
+.rec .dot { width: 46px; height: 46px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 6px rgba(255,255,255,.35); }
+.rec small { font-family: var(--body); font-size: 13px; font-weight: 500; opacity: .9; }
+.rec input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.rec.off { background: var(--floor-2); color: var(--muted); cursor: not-allowed; }
+.rec.off .dot { background: var(--line); box-shadow: none; }
+.next-label { font-weight: 700; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 2px 10px; font-size: 13px; font-weight: 700; }
+.pill.mat { background: var(--mat-soft); color: var(--mat); }
+.pill.vault { background: var(--box-soft); color: var(--box); }
+
+.jobs { display: grid; gap: 8px; }
+.job { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.job .st { font-size: 12px; font-weight: 700; }
+.job .bar { height: 4px; background: var(--floor-2); border-radius: 2px; overflow: hidden; grid-column: 1 / -1; }
+.job .bar i { display: block; height: 100%; background: var(--mat); width: 0; transition: width .3s; }
+.st.ok { color: var(--ok); } .st.bad { color: var(--bad); } .st.busy { color: var(--warn); }
+.job button { min-height: 32px; padding: 2px 10px; font-size: 12px; border-width: 1.5px; }
+.toggle { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; }
+.toggle input { margin-top: 4px; width: 18px; height: 18px; }
+
+/* List */
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.clip { background: var(--card); border: 2px solid var(--line); border-radius: 14px; overflow: hidden; display: grid; grid-template-rows: auto 1fr; min-width: 0; }
+.clip video { width: 100%; aspect-ratio: 16 / 9; background: #000; display: block; object-fit: contain; max-width: 100%; }
+.clip-body { padding: 10px 12px 12px; display: grid; gap: 6px; align-content: start; }
+.clip-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.clip-title strong { font-size: 1.05rem; }
+.clip-meta { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+.clip-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.clip-tools button { min-height: 32px; padding: 2px 10px; font-size: 12px; border-width: 1.5px; }
+.empty { border: 2px dashed var(--line); border-radius: 14px; padding: 32px 20px; text-align: center; display: grid; gap: 8px; justify-items: center; color: var(--muted); }
+.summary { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; }
+.summary .big { font-family: var(--display); font-size: 2rem; line-height: 1; font-variant-numeric: tabular-nums; }
+
+.notice { border-radius: 12px; padding: 12px 14px; background: var(--box-soft); color: var(--ink); font-size: 14px; }
+.notice.info { background: var(--mat-soft); }
+
+/* Modal */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; padding: 16px; z-index: 50; }
+.modal { background: var(--card); border-radius: 16px; padding: 20px; width: min(440px, 100%); display: grid; gap: 14px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  background: var(--ink); color: var(--floor); padding: 10px 18px; border-radius: 999px; font-weight: 700; z-index: 60; max-width: calc(100% - 32px);
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="#" style="color:inherit;text-decoration:none" aria-label="ホームへ">
+      <svg class="brand-mark" viewBox="0 0 44 44" aria-hidden="true">
+        <rect x="2" y="30" width="40" height="10" rx="3" fill="var(--mat)"></rect>
+        <path d="M10 30 L14 12 H30 L34 30 Z" fill="var(--box)"></path>
+        <rect x="13" y="12" width="18" height="5" rx="1.5" fill="var(--card)"></rect>
+        <line x1="12" y1="22" x2="32" y2="22" stroke="var(--card)" stroke-width="1.5"></line>
+      </svg>
+      <div>
+        <h1>マット・跳び箱 技ビデオ</h1>
+        <p class="muted small">撮ったらすぐクラウドへ。カメラごとに一覧で見返せます。</p>
+      </div>
+    </a>
+    <nav class="crumbs" id="crumbs"></nav>
+  </header>
+  <main id="app" class="wrap"></main>
+</div>
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+
+<script>
+(() => {
+  // 公開後に自分のURLを入れると、共有リンクを完全な形で表示できる
+  const ARTIFACT_URL = "https://claude.ai/artifact/GzxLuQ7Saku9YRR75yDAz4";
+  const CAMERA_COUNT = 4;
+  const MAX_BYTES = 19.5 * 1024 * 1024;
+
+  const SKILLS = {
+    mat: ["前転", "後転", "開脚前転", "開脚後転", "伸膝前転", "伸膝後転", "後転倒立", "倒立前転", "側方倒立回転", "ロンダート", "倒立ブリッジ", "前方倒立回転", "跳び前転", "首はねおき", "頭はねおき", "ハンドスプリング"],
+    vault: ["開脚跳び", "かかえ込み跳び", "屈身跳び", "台上前転", "伸膝台上前転", "首はね跳び", "頭はね跳び", "前方屈腕倒立回転跳び", "前方倒立回転跳び"]
+  };
+  const EV_LABEL = { mat: "マット", vault: "跳び箱" };
+
+  const state = {
+    clips: [], loaded: false, loadError: "",
+    db: null, assets: null, user: null, canEdit: false, capsReady: false,
+    event: "mat", skill: "", student: "", group: "", transcodeAlways: false,
+    jobs: [], filter: { ev: "", skill: "", q: "" }, usage: null
+  };
+  try {
+    const s = JSON.parse(localStorage.getItem("waza-prefs") || "{}");
+    if (s.event) state.event = s.event;
+    if (typeof s.skill === "string") state.skill = s.skill;
+    if (typeof s.group === "string") state.group = s.group;
+    state.transcodeAlways = !!s.transcodeAlways;
+  } catch (e) {}
+  function savePrefs() {
+    try { localStorage.setItem("waza-prefs", JSON.stringify({ event: state.event, skill: state.skill, group: state.group, transcodeAlways: state.transcodeAlways })); } catch (e) {}
+  }
+
+  const $app = document.getElementById("app");
+  const $crumbs = document.getElementById("crumbs");
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  function route() {
+    const h = (location.hash || "").replace(/^#/, "");
+    let m;
+    if ((m = h.match(/^cam(\d{1,2})$/))) return { view: "shoot", cam: +m[1] };
+    if ((m = h.match(/^list-cam(\d{1,2})$/))) return { view: "list", cam: +m[1] };
+    if (h === "list-all") return { view: "list", cam: 0 };
+    return { view: "home" };
+  }
+  function linkFor(hash) { return (ARTIFACT_URL || "（このページのURL）") + "#" + hash; }
+
+  function toast(msg) {
+    const root = document.getElementById("toastRoot");
+    root.innerHTML = `<div class="toast" role="status">${esc(msg)}</div>`;
+    clearTimeout(toast.t); toast.t = setTimeout(() => (root.innerHTML = ""), 2600);
+  }
+  async function copy(text, btn) {
+    try { await navigator.clipboard.writeText(text); toast("リンクをコピーしました"); }
+    catch (e) {
+      const code = btn && btn.parentElement.querySelector("code");
+      if (code) { const r = document.createRange(); r.selectNodeContents(code); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+      toast("選択しました。長押しでコピーしてください");
+    }
+  }
+
+  function fmtTime(ms) {
+    const d = new Date(ms);
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function fmtSize(b) { return b > 1048576 ? (b / 1048576).toFixed(1) + "MB" : Math.max(1, Math.round(b / 1024)) + "KB"; }
+  function fmtDur(s) { if (!s && s !== 0) return ""; s = Math.round(s); return s >= 60 ? `${Math.floor(s / 60)}分${s % 60}秒` : `${s}秒`; }
+
+  /* ---------- render ---------- */
+  function render() {
+    const r = route();
+    $crumbs.innerHTML = r.view === "home" ? `<a class="btn btn-ghost" href="#list-all">すべての映像</a>`
+      : `<a class="btn btn-ghost" href="#">カメラ選択に戻る</a>`;
+    if (r.view === "home") renderHome();
+    else if (r.view === "shoot") renderShoot(r.cam);
+    else renderList(r.cam);
+    if (r.view === "shoot") wakeLock(); else releaseWake();
+  }
+
+  function countFor(cam) { return state.clips.filter((c) => c.camera === cam).length; }
+
+  function renderHome() {
+    const cams = [];
+    for (let i = 1; i <= CAMERA_COUNT; i++) {
+      const n = state.loaded ? `${countFor(i)}本` : "…";
+      cams.push(`
+        <article class="cam">
+          <div class="cam-head">
+            <div class="cam-no">カメラ<b>${i}</b></div>
+            <span class="cam-count">保存済み ${n}</span>
+          </div>
+          <div class="cam-actions">
+            <a class="btn btn-mat" href="#cam${i}">撮影する</a>
+            <a class="btn" href="#list-cam${i}">一覧を見る</a>
+          </div>
+          <div class="linkrow"><code>${esc(linkFor("list-cam" + i))}</code><button type="button" data-copy="list-cam${i}">コピー</button></div>
+        </article>`);
+    }
+    $app.innerHTML = `
+      ${capNotice()}
+      <section class="cams" aria-label="カメラ">${cams.join("")}</section>
+      <section class="howto">
+        <h2>使い方</h2>
+        <ol>
+          <li>撮影する端末で「カメラ○ → 撮影する」を開く（リンク末尾が <b>#cam2</b> のようになります）。</li>
+          <li>種目と技を選んで赤いボタンを押すと、端末のカメラが開きます。撮り終えて「ビデオを使用」を押すと、その場でクラウドに保存されます。</li>
+          <li>別の端末では「一覧を見る」のリンク（末尾 <b>#list-cam2</b>）を開くと、カメラ2で撮った技がすべて見られます。新しく撮った映像は自動で増えます。</li>
+        </ol>
+        <p class="muted small">見る人もclaude.aiにログインし、このページを共有されている必要があります。</p>
+      </section>`;
+    $app.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", () => copy(linkFor(b.dataset.copy), b)));
+  }
+
+  function capNotice() {
+    if (!state.capsReady) return "";
+    if (!state.db) return `<div class="notice">クラウドに接続できません。claude.aiにログインしているか確認してください。</div>`;
+    if (state.loadError) return `<div class="notice">${esc(state.loadError)}</div>`;
+    return "";
+  }
+
+  function renderShoot(cam) {
+    const ev = state.event;
+    const list = SKILLS[ev];
+    const canRec = !!state.assets && !!state.db;
+    const recent = state.clips.filter((c) => c.camera === cam).slice(0, 6);
+    $app.innerHTML = `
+      ${capNotice()}
+      ${state.capsReady && !state.assets ? `<div class="notice">このアカウントでは映像を保存できません。撮影用の端末は、このページの編集権限がある先生のアカウントで開いてください。</div>` : ""}
+      <div class="shoot">
+        <section class="panel" aria-label="撮影">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+            <span class="tag-cam">カメラ <b>${cam}</b></span>
+            <a class="btn btn-ghost" href="#list-cam${cam}">このカメラの一覧</a>
+          </div>
+          <div class="seg" role="group" aria-label="種目">
+            <button type="button" data-ev="mat" aria-pressed="${ev === "mat"}">マット運動</button>
+            <button type="button" data-ev="vault" aria-pressed="${ev === "vault"}">跳び箱運動</button>
+          </div>
+          <div style="display:grid;gap:8px">
+            <span class="small" style="font-weight:700">技</span>
+            <div class="chips" id="chips">
+              ${list.map((s) => `<button type="button" class="chip" data-skill="${esc(s)}" aria-pressed="${state.skill === s}">${esc(s)}</button>`).join("")}
+            </div>
+            <label class="field">一覧にない技
+              <input type="text" id="skillFree" placeholder="例：補助倒立" value="${esc(list.includes(state.skill) ? "" : state.skill)}">
+            </label>
+          </div>
+          <div class="row2">
+            <label class="field">学年・組（任意）<input type="text" id="group" placeholder="例：2年3組" value="${esc(state.group)}"></label>
+            <label class="field">番号・名前（任意）<input type="text" id="student" placeholder="例：12 小林" value="${esc(state.student)}"></label>
+          </div>
+          <div class="next-label">次に保存される内容：
+            <span class="pill ${ev}">${EV_LABEL[ev]}</span>
+            <span>${esc(state.skill || "技を選んでください")}</span>
+            ${state.student ? `<span class="muted">／${esc(state.student)}</span>` : ""}
+          </div>
+          <label class="rec ${canRec ? "" : "off"}" for="camInput">
+            <span class="dot" aria-hidden="true"></span>
+            録画する
+            <small>${canRec ? "カメラが開きます。撮り終えると自動で保存されます" : "保存の準備ができていません"}</small>
+            <input id="camInput" type="file" accept="video/*" capture="environment" ${canRec ? "" : "disabled"}>
+          </label>
+          <label class="toggle"><input type="checkbox" id="tc" ${state.transcodeAlways ? "checked" : ""}>
+            <span>どの端末でも再生できる形式に変換してから保存する<br><span class="muted">別の端末で再生できない時にオン。撮影時間と同じくらい変換に時間がかかります。</span></span>
+          </label>
+        </section>
+        <section class="panel" aria-label="保存の状況">
+          <h2>保存の状況</h2>
+          <div class="jobs" id="jobs"></div>
+          <h2>このカメラの最近の映像</h2>
+          ${recent.length ? `<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">${recent.map((c) => clipCard(c, true)).join("")}</div>`
+            : `<div class="empty"><strong>まだ映像がありません</strong><span class="small">左の赤いボタンで最初の技を撮ってみましょう。</span></div>`}
+        </section>
+      </div>`;
+    renderJobs();
+    bindShoot(cam);
+    bindClipTools();
+  }
+
+  function bindShoot(cam) {
+    $app.querySelectorAll("[data-ev]").forEach((b) => b.addEventListener("click", () => {
+      if (state.event !== b.dataset.ev) { state.event = b.dataset.ev; state.skill = ""; savePrefs(); render(); }
+    }));
+    $app.querySelectorAll("[data-skill]").forEach((b) => b.addEventListener("click", () => {
+      state.skill = state.skill === b.dataset.skill ? "" : b.dataset.skill; savePrefs(); render();
+    }));
+    const free = document.getElementById("skillFree");
+    free.addEventListener("change", () => { state.skill = free.value.trim(); savePrefs(); render(); });
+    const g = document.getElementById("group");
+    g.addEventListener("change", () => { state.group = g.value.trim(); savePrefs(); });
+    const st = document.getElementById("student");
+    st.addEventListener("change", () => { state.student = st.value.trim(); render(); });
+    document.getElementById("tc").addEventListener("change", (e) => { state.transcodeAlways = e.target.checked; savePrefs(); });
+    const input = document.getElementById("camInput");
+    input.addEventListener("click", () => {
+      // 入力途中の欄を確定させる
+      if (free.value.trim() && free.value.trim() !== state.skill) state.skill = free.value.trim();
+      state.student = st.value.trim(); state.group = g.value.trim(); savePrefs();
+    });
+    input.addEventListener("change", () => {
+      const file = input.files && input.files[0];
+      input.value = "";
+      if (!file) return;
+      startJob(file, {
+        camera: cam, event: state.event, skill: state.skill || "（技名なし）",
+        student: state.student, group: state.group
+      });
+      // 次の生徒に備えて名前だけ空にする
+      state.student = "";
+      render();
+    });
+  }
+
+  function renderJobs() {
+    const el = document.getElementById("jobs");
+    if (!el) return;
+    if (!state.jobs.length) { el.innerHTML = `<p class="muted small">撮った映像はここに表示され、保存が終わると「保存完了」になります。</p>`; return; }
+    el.innerHTML = state.jobs.slice(0, 8).map((j) => {
+      const cls = j.status === "done" ? "ok" : j.status === "error" ? "bad" : "busy";
+      const label = { prep: "準備中", transcode: "変換中", upload: "アップロード中", save: "記録中", done: "保存完了", error: "失敗" }[j.status];
+      return `<div class="job">
+        <span class="pill ${j.meta.event}">${EV_LABEL[j.meta.event]}</span>
+        <span style="min-width:0"><strong>${esc(j.meta.skill)}</strong> <span class="muted small">${esc(j.meta.student || "")}</span><br>
+          <span class="st ${cls}">${label}${j.status === "error" ? "：" + esc(j.error) : ""}</span></span>
+        ${j.status === "error" ? `<button type="button" data-retry="${j.id}">もう一度</button>` : `<span class="muted small" style="font-variant-numeric:tabular-nums">${fmtSize(j.file.size)}</span>`}
+        <div class="bar"><i style="width:${Math.round(j.progress * 100)}%"></i></div>
+      </div>`;
+    }).join("");
+    el.querySelectorAll("[data-retry]").forEach((b) => b.addEventListener("click", () => {
+      const j = state.jobs.find((x) => x.id === b.dataset.retry); if (j) runJob(j);
+    }));
+  }
+
+  function clipCard(c, compact) {
+    const src = "/_blob/" + c.assetId;
+    return `<article class="clip">
+      <video src="${esc(src)}#t=0.1" controls playsinline preload="metadata"></video>
+      <div class="clip-body">
+        <div class="clip-title"><span class="pill ${c.event === "vault" ? "vault" : "mat"}">${EV_LABEL[c.event] || "?"}</span><strong>${esc(c.skill)}</strong></div>
+        ${c.student || c.group ? `<div class="small">${esc([c.group, c.student].filter(Boolean).join(" "))}</div>` : ""}
+        <div class="clip-meta"><span>${fmtTime(c.takenAt)}${compact ? "" : `・カメラ${c.camera}`}</span><span>${esc(fmtDur(c.durationSec))}</span></div>
+        ${state.canEdit && !compact ? `<div class="clip-tools"><button type="button" data-edit="${esc(c.id)}">名前・技を直す</button><button type="button" class="btn-danger" data-del="${esc(c.id)}">削除</button></div>` : ""}
+      </div>
+    </article>`;
+  }
+
+  function renderList(cam) {
+    const base = cam ? state.clips.filter((c) => c.camera === cam) : state.clips;
+    const f = state.filter;
+    const skillsHere = [...new Set(base.filter((c) => !f.ev || c.event === f.ev).map((c) => c.skill))];
+    const q = f.q.trim().toLowerCase();
+    const shown = base.filter((c) => (!f.ev || c.event === f.ev) && (!f.skill || c.skill === f.skill) &&
+      (!q || [c.student, c.group, c.skill].join(" ").toLowerCase().includes(q)));
+    const title = cam ? `カメラ${cam}の映像` : "すべてのカメラの映像";
+    const shareHash = cam ? "list-cam" + cam : "list-all";
+    $app.innerHTML = `
+      ${capNotice()}
+      <section class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div class="summary">
+            <h2 style="font-size:1.4rem">${title}</h2>
+            <span><span class="big">${state.loaded ? shown.length : "…"}</span> 本${shown.length !== base.length ? `<span class="muted small">（全${base.length}本中）</span>` : ""}</span>
+          </div>
+          ${cam ? `<a class="btn btn-mat" href="#cam${cam}">カメラ${cam}で撮影する</a>` : ""}
+        </div>
+        <div class="linkrow"><span class="small muted" style="flex:none">このページのリンク</span><code>${esc(linkFor(shareHash))}</code><button type="button" id="copyList">コピー</button></div>
+        <div class="filters">
+          <label class="field">種目<select id="fEv"><option value="">すべて</option><option value="mat" ${f.ev === "mat" ? "selected" : ""}>マット</option><option value="vault" ${f.ev === "vault" ? "selected" : ""}>跳び箱</option></select></label>
+          <label class="field">技<select id="fSkill"><option value="">すべて</option>${skillsHere.map((s) => `<option ${f.skill === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></label>
+          <label class="field">名前・組で探す<input type="text" id="fQ" value="${esc(f.q)}" placeholder="例：小林"></label>
+        </div>
+      </section>
+      ${!state.loaded ? `<div class="empty"><strong>映像を読み込んでいます…</strong></div>`
+        : shown.length ? `<section class="grid">${shown.map((c) => clipCard(c, false)).join("")}</section>`
+        : `<div class="empty"><strong>${base.length ? "条件に合う映像がありません" : "まだ映像がありません"}</strong>
+            <span class="small">${cam ? `カメラ${cam}の端末で撮影すると、ここに自動で追加されます。` : "どれかのカメラで撮影すると、ここに自動で追加されます。"}</span></div>`}
+      ${state.canEdit && state.usage ? `<p class="muted small" style="text-align:right">保存容量 ${fmtSize(state.usage.bytes)} / ${fmtSize(state.usage.maxBytes)}（${state.usage.files} / ${state.usage.maxFiles} ファイル）</p>` : ""}`;
+    document.getElementById("copyList").addEventListener("click", (e) => copy(linkFor(shareHash), e.currentTarget));
+    document.getElementById("fEv").addEventListener("change", (e) => { f.ev = e.target.value; f.skill = ""; render(); });
+    document.getElementById("fSkill").addEventListener("change", (e) => { f.skill = e.target.value; render(); });
+    const fq = document.getElementById("fQ");
+    fq.addEventListener("input", () => { f.q = fq.value; clearTimeout(renderList.t); renderList.t = setTimeout(() => { render(); const n = document.getElementById("fQ"); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 350); });
+    bindClipTools();
+  }
+
+  function bindClipTools() {
+    $app.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => openEdit(b.dataset.edit)));
+    $app.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => openDelete(b.dataset.del)));
+  }
+
+  /* ---------- modal ---------- */
+  function modal(html, bind) {
+    const root = document.getElementById("modalRoot");
+    root.innerHTML = `<div class="overlay"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
+    const close = () => (root.innerHTML = "");
+    root.querySelector(".overlay").addEventListener("click", (e) => { if (e.target.classList.contains("overlay")) close(); });
+    bind(root, close);
+  }
+  function openEdit(id) {
+    const c = state.clips.find((x) => x.id === id); if (!c) return;
+    modal(`<h2>映像の情報を直す</h2>
+      <label class="field">技<input type="text" id="eSkill" value="${esc(c.skill)}"></label>
+      <div class="row2">
+        <label class="field">学年・組<input type="text" id="eGroup" value="${esc(c.group || "")}"></label>
+        <label class="field">番号・名前<input type="text" id="eStudent" value="${esc(c.student || "")}"></label>
+      </div>
+      <label class="field">種目<select id="eEv"><option value="mat" ${c.event === "mat" ? "selected" : ""}>マット</option><option value="vault" ${c.event === "vault" ? "selected" : ""}>跳び箱</option></select></label>
+      <div class="modal-actions"><button type="button" class="btn-ghost" id="mCancel">やめる</button><button type="button" class="btn-mat" id="mSave">保存</button></div>`,
+      (root, close) => {
+        root.querySelector("#mCancel").onclick = close;
+        root.querySelector("#mSave").onclick = async (e) => {
+          e.currentTarget.disabled = true;
+          try {
+            await state.db.doc("clips/" + id).update({
+              skill: root.querySelector("#eSkill").value.trim() || "（技名なし）",
+              group: root.querySelector("#eGroup").value.trim(),
+              student: root.querySelector("#eStudent").value.trim(),
+              event: root.querySelector("#eEv").value
+            });
+            close(); toast("直しました");
+          } catch (err) { close(); toast("保存できませんでした（" + (err && err.code || "エラー") + "）"); }
+        };
+      });
+  }
+  function openDelete(id) {
+    const c = state.clips.find((x) => x.id === id); if (!c) return;
+    modal(`<h2>この映像を削除しますか？</h2>
+      <p>${esc(c.skill)} ${esc(c.student || "")}（${fmtTime(c.takenAt)}・カメラ${c.camera}）</p>
+      <p class="muted small">クラウドからも消え、元に戻せません。</p>
+      <div class="modal-actions"><button type="button" class="btn-ghost" id="mCancel">やめる</button><button type="button" class="btn-danger" id="mDel">削除する</button></div>`,
+      (root, close) => {
+        root.querySelector("#mCancel").onclick = close;
+        root.querySelector("#mDel").onclick = async (e) => {
+          e.currentTarget.disabled = true;
+          try {
+            await state.db.doc("clips/" + id).delete();
+            if (state.assets && c.assetId) { try { await state.assets.delete(c.assetId); } catch (err) {} }
+            close(); toast("削除しました"); refreshUsage();
+          } catch (err) { close(); toast("削除できませんでした（" + (err && err.code || "エラー") + "）"); }
+        };
+      });
+  }
+
+  /* ---------- upload pipeline ---------- */
+  function guessType(file) {
+    const t = (file.type || "").split(";")[0].trim();
+    if (t) return t;
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    return { mov: "video/quicktime", mp4: "video/mp4", m4v: "video/mp4", webm: "video/webm", "3gp": "video/3gpp" }[ext] || "video/mp4";
+  }
+  function readDuration(blob) {
+    return new Promise((res) => {
+      const v = document.createElement("video");
+      const url = URL.createObjectURL(blob);
+      const done = (d) => { URL.revokeObjectURL(url); res(Number.isFinite(d) ? d : null); };
+      v.preload = "metadata"; v.muted = true;
+      v.onloadedmetadata = () => done(v.duration);
+      v.onerror = () => done(null);
+      setTimeout(() => done(null), 5000);
+      v.src = url;
+    });
+  }
+
+  // 画面に描き直して録り直すことで、小さく・どの端末でも再生できる形式にする
+  async function transcode(file, durationHint, onProgress) {
+    if (typeof MediaRecorder === "undefined") throw new Error("この端末では変換できません");
+    const mime = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]
+      .find((t) => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } });
+    if (!mime) throw new Error("この端末では変換できません");
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.muted = true; v.playsInline = true; v.setAttribute("playsinline", "");
+    v.style.cssText = "position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0.01;pointer-events:none";
+    document.body.appendChild(v);
+    try {
+      await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = () => rej(new Error("映像を読み込めません")); v.src = url; });
+      const dur = v.duration || durationHint || 10;
+      const short = Math.min(v.videoWidth, v.videoHeight) || 720;
+      const scale = Math.min(1, 720 / short);
+      const w = Math.max(2, Math.round((v.videoWidth * scale) / 2) * 2), h = Math.max(2, Math.round((v.videoHeight * scale) / 2) * 2);
+      const canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      const bps = Math.max(700000, Math.min(4000000, Math.floor((17 * 1024 * 1024 * 8) / dur)));
+      const stream = canvas.captureStream(30);
+      const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bps });
+      const chunks = [];
+      rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      const stopped = new Promise((res) => (rec.onstop = res));
+      let raf = 0;
+      const draw = () => { ctx.drawImage(v, 0, 0, w, h); onProgress(Math.min(0.99, v.currentTime / dur)); if (!v.ended) raf = requestAnimationFrame(draw); };
+      ctx.drawImage(v, 0, 0, w, h);
+      rec.start(1000);
+      await v.play();
+      draw();
+      await new Promise((res) => { v.onended = res; setTimeout(res, (dur + 15) * 1000); });
+      cancelAnimationFrame(raf);
+      rec.stop(); await stopped;
+      const out = new Blob(chunks, { type: mime.split(";")[0] });
+      if (!out.size) throw new Error("変換に失敗しました");
+      return out;
+    } finally {
+      v.pause(); v.remove(); URL.revokeObjectURL(url);
+    }
+  }
+
+  function startJob(file, meta) {
+    const job = { id: Math.random().toString(36).slice(2), file, meta, takenAt: Date.now(), status: "prep", progress: 0, error: "" };
+    state.jobs.unshift(job);
+    renderJobs();
+    runJob(job);
+  }
+  function setJob(job, patch) { Object.assign(job, patch); renderJobs(); }
+
+  const ERR = {
+    not_granted: "保存の権限がありません（先生のアカウントで開いてください）",
+    too_large: "ファイルが大きすぎます",
+    unsupported_type: "この形式は保存できません",
+    store_unavailable: "通信が混み合っています",
+    quota_exceeded: "保存容量がいっぱいです。古い映像を削除してください"
+  };
+
+  async function runJob(job) {
+    try {
+      setJob(job, { status: "prep", progress: 0.02, error: "" });
+      const duration = await readDuration(job.file);
+      let blob = job.file, type = guessType(job.file);
+      const needTranscode = state.transcodeAlways || job.file.size > MAX_BYTES;
+      if (needTranscode) {
+        setJob(job, { status: "transcode", progress: 0.02 });
+        blob = await transcode(job.file, duration, (p) => setJob(job, { progress: p * 0.6 }));
+        type = blob.type;
+      }
+      setJob(job, { status: "upload", progress: needTranscode ? 0.65 : 0.3 });
+      let res;
+      try {
+        res = await state.assets.upload(blob, { type });
+      } catch (err) {
+        const code = err && err.code;
+        if (!needTranscode && (code === "too_large" || code === "unsupported_type")) {
+          setJob(job, { status: "transcode", progress: 0.05 });
+          blob = await transcode(job.file, duration, (p) => setJob(job, { progress: p * 0.6 }));
+          setJob(job, { status: "upload", progress: 0.65 });
+          res = await state.assets.upload(blob, { type: blob.type });
+        } else if (code === "store_unavailable") {
+          await new Promise((r) => setTimeout(r, 2000));
+          res = await state.assets.upload(blob, { type });
+        } else throw err;
+      }
+      setJob(job, { status: "save", progress: 0.92 });
+      await state.db.collection("clips").doc(job.id + job.takenAt.toString(36)).set({
+        camera: job.meta.camera, event: job.meta.event, skill: job.meta.skill,
+        student: job.meta.student || "", group: job.meta.group || "",
+        takenAt: job.takenAt, assetId: res.id, contentType: res.contentType, sizeBytes: res.sizeBytes,
+        durationSec: duration ? Math.round(duration * 10) / 10 : null
+      });
+      setJob(job, { status: "done", progress: 1 });
+      toast(`保存しました：${job.meta.skill}`);
+      refreshUsage();
+    } catch (err) {
+      const code = err && err.code;
+      setJob(job, { status: "error", error: ERR[code] || (err && err.message) || "保存できませんでした" });
+    }
+  }
+
+  async function refreshUsage() {
+    if (!state.assets) return;
+    try { const r = await state.assets.list(); state.usage = r.usage; if (route().view === "list") render(); } catch (e) {}
+  }
+
+  /* ---------- wake lock ---------- */
+  let wl = null;
+  async function wakeLock() { try { if (!wl && navigator.wakeLock) { wl = await navigator.wakeLock.request("screen"); wl.addEventListener("release", () => (wl = null)); } } catch (e) {} }
+  function releaseWake() { try { if (wl) wl.release(); } catch (e) {} wl = null; }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && route().view === "shoot") wakeLock(); });
+
+  /* ---------- boot ---------- */
+  window.addEventListener("hashchange", () => { state.filter = { ev: "", skill: "", q: "" }; render(); window.scrollTo(0, 0); });
+  render();
+
+  (async () => {
+    if (!window.claude || !window.claude.use) { state.capsReady = true; render(); return; }
+    const [db, assets, user] = await Promise.all([
+      claude.use("db").catch(() => null), claude.use("assets").catch(() => null), claude.use("user").catch(() => null)
+    ]);
+    state.db = db; state.assets = assets; state.user = user;
+    try { state.canEdit = user ? !!(await user.canEdit()) : false; } catch (e) { state.canEdit = false; }
+    state.capsReady = true;
+    if (!db) { state.loaded = true; render(); return; }
+    const timer = setTimeout(() => { if (!state.loaded) { state.loadError = "読み込みに時間がかかっています。通信状況を確認してください。"; render(); } }, 10000);
+    db.collection("clips").orderBy("takenAt", "desc").limit(1000).onSnapshot((snap) => {
+      clearTimeout(timer);
+      state.clips = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((c) => c.assetId);
+      state.loaded = true; state.loadError = "";
+      // 入力中の欄があれば描き直さない（撮影画面のみ）
+      const a = document.activeElement;
+      if (route().view === "shoot" && a && a.tagName === "INPUT" && a.type === "text") return;
+      render();
+    }, (err) => {
+      clearTimeout(timer);
+      state.loaded = true; state.loadError = "映像の一覧を読み込めませんでした（" + (err && err.code || "エラー") + "）。";
+      render();
+    });
+    refreshUsage();
+    render();
+  })();
+})();
+</script>
