@@ -24,14 +24,27 @@ export const BONES = [
 
 let landmarkerPromise = null;
 
-export function loadLandmarker() {
+// 骨格推定の部品（プログラムとモデル）の読み込み方。
+// ふだんは vendor/ から読み込みます。Google Apps Script 版では、Google ドライブから読み込む方法に差しかえます。
+let assetProvider = async () => {
+  const vision = await import(`${VISION_URL}/vision_bundle.mjs`);
+  const fileset = await vision.FilesetResolver.forVisionTasks(`${VISION_URL}/wasm`);
+  return { vision, fileset, baseOptions: { modelAssetPath: MODEL_URL } };
+};
+export function setAssetProvider(fn) {
+  assetProvider = fn;
+  landmarkerPromise = null;
+}
+
+let progressListener = () => {};
+export function loadLandmarker(onProgress) {
+  if (onProgress) progressListener = onProgress;
   if (!landmarkerPromise) {
     landmarkerPromise = (async () => {
-      const vision = await import(`${VISION_URL}/vision_bundle.mjs`);
-      const fileset = await vision.FilesetResolver.forVisionTasks(`${VISION_URL}/wasm`);
+      const { vision, fileset, baseOptions } = await assetProvider((p, text) => progressListener(p, text));
       const make = (delegate) =>
         vision.PoseLandmarker.createFromOptions(fileset, {
-          baseOptions: { modelAssetPath: MODEL_URL, delegate },
+          baseOptions: { ...baseOptions, delegate },
           runningMode: "VIDEO",
           numPoses: 1,
           minPoseDetectionConfidence: 0.4,

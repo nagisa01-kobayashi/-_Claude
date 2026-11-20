@@ -52,6 +52,22 @@
 cd public && python3 -m http.server 8080
 ```
 
+## Google だけで使う版（Google Apps Script 版）
+
+学校の iPad で GitHub などの外部サイトが使えないときのための版です。Google ドライブと Google Apps Script だけで動き、設定も iPad だけでできます。
+
+- 画面（`index.html`）と骨格推定の部品（`*.b64`）を Google ドライブのフォルダに置きます。
+- Apps Script には、短いコード（`gas/Code.gs`）を貼り付けて、Web アプリとして公開します。
+- 部品は Apps Script を通して少しずつ受け取り、iPad の中（IndexedDB）に保存します。2回目からはすぐに始まります。
+
+組み立て方（先生は不要。開発する人向け）：
+
+```bash
+node tools/build-gas.mjs ドライブのフォルダID
+```
+
+`gas/dist/` に、ドライブに置く `index.html` と `assets/*.b64`、Apps Script に貼る `Code.gs` ができます。
+
 ## 撮影のコツ（生徒に伝えること）
 
 - **真横**から撮る（マットの長い辺の横に立つ）

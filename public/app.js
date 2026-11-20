@@ -94,7 +94,7 @@ async function onVideoSelected(file) {
     } catch {}
 
     setProgress(0, "骨格を見つける準備をしています…");
-    await loadLandmarker();
+    await loadLandmarker((p, text) => setProgress(p, text || "骨格を見つける準備をしています…"));
     state.pose = await detectPoses(video, (p) => setProgress(p, `骨格を見つけています… ${Math.round(p * 100)}%`));
     state.metrics = computeMetrics(state.pose, state.skill.motion);
     state.keyframes = state.metrics.keyframes.map((k) => ({
@@ -380,6 +380,6 @@ function init() {
 init();
 
 // 一度開いたらオフラインでも使えるようにする
-if ("serviceWorker" in navigator && location.protocol !== "file:") {
+if ("serviceWorker" in navigator && location.protocol !== "file:" && !window.google?.script) {
   navigator.serviceWorker.register("./sw.js").catch((e) => console.warn("オフライン機能を有効にできませんでした", e));
 }
