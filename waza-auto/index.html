@@ -147,6 +147,8 @@ summary { cursor: pointer; font-weight: 700; }
   };
   var EV = { mat: "マット", vault: "跳び箱" };
   var IN_GAS = typeof google !== "undefined" && google.script && google.script.run;
+  // Apps Script から新しいタブで開いた撮影画面には、設定が埋め込まれている
+  var BOOT = window.__WAZA_BOOT__ || null;
 
   var S = {
     cfg: { url: "", folderUrl: "", canManage: false, needKey: false },
@@ -199,14 +201,15 @@ summary { cursor: pointer; font-weight: 700; }
   };
   function selfBase() { return location.href.split("#")[0].split("?")[0]; }
   // このアプリ自身のページ
-  function link(q) { return (IN_GAS ? (S.cfg.url || selfBase()) : selfBase()) + (q ? "?" + q : ""); }
+  function link(q) { return (IN_GAS ? (S.cfg.url || selfBase()) : BOOT ? (S.viewUrl || "") : selfBase()) + (q ? "?" + q : ""); }
   // 一覧はいつも Apps Script 側で開く（Googleドライブの再生や修正・削除がそこで使えるため）
   function linkList(n) { var base = IN_GAS ? (S.cfg.url || selfBase()) : (S.viewUrl || S.cfg.url || ""); return base ? base + "?list=" + n : ""; }
   // 撮影はカメラが使える撮影用ページで開く。設定（保存先と合言葉）をリンクに入れて渡す
-  function camReady() { return !IN_GAS || !!(S.cfg.cameraPageUrl && S.cfg.apiUrl && S.cfg.key); }
+  function camReady() { return !IN_GAS || !!(S.cfg.apiUrl && S.cfg.key); }
   function linkCam(n) {
-    if (!IN_GAS) return selfBase() + "?cam=" + n;
-    if (!camReady()) return link("cam=" + n);
+    if (!IN_GAS) return BOOT ? link("cam=" + n) : selfBase() + "?cam=" + n;
+    // Apps Script では撮影画面（カメラ起動用のボタンがある画面）を開く
+    if (!S.cfg.cameraPageUrl || S.cfg.cameraPageUrl.indexOf("github.io") >= 0 || !camReady()) return link("cam=" + n);
     var json = JSON.stringify({ api: S.cfg.apiUrl, key: S.cfg.key, view: S.cfg.url });
     var b64 = btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
     return S.cfg.cameraPageUrl.split("#")[0].split("?")[0] + "?cam=" + n + "#cfg=" + b64;
@@ -248,8 +251,8 @@ summary { cursor: pointer; font-weight: 700; }
     if (!S.cfg.canManage) return camReady() ? "" : '<div class="notice">撮影の準備がまだです。アプリを作った先生のアカウントで開いて設定してください。</div>';
     var ok = camReady();
     return '<section class="panel"><h2>撮影用ページの設定' + (ok ? '　<span class="pill mat">設定済み</span>' : "") + "</h2>" +
-      (ok ? "" : '<div class="notice">この画面の中ではカメラが使えないため、撮影は別の撮影用ページで行います。設定ガイドの手順で2つのURLを入れてください。</div>') +
-      '<label class="field">撮影用ページのURL（GitHub Pages など）<input type="text" id="camPage" value="' + esc(S.cfg.cameraPageUrl || "") + '" placeholder="https://….github.io/…/"></label>' +
+      (ok ? "" : '<div class="notice">保存用デプロイ（アクセス：全員）のURLを入れて保存してください。</div>') +
+      '<label class="field">撮影用ページのURL（なくても使えます）<input type="text" id="camPage" value="' + esc(S.cfg.cameraPageUrl || "") + '" placeholder="https://….github.io/…/"></label>' +
       '<label class="field">保存用デプロイのURL（アクセス：全員、…/exec）<input type="text" id="apiUrlIn" value="' + esc(S.cfg.apiUrl || "") + '" placeholder="https://script.google.com/macros/s/…/exec"></label>' +
       '<div><button type="button" class="btn-mat" id="saveLinks">保存</button></div></section>';
   }
@@ -318,7 +321,43 @@ summary { cursor: pointer; font-weight: 700; }
     bindSetup();
     bindShoot();
     renderJobs();
-    startCamera();
+    if (IN_GAS) setupLauncher(n); else startCamera();
+  }
+
+  // Apps Script の画面の中ではカメラが使えないので、撮影画面を新しいタブで開く。
+  // うまくいかない時のために、iPadの標準カメラで撮って自動保存する方法も出す。
+  var appHtml = null;
+  function setupLauncher(n) {
+    document.querySelector(".bigrow").hidden = true;
+    var st = document.getElementById("status"); st.lastChild.textContent = "下のボタンで撮影画面を開きます";
+    var ready = S.cfg.canManage && camReady();
+    document.getElementById("camErr").innerHTML =
+      '<section class="panel" style="gap:12px">' +
+      '<button type="button" class="btn-mat" id="openCam" style="min-height:64px;font-size:1.1rem"' + (ready ? "" : " disabled") + '>カメラ' + n + 'の撮影画面を開く（新しいタブ）</button>' +
+      (ready ? '<p class="small muted">新しいタブで自動録画の画面が開きます。カメラの使用を許可してください。</p>'
+        : '<div class="notice">' + (S.cfg.canManage ? "先にホームの「撮影用ページの設定」で保存用のURLを保存してください。" : "アプリを作った先生のアカウントで開いてください。") + "</div>") +
+      '<p id="openMsg" class="small"></p>' +
+      '<div style="border-top:1.5px solid var(--line);padding-top:12px;display:grid;gap:8px"><b>開けないときは：iPadのカメラで撮る</b>' +
+      '<p class="small muted">標準のカメラが開きます。録画を始める・止めるは手で行い、「ビデオを使用」を押すと自動で保存されます。</p>' +
+      '<label class="btn btn-box" style="position:relative;overflow:hidden">iPadのカメラで撮る<input type="file" id="nativeCam" accept="video/*" capture="environment" style="position:absolute;inset:0;opacity:0"></label></div></section>';
+    if (ready) gas("getAppHtml").then(function (h) { appHtml = h; }).catch(function () {});
+    var btn = document.getElementById("openCam");
+    if (btn) btn.onclick = function () {
+      var msg = document.getElementById("openMsg");
+      if (!appHtml) { msg.textContent = "準備中です。数秒待ってからもう一度押してください。"; return; }
+      var boot = { api: S.cfg.apiUrl, key: S.cfg.key, view: S.cfg.url, params: { cam: String(n) } };
+      var html = appHtml.replace("<head>", "<head><script>window.__WAZA_BOOT__=" + JSON.stringify(boot).replace(/</g, "\\u003c") + ";<\/script>");
+      var url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+      var w = window.open(url, "_blank");
+      msg.textContent = w ? "新しいタブで開きました。" : "新しいタブを開けませんでした。Safariの設定で「ポップアップブロック」をオフにして、もう一度押してください。";
+    };
+    var inp = document.getElementById("nativeCam");
+    inp.onchange = function () {
+      var f = inp.files && inp.files[0]; inp.value = ""; if (!f) return;
+      var free = document.getElementById("skillFree").value.trim();
+      addJob(f, { camera: n, event: S.event, skill: S.skill || free || "（技名なし）", group: S.group, student: S.student, takenAt: Date.now() });
+      S.student = ""; document.getElementById("student").value = "";
+    };
   }
   function slider(id, label, min, max, step, val, unit) {
     return '<label class="slider">' + label + '<output id="o_' + id + '">' + val + unit + '</output><input type="range" id="s_' + id + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + val + '" data-unit="' + unit + '"></label>';
@@ -596,6 +635,12 @@ summary { cursor: pointer; font-weight: 700; }
 
   /* ---------- 起動 ---------- */
   function boot() {
+    if (BOOT) {
+      S.apiUrl = BOOT.api || ""; S.key = BOOT.key || ""; S.viewUrl = BOOT.view || ""; save();
+      S.params = BOOT.params || {};
+      api.config().then(function (cfg) { S.cfg = cfg || S.cfg; }).catch(function () {}).then(render);
+      return;
+    }
     if (!IN_GAS) {
       var m = location.hash.match(/cfg=([\w-]+)/);
       if (m) {

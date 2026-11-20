@@ -193,6 +193,12 @@ function cameraFolder_(cam) {
   return it.hasNext() ? it.next() : root.createFolder('カメラ' + cam);
 }
 
+// 撮影画面を新しいタブで開くために、この画面のHTMLを渡す
+function getAppHtml() {
+  requireOwner_();
+  return HtmlService.createHtmlOutputFromFile('index').getContent();
+}
+
 // 最初に一度だけ実行して、ドライブの許可を出すための関数
 function setup() {
   const f = rootFolder_();

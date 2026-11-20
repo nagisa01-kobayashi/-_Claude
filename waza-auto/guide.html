@@ -51,7 +51,7 @@ code { font-family: var(--mono); font-size: .9em; background: var(--floor-2); bo
     <div class="flow" aria-label="しくみ"><span>撮影用ページ（GitHub Pages）</span><i>→</i><span>Apps Script（保存用）</span><i>→</i><span>Googleドライブ「技ビデオ」</span><i>→</i><span>Apps Script（一覧・再生）</span></div>
   </header>
 
-  <div class="note">すでに手順5まで済ませた方は、<b>A〜E</b> だけ行ってください。</div>
+  <div class="warn"><b>学校のフィルタで github.io が開けない場合</b>：Dは不要です。Aでコードを最新にしてB・Cを「新バージョン」で更新し、Eでは保存用のURLだけ入れてください。撮影は、アプリの「撮影する」→「撮影画面を開く（新しいタブ）」から行います。</div>
 
   <ol class="steps" style="counter-reset:s">
     <li><div class="body"><h2>A. コードを新しいものに入れ替える</h2>
@@ -251,6 +251,12 @@ function cameraFolder_(cam) {
   return it.hasNext() ? it.next() : root.createFolder(&#x27;カメラ&#x27; + cam);
 }
 
+// 撮影画面を新しいタブで開くために、この画面のHTMLを渡す
+function getAppHtml() {
+  requireOwner_();
+  return HtmlService.createHtmlOutputFromFile(&#x27;index&#x27;).getContent();
+}
+
 // 最初に一度だけ実行して、ドライブの許可を出すための関数
 function setup() {
   const f = rootFolder_();
@@ -407,6 +413,8 @@ summary { cursor: pointer; font-weight: 700; }
   };
   var EV = { mat: &quot;マット&quot;, vault: &quot;跳び箱&quot; };
   var IN_GAS = typeof google !== &quot;undefined&quot; &amp;&amp; google.script &amp;&amp; google.script.run;
+  // Apps Script から新しいタブで開いた撮影画面には、設定が埋め込まれている
+  var BOOT = window.__WAZA_BOOT__ || null;
 
   var S = {
     cfg: { url: &quot;&quot;, folderUrl: &quot;&quot;, canManage: false, needKey: false },
@@ -459,14 +467,15 @@ summary { cursor: pointer; font-weight: 700; }
   };
   function selfBase() { return location.href.split(&quot;#&quot;)[0].split(&quot;?&quot;)[0]; }
   // このアプリ自身のページ
-  function link(q) { return (IN_GAS ? (S.cfg.url || selfBase()) : selfBase()) + (q ? &quot;?&quot; + q : &quot;&quot;); }
+  function link(q) { return (IN_GAS ? (S.cfg.url || selfBase()) : BOOT ? (S.viewUrl || &quot;&quot;) : selfBase()) + (q ? &quot;?&quot; + q : &quot;&quot;); }
   // 一覧はいつも Apps Script 側で開く（Googleドライブの再生や修正・削除がそこで使えるため）
   function linkList(n) { var base = IN_GAS ? (S.cfg.url || selfBase()) : (S.viewUrl || S.cfg.url || &quot;&quot;); return base ? base + &quot;?list=&quot; + n : &quot;&quot;; }
   // 撮影はカメラが使える撮影用ページで開く。設定（保存先と合言葉）をリンクに入れて渡す
-  function camReady() { return !IN_GAS || !!(S.cfg.cameraPageUrl &amp;&amp; S.cfg.apiUrl &amp;&amp; S.cfg.key); }
+  function camReady() { return !IN_GAS || !!(S.cfg.apiUrl &amp;&amp; S.cfg.key); }
   function linkCam(n) {
-    if (!IN_GAS) return selfBase() + &quot;?cam=&quot; + n;
-    if (!camReady()) return link(&quot;cam=&quot; + n);
+    if (!IN_GAS) return BOOT ? link(&quot;cam=&quot; + n) : selfBase() + &quot;?cam=&quot; + n;
+    // Apps Script では撮影画面（カメラ起動用のボタンがある画面）を開く
+    if (!S.cfg.cameraPageUrl || S.cfg.cameraPageUrl.indexOf(&quot;github.io&quot;) &gt;= 0 || !camReady()) return link(&quot;cam=&quot; + n);
     var json = JSON.stringify({ api: S.cfg.apiUrl, key: S.cfg.key, view: S.cfg.url });
     var b64 = btoa(unescape(encodeURIComponent(json))).replace(/\+/g, &quot;-&quot;).replace(/\//g, &quot;_&quot;).replace(/=+$/, &quot;&quot;);
     return S.cfg.cameraPageUrl.split(&quot;#&quot;)[0].split(&quot;?&quot;)[0] + &quot;?cam=&quot; + n + &quot;#cfg=&quot; + b64;
@@ -508,8 +517,8 @@ summary { cursor: pointer; font-weight: 700; }
     if (!S.cfg.canManage) return camReady() ? &quot;&quot; : &#x27;&lt;div class=&quot;notice&quot;&gt;撮影の準備がまだです。アプリを作った先生のアカウントで開いて設定してください。&lt;/div&gt;&#x27;;
     var ok = camReady();
     return &#x27;&lt;section class=&quot;panel&quot;&gt;&lt;h2&gt;撮影用ページの設定&#x27; + (ok ? &#x27;　&lt;span class=&quot;pill mat&quot;&gt;設定済み&lt;/span&gt;&#x27; : &quot;&quot;) + &quot;&lt;/h2&gt;&quot; +
-      (ok ? &quot;&quot; : &#x27;&lt;div class=&quot;notice&quot;&gt;この画面の中ではカメラが使えないため、撮影は別の撮影用ページで行います。設定ガイドの手順で2つのURLを入れてください。&lt;/div&gt;&#x27;) +
-      &#x27;&lt;label class=&quot;field&quot;&gt;撮影用ページのURL（GitHub Pages など）&lt;input type=&quot;text&quot; id=&quot;camPage&quot; value=&quot;&#x27; + esc(S.cfg.cameraPageUrl || &quot;&quot;) + &#x27;&quot; placeholder=&quot;https://….github.io/…/&quot;&gt;&lt;/label&gt;&#x27; +
+      (ok ? &quot;&quot; : &#x27;&lt;div class=&quot;notice&quot;&gt;保存用デプロイ（アクセス：全員）のURLを入れて保存してください。&lt;/div&gt;&#x27;) +
+      &#x27;&lt;label class=&quot;field&quot;&gt;撮影用ページのURL（なくても使えます）&lt;input type=&quot;text&quot; id=&quot;camPage&quot; value=&quot;&#x27; + esc(S.cfg.cameraPageUrl || &quot;&quot;) + &#x27;&quot; placeholder=&quot;https://….github.io/…/&quot;&gt;&lt;/label&gt;&#x27; +
       &#x27;&lt;label class=&quot;field&quot;&gt;保存用デプロイのURL（アクセス：全員、…/exec）&lt;input type=&quot;text&quot; id=&quot;apiUrlIn&quot; value=&quot;&#x27; + esc(S.cfg.apiUrl || &quot;&quot;) + &#x27;&quot; placeholder=&quot;https://script.google.com/macros/s/…/exec&quot;&gt;&lt;/label&gt;&#x27; +
       &#x27;&lt;div&gt;&lt;button type=&quot;button&quot; class=&quot;btn-mat&quot; id=&quot;saveLinks&quot;&gt;保存&lt;/button&gt;&lt;/div&gt;&lt;/section&gt;&#x27;;
   }
@@ -578,7 +587,43 @@ summary { cursor: pointer; font-weight: 700; }
     bindSetup();
     bindShoot();
     renderJobs();
-    startCamera();
+    if (IN_GAS) setupLauncher(n); else startCamera();
+  }
+
+  // Apps Script の画面の中ではカメラが使えないので、撮影画面を新しいタブで開く。
+  // うまくいかない時のために、iPadの標準カメラで撮って自動保存する方法も出す。
+  var appHtml = null;
+  function setupLauncher(n) {
+    document.querySelector(&quot;.bigrow&quot;).hidden = true;
+    var st = document.getElementById(&quot;status&quot;); st.lastChild.textContent = &quot;下のボタンで撮影画面を開きます&quot;;
+    var ready = S.cfg.canManage &amp;&amp; camReady();
+    document.getElementById(&quot;camErr&quot;).innerHTML =
+      &#x27;&lt;section class=&quot;panel&quot; style=&quot;gap:12px&quot;&gt;&#x27; +
+      &#x27;&lt;button type=&quot;button&quot; class=&quot;btn-mat&quot; id=&quot;openCam&quot; style=&quot;min-height:64px;font-size:1.1rem&quot;&#x27; + (ready ? &quot;&quot; : &quot; disabled&quot;) + &#x27;&gt;カメラ&#x27; + n + &#x27;の撮影画面を開く（新しいタブ）&lt;/button&gt;&#x27; +
+      (ready ? &#x27;&lt;p class=&quot;small muted&quot;&gt;新しいタブで自動録画の画面が開きます。カメラの使用を許可してください。&lt;/p&gt;&#x27;
+        : &#x27;&lt;div class=&quot;notice&quot;&gt;&#x27; + (S.cfg.canManage ? &quot;先にホームの「撮影用ページの設定」で保存用のURLを保存してください。&quot; : &quot;アプリを作った先生のアカウントで開いてください。&quot;) + &quot;&lt;/div&gt;&quot;) +
+      &#x27;&lt;p id=&quot;openMsg&quot; class=&quot;small&quot;&gt;&lt;/p&gt;&#x27; +
+      &#x27;&lt;div style=&quot;border-top:1.5px solid var(--line);padding-top:12px;display:grid;gap:8px&quot;&gt;&lt;b&gt;開けないときは：iPadのカメラで撮る&lt;/b&gt;&#x27; +
+      &#x27;&lt;p class=&quot;small muted&quot;&gt;標準のカメラが開きます。録画を始める・止めるは手で行い、「ビデオを使用」を押すと自動で保存されます。&lt;/p&gt;&#x27; +
+      &#x27;&lt;label class=&quot;btn btn-box&quot; style=&quot;position:relative;overflow:hidden&quot;&gt;iPadのカメラで撮る&lt;input type=&quot;file&quot; id=&quot;nativeCam&quot; accept=&quot;video/*&quot; capture=&quot;environment&quot; style=&quot;position:absolute;inset:0;opacity:0&quot;&gt;&lt;/label&gt;&lt;/div&gt;&lt;/section&gt;&#x27;;
+    if (ready) gas(&quot;getAppHtml&quot;).then(function (h) { appHtml = h; }).catch(function () {});
+    var btn = document.getElementById(&quot;openCam&quot;);
+    if (btn) btn.onclick = function () {
+      var msg = document.getElementById(&quot;openMsg&quot;);
+      if (!appHtml) { msg.textContent = &quot;準備中です。数秒待ってからもう一度押してください。&quot;; return; }
+      var boot = { api: S.cfg.apiUrl, key: S.cfg.key, view: S.cfg.url, params: { cam: String(n) } };
+      var html = appHtml.replace(&quot;&lt;head&gt;&quot;, &quot;&lt;head&gt;&lt;script&gt;window.__WAZA_BOOT__=&quot; + JSON.stringify(boot).replace(/&lt;/g, &quot;\\u003c&quot;) + &quot;;&lt;\/script&gt;&quot;);
+      var url = URL.createObjectURL(new Blob([html], { type: &quot;text/html&quot; }));
+      var w = window.open(url, &quot;_blank&quot;);
+      msg.textContent = w ? &quot;新しいタブで開きました。&quot; : &quot;新しいタブを開けませんでした。Safariの設定で「ポップアップブロック」をオフにして、もう一度押してください。&quot;;
+    };
+    var inp = document.getElementById(&quot;nativeCam&quot;);
+    inp.onchange = function () {
+      var f = inp.files &amp;&amp; inp.files[0]; inp.value = &quot;&quot;; if (!f) return;
+      var free = document.getElementById(&quot;skillFree&quot;).value.trim();
+      addJob(f, { camera: n, event: S.event, skill: S.skill || free || &quot;（技名なし）&quot;, group: S.group, student: S.student, takenAt: Date.now() });
+      S.student = &quot;&quot;; document.getElementById(&quot;student&quot;).value = &quot;&quot;;
+    };
   }
   function slider(id, label, min, max, step, val, unit) {
     return &#x27;&lt;label class=&quot;slider&quot;&gt;&#x27; + label + &#x27;&lt;output id=&quot;o_&#x27; + id + &#x27;&quot;&gt;&#x27; + val + unit + &#x27;&lt;/output&gt;&lt;input type=&quot;range&quot; id=&quot;s_&#x27; + id + &#x27;&quot; min=&quot;&#x27; + min + &#x27;&quot; max=&quot;&#x27; + max + &#x27;&quot; step=&quot;&#x27; + step + &#x27;&quot; value=&quot;&#x27; + val + &#x27;&quot; data-unit=&quot;&#x27; + unit + &#x27;&quot;&gt;&lt;/label&gt;&#x27;;
@@ -856,6 +901,12 @@ summary { cursor: pointer; font-weight: 700; }
 
   /* ---------- 起動 ---------- */
   function boot() {
+    if (BOOT) {
+      S.apiUrl = BOOT.api || &quot;&quot;; S.key = BOOT.key || &quot;&quot;; S.viewUrl = BOOT.view || &quot;&quot;; save();
+      S.params = BOOT.params || {};
+      api.config().then(function (cfg) { S.cfg = cfg || S.cfg; }).catch(function () {}).then(render);
+      return;
+    }
     if (!IN_GAS) {
       var m = location.hash.match(/cfg=([\w-]+)/);
       if (m) {
