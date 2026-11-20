@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>技ビデオ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* 体育館の床（メープル）の上に、マットの紺と跳び箱の赤。撮影画面は大きな撮影ボタンを中心に置く。 */
+:root {
+  --floor: #f6efe3; --floor-2: #ece0cb; --card: #fffdf9; --ink: #1f2430; --muted: #6b6457; --line: #ddd0b8;
+  --mat: #24407a; --mat-soft: #dfe6f5; --box: #c2412d; --box-soft: #f7e0da; --ok: #2f7a4b; --warn: #a56a00; --bad: #b3261e;
+  --display: "Dela Gothic One", "Hiragino Sans", "Yu Gothic", sans-serif;
+  --body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --floor: #1a1915; --floor-2: #24221c; --card: #2a2821; --ink: #f1ece2; --muted: #b0a794; --line: #3d392f;
+    --mat: #8fa9e6; --mat-soft: #263252; --box: #f08a74; --box-soft: #4a2820; --ok: #7fcf9b; --warn: #e6b24f; --bad: #ff8a80;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--floor); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.6; padding: 16px max(16px, env(safe-area-inset-right)) 48px max(16px, env(safe-area-inset-left)); }
+.wrap { max-width: 1100px; margin: 0 auto; display: grid; gap: 18px; }
+h1, h2 { font-family: var(--display); font-weight: 400; margin: 0; letter-spacing: .02em; }
+h1 { font-size: clamp(1.3rem, 3.5vw, 1.9rem); line-height: 1.2; }
+h2 { font-size: 1.1rem; }
+p { margin: 0; }
+a { color: inherit; }
+.muted { color: var(--muted); } .small { font-size: 13px; }
+button, .btn {
+  font: inherit; font-weight: 700; border: 2px solid var(--ink); background: var(--card); color: var(--ink); border-radius: 10px;
+  padding: 8px 14px; min-height: 44px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none;
+}
+button:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, .btn:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--mat); outline-offset: 2px; }
+.btn-mat { background: var(--mat); border-color: var(--mat); color: var(--card); }
+.btn-box { background: var(--box); border-color: var(--box); color: #fff; }
+.btn-ghost { border-color: var(--line); }
+.btn-danger { border-color: var(--bad); color: var(--bad); }
+input[type=text], select { font: inherit; color: var(--ink); background: var(--card); border: 2px solid var(--line); border-radius: 10px; padding: 8px 12px; min-height: 44px; width: 100%; }
+label.field { display: grid; gap: 4px; font-weight: 700; font-size: 13px; min-width: 0; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; gap: 12px; align-items: center; text-decoration: none; }
+.panel { background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+.notice { border-radius: 12px; padding: 12px 14px; background: var(--box-soft); font-size: 14px; }
+.pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 10px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.pill.mat { background: var(--mat-soft); color: var(--mat); } .pill.vault { background: var(--box-soft); color: var(--box); }
+.pill.cls { background: var(--ink); color: var(--floor); }
+.label { font-weight: 700; font-size: 13px; }
+
+/* 選択チップ */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 2px solid var(--line); background: var(--floor); border-radius: 999px; padding: 4px 14px; min-height: 42px; font-weight: 500; font-size: 15px; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--floor); border-color: var(--ink); font-weight: 700; }
+.grade { display: grid; grid-template-columns: 52px 1fr; gap: 8px; align-items: center; }
+.grade b { font-family: var(--display); font-weight: 400; font-size: 1.1rem; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; min-height: 52px; font-size: 1.05rem; }
+.seg button + button { border-left: 2px solid var(--ink); }
+.seg button[aria-pressed="true"][data-ev="mat"] { background: var(--mat); color: var(--card); }
+.seg button[aria-pressed="true"][data-ev="vault"] { background: var(--box); color: #fff; }
+
+.home { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 820px) { .home { grid-template-columns: 1fr; } }
+.links { display: grid; gap: 8px; }
+
+/* 撮影画面 */
+.shoot { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 820px) { .shoot { grid-template-columns: 1fr; } }
+.fixed { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.fixed .now { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.camno { font-family: var(--display); font-size: 1.05rem; }
+.rec {
+  position: relative; display: grid; place-items: center; gap: 4px; text-align: center; cursor: pointer; overflow: hidden;
+  border-radius: 18px; padding: 22px 16px; background: var(--box); color: #fff; min-height: 150px; font-family: var(--display); font-size: 1.6rem;
+}
+.rec .dot { width: 50px; height: 50px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 7px rgba(255,255,255,.35); }
+.rec small { font-family: var(--body); font-size: 13px; font-weight: 500; }
+.rec input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.next { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-weight: 700; }
+.jobs { display: grid; gap: 6px; }
+.job { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; border: 1.5px solid var(--line); border-radius: 10px; padding: 6px 10px; font-size: 13px; }
+.st-ok { color: var(--ok); font-weight: 700; } .st-bad { color: var(--bad); font-weight: 700; } .st-busy { color: var(--warn); font-weight: 700; }
+.job button { min-height: 30px; padding: 2px 10px; font-size: 12px; border-width: 1.5px; }
+
+/* 一覧 */
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; align-items: end; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.clip { background: var(--card); border: 2px solid var(--line); border-radius: 14px; overflow: hidden; min-width: 0; }
+.thumb { position: relative; aspect-ratio: 16 / 9; background: #111; display: grid; place-items: center; cursor: pointer; border: 0; width: 100%; padding: 0; border-radius: 0; min-height: 0; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb span { position: absolute; width: 54px; height: 54px; border-radius: 50%; background: rgba(0,0,0,.55); }
+.thumb span::after { content: ""; position: absolute; left: 21px; top: 16px; border-left: 18px solid #fff; border-top: 11px solid transparent; border-bottom: 11px solid transparent; }
+.thumb em { position: absolute; color: #ccc; font-style: normal; font-size: 13px; padding: 0 12px; text-align: center; }
+.clip iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; background: #000; }
+.clip-body { padding: 10px 12px; display: grid; gap: 4px; }
+.meta { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+.tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.tools button { min-height: 30px; padding: 2px 10px; font-size: 12px; border-width: 1.5px; }
+.empty { border: 2px dashed var(--line); border-radius: 14px; padding: 30px 16px; text-align: center; color: var(--muted); display: grid; gap: 6px; }
+.big { font-family: var(--display); font-size: 1.9rem; line-height: 1; font-variant-numeric: tabular-nums; }
+
+/* 技の編集 */
+.editcols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 760px) { .editcols { grid-template-columns: 1fr; } }
+.sk { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; border: 1.5px solid var(--line); border-radius: 10px; padding: 4px 6px 4px 12px; }
+.sk button { min-height: 34px; min-width: 38px; padding: 0 8px; border-width: 1.5px; }
+.addrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; padding: 16px; z-index: 50; }
+.modal { background: var(--card); border-radius: 16px; padding: 18px; width: min(440px, 100%); display: grid; gap: 12px; }
+.modal .acts { display: flex; justify-content: flex-end; gap: 8px; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 20px; background: var(--ink); color: var(--floor); padding: 10px 18px; border-radius: 999px; font-weight: 700; z-index: 60; max-width: calc(100% - 32px); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" id="homeLink" href="#" target="_top">
+      <svg width="42" height="42" viewBox="0 0 44 44" aria-hidden="true">
+        <rect x="2" y="30" width="40" height="10" rx="3" fill="var(--mat)"></rect>
+        <path d="M10 30 L14 12 H30 L34 30 Z" fill="var(--box)"></path>
+        <rect x="13" y="12" width="18" height="5" rx="1.5" fill="var(--card)"></rect>
+      </svg>
+      <div><h1>技ビデオ</h1><p class="muted small">マット・跳び箱の技をiPadで撮って、すぐGoogleドライブへ。</p></div>
+    </a>
+    <nav id="nav"></nav>
+  </header>
+  <main id="app" class="wrap"><div class="empty">読み込んでいます…</div></main>
+</div>
+<div id="modalRoot"></div><div id="toastRoot"></div>
+
+<script>
+(function () {
+  "use strict";
+  var CLASSES = [
+    ["1年", ["1-1", "1-2", "1-3", "1-4", "1-5"]],
+    ["2年", ["2-1", "2-2", "2-3", "2-4", "2-5"]],
+    ["3年", ["3-1", "3-2", "3-3", "3-4", "3-5", "3-6"]]
+  ];
+  var CAMERA_COUNT = 4;
+  var EV = { mat: "マット", vault: "跳び箱" };
+
+  var S = {
+    cfg: { url: "", folderUrl: "", canManage: false, skills: { mat: [], vault: [] } },
+    params: {}, clips: [], loaded: false, listError: "",
+    pick: { cam: 1, cls: [] },          // ホームで選ぶもの
+    cur: "", event: "mat", skill: "", student: "",  // 撮影画面
+    jobs: [], filter: { cls: "", cam: "", ev: "", skill: "", q: "" }
+  };
+  try {
+    var saved = JSON.parse(localStorage.getItem("waza-app") || "{}");
+    if (saved.pick) S.pick = saved.pick;
+    if (saved.event) S.event = saved.event;
+  } catch (e) {}
+  function save() { try { localStorage.setItem("waza-app", JSON.stringify({ pick: S.pick, event: S.event })); } catch (e) {} }
+
+  var $app = document.getElementById("app"), $nav = document.getElementById("nav");
+  function $(id) { return document.getElementById(id); }
+  function each(sel, fn) { Array.prototype.forEach.call($app.querySelectorAll(sel), fn); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function toast(m) { var r = $("toastRoot"); r.innerHTML = '<div class="toast" role="status">' + esc(m) + "</div>"; clearTimeout(toast.t); toast.t = setTimeout(function () { r.innerHTML = ""; }, 2600); }
+  function fmtTime(ms) { var d = new Date(ms), p = function (n) { return ("0" + n).slice(-2); }; return (d.getMonth() + 1) + "/" + d.getDate() + " " + p(d.getHours()) + ":" + p(d.getMinutes()); }
+  function fmtSize(b) { return b > 1048576 ? (b / 1048576).toFixed(1) + "MB" : Math.max(1, Math.round(b / 1024)) + "KB"; }
+  function gas(fn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (res, rej) {
+      var r = google.script.run.withSuccessHandler(res).withFailureHandler(function (e) { rej(new Error(e && e.message || String(e))); });
+      r[fn].apply(r, args);
+    });
+  }
+  function link(q) { return S.cfg.url + (q ? "?" + q : ""); }
+  function qs(obj) { return Object.keys(obj).filter(function (k) { return obj[k] !== "" && obj[k] != null; }).map(function (k) { return k + "=" + encodeURIComponent(obj[k]); }).join("&"); }
+
+  /* ---------- 画面の切り替え ---------- */
+  function render() {
+    $("homeLink").href = link("");
+    var p = S.params;
+    $nav.innerHTML = p.shoot || p.list || p.edit ? '<a class="btn btn-ghost" target="_top" href="' + esc(link("")) + '">ホームへ</a>' : "";
+    if (p.shoot) renderShoot();
+    else if (p.list) renderList();
+    else if (p.edit && S.cfg.canManage) renderEdit();
+    else renderHome();
+  }
+
+  /* ---------- ホーム：カメラ番号とクラスを選ぶ ---------- */
+  function renderHome() {
+    var cams = "";
+    for (var i = 1; i <= CAMERA_COUNT; i++) cams += '<button type="button" class="chip" data-cam="' + i + '" aria-pressed="' + (S.pick.cam === i) + '">カメラ' + i + "</button>";
+    var grades = CLASSES.map(function (g) {
+      return '<div class="grade"><b>' + g[0] + '</b><div class="chips">' + g[1].map(function (c) {
+        return '<button type="button" class="chip" data-cls="' + c + '" aria-pressed="' + (S.pick.cls.indexOf(c) >= 0) + '">' + c + "</button>";
+      }).join("") + "</div></div>";
+    }).join("");
+    var camLinks = "";
+    for (var j = 1; j <= CAMERA_COUNT; j++) camLinks += '<a class="btn btn-ghost" target="_top" href="' + esc(link(qs({ list: 1, cam: j }))) + '">カメラ' + j + "の映像</a>";
+    $app.innerHTML = '<div class="home">' +
+      '<section class="panel"><h2>撮影をはじめる</h2>' +
+        '<div style="display:grid;gap:6px"><span class="label">このiPadのカメラ番号</span><div class="chips">' + cams + "</div></div>" +
+        '<div style="display:grid;gap:8px"><span class="label">クラス（いくつでも選べます）</span>' + grades + "</div>" +
+        '<p id="pickMsg" class="small muted"></p>' +
+        '<a class="btn btn-box" id="go" target="_top" href="#" style="min-height:60px;font-size:1.1rem">撮影画面へ</a>' +
+      "</section>" +
+      '<section style="display:grid;gap:18px">' +
+        '<section class="panel"><h2>撮った映像を見る</h2><div class="links">' +
+          '<a class="btn btn-mat" target="_top" href="' + esc(link(qs({ list: 1 }))) + '">すべての映像</a>' + camLinks + "</div>" +
+          '<p class="small muted">一覧のページでクラスや技で絞り込むと、そのページのURLを送って別の端末で開けます。</p></section>' +
+        (S.cfg.canManage ? '<section class="panel"><h2>先生用</h2><div class="links">' +
+          '<a class="btn btn-ghost" target="_top" href="' + esc(link("edit=1")) + '">技の選択肢を編集</a>' +
+          (S.cfg.folderUrl ? '<a class="btn btn-ghost" target="_blank" href="' + esc(S.cfg.folderUrl) + '">Googleドライブの保存先を開く</a>' : "") + "</div></section>" : "") +
+      "</section></div>";
+    each("[data-cam]", function (b) { b.onclick = function () { S.pick.cam = +b.dataset.cam; save(); renderHome(); }; });
+    each("[data-cls]", function (b) {
+      b.onclick = function () {
+        var c = b.dataset.cls, k = S.pick.cls.indexOf(c);
+        if (k >= 0) S.pick.cls.splice(k, 1); else S.pick.cls.push(c);
+        save(); b.setAttribute("aria-pressed", k < 0); updatePickMsg(); updateGo();
+      };
+    });
+    updatePickMsg(); updateGo();
+    $("go").onclick = function (e) { if (!S.pick.cls.length) { e.preventDefault(); toast("クラスを選んでください"); } };
+  }
+  // 「撮影画面へ」のリンク先を、選んだカメラ番号とクラスに合わせて作る
+  function updateGo() {
+    var order = CLASSES.reduce(function (a, g) { return a.concat(g[1]); }, []);
+    var cls = S.pick.cls.filter(function (c) { return order.indexOf(c) >= 0; }).sort(function (a, b) { return order.indexOf(a) - order.indexOf(b); });
+    $("go").href = link(qs({ shoot: 1, cam: S.pick.cam, cls: cls.join(",") }));
+  }
+  function updatePickMsg() {
+    var m = $("pickMsg"); if (!m) return;
+    m.textContent = S.pick.cls.length ? "選んだクラス：" + S.pick.cls.join("、") : "クラスを1つ以上選んでください。";
+  }
+
+  /* ---------- 撮影画面 ---------- */
+  function renderShoot() {
+    var p = S.params, cam = parseInt(p.cam, 10) || 1;
+    var classes = String(p.cls || "").split(",").filter(Boolean);
+    if (!classes.length) { renderHome(); return; }
+    if (classes.indexOf(S.cur) < 0) S.cur = classes[0];
+    if (!S.cfg.skills[S.event]) S.event = "mat";
+    $app.innerHTML = '<div class="shoot">' +
+      '<section class="panel">' +
+        '<div class="fixed"><div class="now"><span class="camno">カメラ' + cam + '</span>' +
+          classes.map(function (c) { return '<span class="pill cls">' + esc(c) + "</span>"; }).join("") + "</div>" +
+          '<a class="btn btn-ghost" target="_top" href="' + esc(link("")) + '">クラスを変える</a></div>' +
+        (classes.length > 1 ? '<div style="display:grid;gap:6px"><span class="label">この動画のクラス</span><div class="chips">' +
+          classes.map(function (c) { return '<button type="button" class="chip" data-cur="' + esc(c) + '" aria-pressed="' + (S.cur === c) + '">' + esc(c) + "</button>"; }).join("") + "</div></div>" : "") +
+        '<div class="seg" role="group" aria-label="種目"><button type="button" data-ev="mat" aria-pressed="' + (S.event === "mat") + '">マット運動</button><button type="button" data-ev="vault" aria-pressed="' + (S.event === "vault") + '">跳び箱運動</button></div>' +
+        '<div style="display:grid;gap:6px"><span class="label">技</span><div class="chips" id="skills"></div></div>' +
+        '<label class="field">氏名<input type="text" id="student" value="' + esc(S.student) + '" placeholder="例：小林 渚" autocomplete="off"></label>' +
+        '<div class="next" id="next"></div>' +
+        '<label class="rec" for="camInput"><span class="dot" aria-hidden="true"></span>iPadのカメラで撮る<small>撮り終えて「ビデオを使用」を押すと、すぐに保存されます</small>' +
+          '<input id="camInput" type="file" accept="video/*" capture="environment"></label>' +
+      "</section>" +
+      '<section class="panel"><h2>保存の状況</h2><div class="jobs" id="jobs"></div>' +
+        '<p class="small muted">保存中でも、続けて次の人を撮れます。保存が終わるまでこの画面を閉じないでください。</p>' +
+        '<a class="btn btn-ghost" target="_top" href="' + esc(link(qs({ list: 1, cam: cam }))) + '">カメラ' + cam + "の映像を見る</a>" +
+      "</section></div>";
+    renderSkills(); renderNext(); renderJobs();
+    each("[data-cur]", function (b) { b.onclick = function () { S.cur = b.dataset.cur; each("[data-cur]", function (x) { x.setAttribute("aria-pressed", x.dataset.cur === S.cur); }); renderNext(); }; });
+    each("[data-ev]", function (b) {
+      b.onclick = function () {
+        if (S.event === b.dataset.ev) return;
+        S.event = b.dataset.ev; S.skill = ""; save();
+        each("[data-ev]", function (x) { x.setAttribute("aria-pressed", x.dataset.ev === S.event); });
+        renderSkills(); renderNext();
+      };
+    });
+    $("student").oninput = function (e) { S.student = e.target.value.trim(); renderNext(); };
+    var input = $("camInput");
+    input.onchange = function () {
+      var f = input.files && input.files[0]; input.value = "";
+      if (!f) return;
+      addJob(f, { cls: S.cur, camera: cam, event: S.event, skill: S.skill || "（技名なし）", student: S.student, takenAt: Date.now() });
+      // 次の人に備えて氏名だけ空にする（技はそのまま）
+      S.student = ""; $("student").value = ""; renderNext();
+    };
+  }
+  function renderSkills() {
+    var list = S.cfg.skills[S.event] || [];
+    $("skills").innerHTML = list.length ? list.map(function (s) { return '<button type="button" class="chip" data-skill="' + esc(s) + '" aria-pressed="' + (S.skill === s) + '">' + esc(s) + "</button>"; }).join("")
+      : '<span class="small muted">技の選択肢がありません。先生用の「技の選択肢を編集」で追加してください。</span>';
+    each("[data-skill]", function (b) {
+      b.onclick = function () { S.skill = S.skill === b.dataset.skill ? "" : b.dataset.skill; each("[data-skill]", function (x) { x.setAttribute("aria-pressed", x.dataset.skill === S.skill); }); renderNext(); };
+    });
+  }
+  function renderNext() {
+    var n = $("next"); if (!n) return;
+    n.innerHTML = "次に保存される内容：" + '<span class="pill cls">' + esc(S.cur) + '</span><span class="pill ' + S.event + '">' + EV[S.event] + "</span>" +
+      "<span>" + esc(S.skill || "技を選んでください") + "</span>" + (S.student ? '<span class="muted">／' + esc(S.student) + "</span>" : "");
+  }
+
+  /* ---------- 保存 ---------- */
+  function addJob(file, meta) {
+    var job = { id: Math.random().toString(36).slice(2), file: file, meta: meta, status: "upload", error: "" };
+    S.jobs.unshift(job); renderJobs(); runJob(job);
+  }
+  function runJob(job) {
+    job.status = "upload"; job.error = ""; renderJobs();
+    var fr = new FileReader();
+    fr.onload = function () {
+      var b64 = String(fr.result).split(",")[1];
+      var type = (job.file.type || "video/quicktime").split(";")[0];
+      gas("uploadClip", job.meta, b64, type).then(function () {
+        job.status = "done"; renderJobs(); toast("保存しました：" + job.meta.skill);
+      }).catch(function (e) {
+        job.status = "error";
+        job.error = job.file.size > 40 * 1048576 ? "動画が大きすぎます。短く撮るか、iPadの設定で画質を下げてください" : e.message;
+        renderJobs();
+      });
+    };
+    fr.onerror = function () { job.status = "error"; job.error = "動画を読み込めませんでした"; renderJobs(); };
+    fr.readAsDataURL(job.file);
+  }
+  function renderJobs() {
+    var el = $("jobs"); if (!el) return;
+    if (!S.jobs.length) { el.innerHTML = '<p class="small muted">撮った動画はここに出て、保存が終わると「保存完了」になります。</p>'; return; }
+    el.innerHTML = S.jobs.slice(0, 10).map(function (j) {
+      var st = j.status === "done" ? '<span class="st-ok">保存完了</span>' : j.status === "error" ? '<span class="st-bad">失敗：' + esc(j.error) + "</span>" : '<span class="st-busy">保存中…</span>';
+      return '<div class="job"><span class="pill cls">' + esc(j.meta.cls) + '</span><span style="min-width:0"><b>' + esc(j.meta.skill) + "</b> " + esc(j.meta.student) + "<br>" + st + "</span>" +
+        (j.status === "error" ? '<button type="button" data-retry="' + j.id + '">もう一度</button>' : '<span class="muted">' + fmtSize(j.file.size) + "</span>") + "</div>";
+    }).join("");
+    Array.prototype.forEach.call(el.querySelectorAll("[data-retry]"), function (b) {
+      b.onclick = function () { var j = S.jobs.filter(function (x) { return x.id === b.dataset.retry; })[0]; if (j) runJob(j); };
+    });
+  }
+  window.addEventListener("beforeunload", function (e) { if (S.jobs.some(function (j) { return j.status === "upload"; })) { e.preventDefault(); e.returnValue = ""; } });
+
+  /* ---------- 一覧 ---------- */
+  function renderList() {
+    var p = S.params, f = S.filter;
+    f.cls = p.cls || ""; f.cam = p.cam || ""; f.ev = p.ev || ""; f.skill = p.skill || "";
+    paintList();
+    fetchList();
+    setInterval(function () { if (document.visibilityState === "visible" && !document.querySelector(".clip iframe")) fetchList(); }, 30000);
+  }
+  function fetchList() {
+    gas("listClips").then(function (rows) { S.clips = rows || []; S.loaded = true; S.listError = ""; paintList(); })
+      .catch(function (e) { S.loaded = true; S.listError = e.message; paintList(); });
+  }
+  function syncUrl() {
+    var f = S.filter;
+    try { google.script.history.replace(null, { list: "1", cls: f.cls, cam: f.cam, ev: f.ev, skill: f.skill }, ""); } catch (e) {}
+  }
+  function paintList() {
+    var f = S.filter, q = f.q.trim().toLowerCase();
+    var base = S.clips.filter(function (c) { return (!f.cls || c.cls === f.cls) && (!f.cam || String(c.camera) === String(f.cam)) && (!f.ev || c.event === f.ev); });
+    var skills = base.map(function (c) { return c.skill; }).filter(function (s, i, a) { return a.indexOf(s) === i; });
+    var shown = base.filter(function (c) { return (!f.skill || c.skill === f.skill) && (!q || c.student.toLowerCase().indexOf(q) >= 0); });
+    var allCls = CLASSES.reduce(function (a, g) { return a.concat(g[1]); }, []);
+    S.clips.forEach(function (c) { if (allCls.indexOf(c.cls) < 0) allCls.push(c.cls); });
+    var camOpts = ""; for (var i = 1; i <= CAMERA_COUNT; i++) camOpts += '<option value="' + i + '"' + (String(f.cam) === String(i) ? " selected" : "") + ">カメラ" + i + "</option>";
+    var title = [f.cls, f.cam ? "カメラ" + f.cam : "", f.ev ? EV[f.ev] : "", f.skill].filter(Boolean).join("・") || "すべての映像";
+    var focus = document.activeElement && document.activeElement.id;
+    $app.innerHTML = '<section class="panel">' +
+      '<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline"><h2 style="font-size:1.35rem">' + esc(title) + '</h2><span><span class="big">' + (S.loaded ? shown.length : "…") + '</span> 本</span></div>' +
+      '<div class="filters">' +
+        '<label class="field">クラス<select id="fCls"><option value="">すべて</option>' + allCls.map(function (c) { return "<option" + (f.cls === c ? " selected" : "") + ">" + esc(c) + "</option>"; }).join("") + "</select></label>" +
+        '<label class="field">カメラ<select id="fCam"><option value="">すべて</option>' + camOpts + "</select></label>" +
+        '<label class="field">種目<select id="fEv"><option value="">すべて</option><option value="mat"' + (f.ev === "mat" ? " selected" : "") + '>マット</option><option value="vault"' + (f.ev === "vault" ? " selected" : "") + ">跳び箱</option></select></label>" +
+        '<label class="field">技<select id="fSkill"><option value="">すべて</option>' + skills.map(function (s) { return "<option" + (f.skill === s ? " selected" : "") + ">" + esc(s) + "</option>"; }).join("") + "</select></label>" +
+        '<label class="field">氏名で探す<input type="text" id="fQ" value="' + esc(f.q) + '" placeholder="小林"></label>' +
+      "</div>" +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn-ghost" id="reload">最新にする</button><button type="button" class="btn-ghost" id="copyUrl">この一覧のURLをコピー</button></div>' +
+      '<p class="small muted" id="urlText" style="word-break:break-all"></p></section>' +
+      (S.listError ? '<div class="notice">一覧を読み込めませんでした：' + esc(S.listError) + "</div>" : "") +
+      (!S.loaded ? '<div class="empty">読み込んでいます…</div>' : shown.length ? '<section class="grid">' + shown.map(card).join("") + "</section>"
+        : '<div class="empty"><b>' + (S.clips.length ? "条件に合う映像がありません" : "まだ映像がありません") + '</b><span class="small">撮影すると、ここに追加されます。</span></div>');
+    var url = link(qs({ list: 1, cls: f.cls, cam: f.cam, ev: f.ev, skill: f.skill }));
+    $("urlText").textContent = url;
+    $("copyUrl").onclick = function () {
+      navigator.clipboard.writeText(url).then(function () { toast("URLをコピーしました"); }).catch(function () {
+        var r = document.createRange(); r.selectNodeContents($("urlText")); var s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("選択しました。コピーしてください");
+      });
+    };
+    $("reload").onclick = fetchList;
+    $("fCls").onchange = function (e) { f.cls = e.target.value; f.skill = ""; syncUrl(); paintList(); };
+    $("fCam").onchange = function (e) { f.cam = e.target.value; syncUrl(); paintList(); };
+    $("fEv").onchange = function (e) { f.ev = e.target.value; f.skill = ""; syncUrl(); paintList(); };
+    $("fSkill").onchange = function (e) { f.skill = e.target.value; syncUrl(); paintList(); };
+    $("fQ").oninput = function (e) { f.q = e.target.value; clearTimeout(paintList.t); paintList.t = setTimeout(paintList, 300); };
+    if (focus === "fQ") { var x = $("fQ"); x.focus(); x.setSelectionRange(x.value.length, x.value.length); }
+    each("[data-play]", function (b) { b.onclick = function () { b.outerHTML = '<iframe src="https://drive.google.com/file/d/' + encodeURIComponent(b.dataset.play) + '/preview" allow="autoplay; fullscreen" allowfullscreen></iframe>'; }; });
+    each("img[data-fallback]", function (img) { img.onerror = function () { img.remove(); }; });
+    each("[data-edit]", function (b) { b.onclick = function () { openEdit(b.dataset.edit); }; });
+    each("[data-del]", function (b) { b.onclick = function () { openDelete(b.dataset.del); }; });
+  }
+  function card(c) {
+    var ev = c.event === "vault" ? "vault" : "mat";
+    return '<article class="clip"><button type="button" class="thumb" data-play="' + esc(c.id) + '" aria-label="再生">' +
+      '<em>撮った直後は、再生できるまで1〜2分かかることがあります</em><img data-fallback src="https://drive.google.com/thumbnail?id=' + encodeURIComponent(c.id) + '&sz=w640" alt="" loading="lazy"><span></span></button>' +
+      '<div class="clip-body"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="pill cls">' + esc(c.cls) + '</span><span class="pill ' + ev + '">' + EV[ev] + "</span><b>" + esc(c.skill) + "</b></div>" +
+      (c.student ? "<div>" + esc(c.student) + "</div>" : "") +
+      '<div class="meta"><span>' + fmtTime(c.takenAt) + (c.camera ? "・カメラ" + c.camera : "") + "</span><span>" + fmtSize(c.sizeBytes || 0) + "</span></div>" +
+      (S.cfg.canManage ? '<div class="tools"><button type="button" data-edit="' + esc(c.id) + '">技・氏名を直す</button><button type="button" class="btn-danger" data-del="' + esc(c.id) + '">削除</button></div>' : "") +
+      "</div></article>";
+  }
+  function modal(html, bind) {
+    var r = $("modalRoot");
+    r.innerHTML = '<div class="overlay"><div class="modal" role="dialog" aria-modal="true">' + html + "</div></div>";
+    var close = function () { r.innerHTML = ""; };
+    r.querySelector(".overlay").onclick = function (e) { if (e.target.className === "overlay") close(); };
+    bind(r, close);
+  }
+  function openEdit(id) {
+    var c = S.clips.filter(function (x) { return x.id === id; })[0]; if (!c) return;
+    var opts = (S.cfg.skills.mat || []).concat(S.cfg.skills.vault || []);
+    if (opts.indexOf(c.skill) < 0) opts.unshift(c.skill);
+    modal('<h2>技・氏名を直す</h2>' +
+      '<label class="field">種目<select id="eEv"><option value="mat"' + (c.event !== "vault" ? " selected" : "") + '>マット</option><option value="vault"' + (c.event === "vault" ? " selected" : "") + ">跳び箱</option></select></label>" +
+      '<label class="field">技<select id="eSkill">' + opts.map(function (s) { return "<option" + (s === c.skill ? " selected" : "") + ">" + esc(s) + "</option>"; }).join("") + "</select></label>" +
+      '<label class="field">氏名<input type="text" id="eStudent" value="' + esc(c.student) + '"></label>' +
+      '<div class="acts"><button type="button" class="btn-ghost" id="mC">やめる</button><button type="button" class="btn-mat" id="mS">保存</button></div>', function (r, close) {
+        r.querySelector("#mC").onclick = close;
+        r.querySelector("#mS").onclick = function (e) {
+          e.currentTarget.disabled = true;
+          var patch = { event: r.querySelector("#eEv").value, skill: r.querySelector("#eSkill").value, student: r.querySelector("#eStudent").value.trim() };
+          gas("updateClip", id, patch).then(function () { Object.assign(c, patch); close(); paintList(); toast("直しました"); }).catch(function (err) { close(); toast(err.message); });
+        };
+      });
+  }
+  function openDelete(id) {
+    var c = S.clips.filter(function (x) { return x.id === id; })[0]; if (!c) return;
+    modal("<h2>この映像を削除しますか？</h2><p>" + esc(c.cls) + " " + esc(c.skill) + " " + esc(c.student) + "（" + fmtTime(c.takenAt) + "）</p>" +
+      '<p class="small muted">Googleドライブのゴミ箱に移ります。30日以内ならドライブから戻せます。</p>' +
+      '<div class="acts"><button type="button" class="btn-ghost" id="mC">やめる</button><button type="button" class="btn-danger" id="mD">削除する</button></div>', function (r, close) {
+        r.querySelector("#mC").onclick = close;
+        r.querySelector("#mD").onclick = function (e) {
+          e.currentTarget.disabled = true;
+          gas("deleteClip", id).then(function () { S.clips = S.clips.filter(function (x) { return x.id !== id; }); close(); paintList(); toast("削除しました"); }).catch(function (err) { close(); toast(err.message); });
+        };
+      });
+  }
+
+  /* ---------- 技の選択肢の編集（先生用） ---------- */
+  var draft = null;
+  function renderEdit() {
+    if (!draft) draft = { mat: (S.cfg.skills.mat || []).slice(), vault: (S.cfg.skills.vault || []).slice() };
+    var col = function (ev) {
+      var list = draft[ev];
+      return '<section class="panel"><h2>' + EV[ev] + "運動の技</h2>" +
+        '<div style="display:grid;gap:6px">' + (list.length ? list.map(function (s, i) {
+          return '<div class="sk"><span>' + esc(s) + '</span><button type="button" data-up="' + ev + ":" + i + '" aria-label="上へ"' + (i ? "" : " disabled") + '>↑</button>' +
+            '<button type="button" data-down="' + ev + ":" + i + '" aria-label="下へ"' + (i < list.length - 1 ? "" : " disabled") + '>↓</button>' +
+            '<button type="button" class="btn-danger" data-rm="' + ev + ":" + i + '" aria-label="消す">×</button></div>';
+        }).join("") : '<p class="small muted">技がありません。</p>') + "</div>" +
+        '<div class="addrow"><input type="text" id="add_' + ev + '" placeholder="追加する技の名前"><button type="button" class="btn-mat" data-add="' + ev + '">追加</button></div></section>';
+    };
+    $app.innerHTML = '<section class="panel"><h2>技の選択肢を編集</h2><p class="small muted">撮影画面に出る技のボタンです。順番は↑↓で並べ替えられます。最後に「保存」を押すと、すべてのiPadに反映されます（開いている撮影画面は読み込み直すと反映）。</p>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn-box" id="saveSkills">保存</button><a class="btn btn-ghost" target="_top" href="' + esc(link("")) + '">保存せずに戻る</a></div></section>' +
+      '<div class="editcols">' + col("mat") + col("vault") + "</div>";
+    var split = function (v) { var a = v.split(":"); return { ev: a[0], i: +a[1] }; };
+    each("[data-up]", function (b) { b.onclick = function () { var x = split(b.dataset.up), l = draft[x.ev]; l.splice(x.i - 1, 0, l.splice(x.i, 1)[0]); renderEdit(); }; });
+    each("[data-down]", function (b) { b.onclick = function () { var x = split(b.dataset.down), l = draft[x.ev]; l.splice(x.i + 1, 0, l.splice(x.i, 1)[0]); renderEdit(); }; });
+    each("[data-rm]", function (b) { b.onclick = function () { var x = split(b.dataset.rm); draft[x.ev].splice(x.i, 1); renderEdit(); }; });
+    each("[data-add]", function (b) {
+      var ev = b.dataset.add, inp = $("add_" + ev);
+      var add = function () { var v = inp.value.trim(); if (!v) return; if (draft[ev].indexOf(v) < 0) draft[ev].push(v); renderEdit(); var n = $("add_" + ev); if (n) n.focus(); };
+      b.onclick = add;
+      inp.onkeydown = function (e) { if (e.key === "Enter") add(); };
+    });
+    $("saveSkills").onclick = function (e) {
+      e.currentTarget.disabled = true;
+      gas("saveSkills", draft).then(function (sk) { S.cfg.skills = sk; draft = null; toast("保存しました"); renderEdit(); })
+        .catch(function (err) { toast(err.message); renderEdit(); });
+    };
+  }
+
+  /* ---------- 起動 ---------- */
+  google.script.url.getLocation(function (loc) {
+    S.params = loc.parameter || {};
+    gas("getConfig").then(function (cfg) { S.cfg = cfg; render(); })
+      .catch(function (e) { $app.innerHTML = '<div class="notice">読み込めませんでした：' + esc(e.message) + "</div>"; });
+  });
+})();
+</script>
+</body>
+</html>
