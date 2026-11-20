@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>技ビデオ 自動録画</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* 体育館の床（メープル）の上に、マットの紺と跳び箱の赤。撮影画面は左にカメラ映像、右に操作。 */
+:root {
+  --floor: #f6efe3; --floor-2: #ece0cb; --card: #fffdf9; --ink: #1f2430; --muted: #6b6457; --line: #ddd0b8;
+  --mat: #24407a; --mat-soft: #dfe6f5; --box: #c2412d; --box-soft: #f7e0da; --ok: #2f7a4b; --ok-soft: #dcefe2; --warn: #a56a00; --bad: #b3261e;
+  --display: "Dela Gothic One", "Hiragino Sans", "Yu Gothic", sans-serif;
+  --body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --floor: #1a1915; --floor-2: #24221c; --card: #2a2821; --ink: #f1ece2; --muted: #b0a794; --line: #3d392f;
+    --mat: #8fa9e6; --mat-soft: #263252; --box: #f08a74; --box-soft: #4a2820; --ok: #7fcf9b; --ok-soft: #1f3a29; --warn: #e6b24f; --bad: #ff8a80;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--floor); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.6; padding: 16px max(16px, env(safe-area-inset-right)) 40px max(16px, env(safe-area-inset-left)); }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 18px; }
+h1, h2 { font-family: var(--display); font-weight: 400; margin: 0; letter-spacing: .02em; }
+h1 { font-size: clamp(1.3rem, 3.5vw, 1.9rem); line-height: 1.2; }
+h2 { font-size: 1.1rem; }
+p { margin: 0; }
+.muted { color: var(--muted); } .small { font-size: 13px; }
+a { color: inherit; }
+button, .btn {
+  font: inherit; font-weight: 700; border: 2px solid var(--ink); background: var(--card); color: var(--ink); border-radius: 10px;
+  padding: 8px 14px; min-height: 44px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none;
+}
+button:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, .btn:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--mat); outline-offset: 2px; }
+.btn-mat { background: var(--mat); border-color: var(--mat); color: var(--card); }
+.btn-box { background: var(--box); border-color: var(--box); color: #fff; }
+.btn-ghost { border-color: var(--line); }
+.btn-danger { border-color: var(--bad); color: var(--bad); }
+input[type=text], input[type=password], select { font: inherit; color: var(--ink); background: var(--card); border: 2px solid var(--line); border-radius: 10px; padding: 8px 12px; min-height: 44px; width: 100%; }
+label.field { display: grid; gap: 4px; font-weight: 700; font-size: 13px; min-width: 0; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; gap: 12px; align-items: center; text-decoration: none; }
+.panel { background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+.notice { border-radius: 12px; padding: 12px 14px; background: var(--box-soft); font-size: 14px; }
+.notice.info { background: var(--mat-soft); }
+.pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 10px; font-size: 13px; font-weight: 700; }
+.pill.mat { background: var(--mat-soft); color: var(--mat); } .pill.vault { background: var(--box-soft); color: var(--box); }
+
+/* home */
+.cams { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.cam-no { font-family: var(--display); font-size: 1.5rem; line-height: 1; }
+.cam-no b { font-weight: 400; font-size: 2.3rem; color: var(--mat); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* shoot */
+.shoot { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 860px) { .shoot { grid-template-columns: 1fr; } }
+.stage { position: relative; background: #000; border-radius: 14px; overflow: hidden; aspect-ratio: 16 / 9; max-width: 100%; touch-action: none; }
+.stage video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.status {
+  position: absolute; left: 12px; top: 12px; display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px;
+  font-family: var(--display); font-size: 1rem; color: #fff; background: rgba(0,0,0,.6);
+}
+.status i { width: 12px; height: 12px; border-radius: 50%; background: #9aa; }
+.status.armed i { background: #4cd07d; }
+.status.rec { background: rgba(194,65,45,.92); }
+.status.rec i { background: #fff; animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: .2; } }
+.camlabel { position: absolute; right: 12px; top: 12px; font-family: var(--display); color: #fff; background: rgba(0,0,0,.6); border-radius: 10px; padding: 4px 12px; }
+.meter { position: relative; height: 14px; background: var(--floor-2); border-radius: 7px; overflow: hidden; }
+.meter i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ok); width: 0; transition: width .1s; }
+.meter b { position: absolute; top: -2px; bottom: -2px; width: 3px; background: var(--box); }
+.bigrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bigrow button { min-height: 64px; font-size: 1.05rem; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; min-height: 46px; }
+.seg button + button { border-left: 2px solid var(--ink); }
+.seg button[aria-pressed="true"][data-ev="mat"] { background: var(--mat); color: var(--card); }
+.seg button[aria-pressed="true"][data-ev="vault"] { background: var(--box); color: #fff; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1.5px solid var(--line); background: var(--floor); border-radius: 999px; padding: 4px 12px; min-height: 36px; font-weight: 500; font-size: 14px; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--floor); border-color: var(--ink); font-weight: 700; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+details { border-top: 1.5px solid var(--line); padding-top: 10px; }
+summary { cursor: pointer; font-weight: 700; }
+.slider { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; font-size: 13px; font-weight: 700; }
+.slider input { grid-column: 1 / -1; width: 100%; }
+.slider output { font-variant-numeric: tabular-nums; color: var(--muted); }
+.jobs { display: grid; gap: 6px; }
+.job { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; border: 1.5px solid var(--line); border-radius: 10px; padding: 6px 10px; font-size: 13px; }
+.st-ok { color: var(--ok); font-weight: 700; } .st-bad { color: var(--bad); font-weight: 700; } .st-busy { color: var(--warn); font-weight: 700; }
+.job button { min-height: 30px; padding: 2px 10px; font-size: 12px; border-width: 1.5px; }
+
+/* list */
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.clip { background: var(--card); border: 2px solid var(--line); border-radius: 14px; overflow: hidden; min-width: 0; }
+.thumb { position: relative; aspect-ratio: 16 / 9; background: #111; display: grid; place-items: center; cursor: pointer; border: 0; width: 100%; padding: 0; border-radius: 0; min-height: 0; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb span { position: absolute; width: 54px; height: 54px; border-radius: 50%; background: rgba(0,0,0,.55); display: grid; place-items: center; }
+.thumb span::after { content: ""; border-left: 18px solid #fff; border-top: 11px solid transparent; border-bottom: 11px solid transparent; margin-left: 5px; }
+.thumb em { position: absolute; color: #ddd; font-style: normal; font-size: 13px; }
+.clip iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; background: #000; }
+.clip-body { padding: 10px 12px; display: grid; gap: 4px; }
+.meta { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+.tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.tools button { min-height: 30px; padding: 2px 10px; font-size: 12px; border-width: 1.5px; }
+.empty { border: 2px dashed var(--line); border-radius: 14px; padding: 30px 16px; text-align: center; color: var(--muted); display: grid; gap: 6px; }
+.big { font-family: var(--display); font-size: 1.9rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; padding: 16px; z-index: 50; }
+.modal { background: var(--card); border-radius: 16px; padding: 18px; width: min(440px, 100%); display: grid; gap: 12px; }
+.modal .acts { display: flex; justify-content: flex-end; gap: 8px; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 20px; background: var(--ink); color: var(--floor); padding: 10px 18px; border-radius: 999px; font-weight: 700; z-index: 60; max-width: calc(100% - 32px); }
+@media (prefers-reduced-motion: reduce) { .status.rec i { animation: none; } * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" id="homeLink" href="#" target="_top">
+      <svg width="42" height="42" viewBox="0 0 44 44" aria-hidden="true">
+        <rect x="2" y="30" width="40" height="10" rx="3" fill="var(--mat)"></rect>
+        <path d="M10 30 L14 12 H30 L34 30 Z" fill="var(--box)"></path>
+        <rect x="13" y="12" width="18" height="5" rx="1.5" fill="var(--card)"></rect>
+      </svg>
+      <div><h1>技ビデオ 自動録画</h1><p class="muted small">動いたら録画開始、止まったら保存。Googleドライブにカメラごとに残ります。</p></div>
+    </a>
+    <nav id="nav"></nav>
+  </header>
+  <main id="app" class="wrap"><div class="empty">読み込んでいます…</div></main>
+</div>
+<div id="modalRoot"></div><div id="toastRoot"></div>
+
+<script>
+(function () {
+  "use strict";
+  var CAMERA_COUNT = 4;
+  var SKILLS = {
+    mat: ["前転", "後転", "開脚前転", "開脚後転", "伸膝前転", "伸膝後転", "後転倒立", "倒立前転", "側方倒立回転", "ロンダート", "倒立ブリッジ", "前方倒立回転", "跳び前転", "首はねおき", "頭はねおき", "ハンドスプリング"],
+    vault: ["開脚跳び", "かかえ込み跳び", "屈身跳び", "台上前転", "伸膝台上前転", "首はね跳び", "頭はね跳び", "前方屈腕倒立回転跳び", "前方倒立回転跳び"]
+  };
+  var EV = { mat: "マット", vault: "跳び箱" };
+  var IN_GAS = typeof google !== "undefined" && google.script && google.script.run;
+
+  var S = {
+    cfg: { url: "", folderUrl: "", canManage: false, needKey: false },
+    params: {}, clips: [], loaded: false, listError: "",
+    event: "mat", skill: "", group: "", student: "", key: "", apiUrl: "", viewUrl: "",
+    det: { thr: 28, trigger: 3, still: 2, max: 20, min: 1.2, audio: false },
+    zone: null, jobs: [], filter: { ev: "", skill: "", q: "" }
+  };
+  function load() {
+    try {
+      var s = JSON.parse(localStorage.getItem("waza-auto") || "{}");
+      ["event", "skill", "group", "key", "apiUrl", "viewUrl"].forEach(function (k) { if (typeof s[k] === "string") S[k] = s[k]; });
+      if (s.det) Object.assign(S.det, s.det);
+    } catch (e) {}
+  }
+  function save() {
+    try { localStorage.setItem("waza-auto", JSON.stringify({ event: S.event, skill: S.skill, group: S.group, key: S.key, apiUrl: S.apiUrl, viewUrl: S.viewUrl, det: S.det })); } catch (e) {}
+  }
+  function loadZone(cam) { try { var z = JSON.parse(localStorage.getItem("waza-zone-" + cam) || "null"); if (z && z.w > 0.02) return z; } catch (e) {} return { x: 0.1, y: 0.15, w: 0.8, h: 0.8 }; }
+  function saveZone(cam, z) { try { localStorage.setItem("waza-zone-" + cam, JSON.stringify(z)); } catch (e) {} }
+  load();
+
+  var $app = document.getElementById("app"), $nav = document.getElementById("nav");
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function toast(m) { var r = document.getElementById("toastRoot"); r.innerHTML = '<div class="toast" role="status">' + esc(m) + "</div>"; clearTimeout(toast.t); toast.t = setTimeout(function () { r.innerHTML = ""; }, 2600); }
+  function fmtTime(ms) { var d = new Date(ms), p = function (n) { return ("0" + n).slice(-2); }; return (d.getMonth() + 1) + "/" + d.getDate() + " " + p(d.getHours()) + ":" + p(d.getMinutes()); }
+  function fmtSize(b) { return b > 1048576 ? (b / 1048576).toFixed(1) + "MB" : Math.max(1, Math.round(b / 1024)) + "KB"; }
+
+  /* ---------- サーバー呼び出し ---------- */
+  function gas(fn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (res, rej) {
+      var r = google.script.run.withSuccessHandler(res).withFailureHandler(function (e) { rej(new Error(e && e.message || String(e))); });
+      r[fn].apply(r, args);
+    });
+  }
+  function http(api, body) {
+    if (!S.apiUrl) return Promise.reject(new Error("この端末の設定がまだです。Apps Script のアプリのホームから「撮影する」を開いてください"));
+    var req = body
+      ? fetch(S.apiUrl, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ api: api, key: S.key }, body)) })
+      : fetch(S.apiUrl + (S.apiUrl.indexOf("?") >= 0 ? "&" : "?") + "api=" + api + "&key=" + encodeURIComponent(S.key) + "&camera=" + encodeURIComponent(S.params.list || ""));
+    return req.then(function (r) { return r.json(); }).then(function (j) { if (!j.ok) throw new Error(j.error); return j.data; });
+  }
+  var api = {
+    config: function () { return IN_GAS ? gas("getConfig") : http("config"); },
+    list: function (cam) { return IN_GAS ? gas("listClips", cam) : http("list"); },
+    upload: function (meta, b64, type) { return IN_GAS ? gas("uploadClip", meta, b64, type) : http("upload", { meta: meta, data: b64, mimeType: type }); },
+    update: function (id, patch) { return gas("updateClip", id, patch); },
+    remove: function (id) { return gas("deleteClip", id); }
+  };
+  function selfBase() { return location.href.split("#")[0].split("?")[0]; }
+  // このアプリ自身のページ
+  function link(q) { return (IN_GAS ? (S.cfg.url || selfBase()) : selfBase()) + (q ? "?" + q : ""); }
+  // 一覧はいつも Apps Script 側で開く（Googleドライブの再生や修正・削除がそこで使えるため）
+  function linkList(n) { var base = IN_GAS ? (S.cfg.url || selfBase()) : (S.viewUrl || S.cfg.url || ""); return base ? base + "?list=" + n : ""; }
+  // 撮影はカメラが使える撮影用ページで開く。設定（保存先と合言葉）をリンクに入れて渡す
+  function camReady() { return !IN_GAS || !!(S.cfg.cameraPageUrl && S.cfg.apiUrl && S.cfg.key); }
+  function linkCam(n) {
+    if (!IN_GAS) return selfBase() + "?cam=" + n;
+    if (!camReady()) return link("cam=" + n);
+    var json = JSON.stringify({ api: S.cfg.apiUrl, key: S.cfg.key, view: S.cfg.url });
+    var b64 = btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return S.cfg.cameraPageUrl.split("#")[0].split("?")[0] + "?cam=" + n + "#cfg=" + b64;
+  }
+
+  /* ---------- 画面の切り替え ---------- */
+  function render() {
+    stopCamera();
+    document.getElementById("homeLink").href = link("");
+    var p = S.params;
+    $nav.innerHTML = (p.cam || p.list) ? '<a class="btn btn-ghost" target="_top" href="' + esc(link("")) + '">カメラ選択に戻る</a>'
+      : (linkList("all") ? '<a class="btn btn-ghost" target="_top" href="' + esc(linkList("all")) + '">すべての映像</a>' : "");
+    if (p.cam) renderShoot(parseInt(p.cam, 10) || 1);
+    else if (p.list) renderList(p.list === "all" ? 0 : parseInt(p.list, 10) || 1);
+    else renderHome();
+  }
+
+  function renderHome() {
+    var cams = "";
+    for (var i = 1; i <= CAMERA_COUNT; i++) {
+      cams += '<article class="panel"><div class="cam-no">カメラ<b>' + i + '</b></div><div class="two">' +
+        '<a class="btn btn-box" target="_top" href="' + esc(linkCam(i)) + '">撮影する</a>' +
+        '<a class="btn" target="_top" href="' + esc(linkList(i)) + '">一覧を見る</a></div>' +
+        '<p class="small muted" style="word-break:break-all">一覧のリンク：' + esc(linkList(i)) + "</p></article>";
+    }
+    $app.innerHTML = setupCard() + ownerCard() + '<section class="cams">' + cams + '</section>' +
+      '<section class="panel"><h2>使い方</h2><ol style="margin:0;padding-left:1.3em">' +
+      "<li>撮影する端末で「カメラ○ → 撮影する」を開き、カメラの使用を許可します。</li>" +
+      "<li>映像の上を指でなぞって、マットや跳び箱の範囲を囲みます（その範囲の動きだけを見ます）。</li>" +
+      "<li>種目と技を選んで「自動録画をはじめる」。範囲の中で人が動くと録画が始まり、" + S.det.still + "秒ほど止まると自動で保存されます。</li>" +
+      "<li>別の端末で「一覧を見る」のリンクを開くと、そのカメラの映像がすべて見られます。</li></ol>" +
+      (S.cfg.folderUrl ? '<p class="small"><a target="_blank" href="' + esc(S.cfg.folderUrl) + '">Googleドライブの保存先フォルダを開く</a></p>' : "") + "</section>";
+    bindSetup();
+    bindOwner();
+  }
+  // Apps Script 側のホーム（作った先生だけ）：撮影用ページの場所を登録する
+  function ownerCard() {
+    if (!IN_GAS) return "";
+    if (!S.cfg.canManage) return camReady() ? "" : '<div class="notice">撮影の準備がまだです。アプリを作った先生のアカウントで開いて設定してください。</div>';
+    var ok = camReady();
+    return '<section class="panel"><h2>撮影用ページの設定' + (ok ? '　<span class="pill mat">設定済み</span>' : "") + "</h2>" +
+      (ok ? "" : '<div class="notice">この画面の中ではカメラが使えないため、撮影は別の撮影用ページで行います。設定ガイドの手順で2つのURLを入れてください。</div>') +
+      '<label class="field">撮影用ページのURL（GitHub Pages など）<input type="text" id="camPage" value="' + esc(S.cfg.cameraPageUrl || "") + '" placeholder="https://….github.io/…/"></label>' +
+      '<label class="field">保存用デプロイのURL（アクセス：全員、…/exec）<input type="text" id="apiUrlIn" value="' + esc(S.cfg.apiUrl || "") + '" placeholder="https://script.google.com/macros/s/…/exec"></label>' +
+      '<div><button type="button" class="btn-mat" id="saveLinks">保存</button></div></section>';
+  }
+  function bindOwner() {
+    var b = document.getElementById("saveLinks"); if (!b) return;
+    b.onclick = function () {
+      b.disabled = true;
+      gas("setLinks", document.getElementById("camPage").value, document.getElementById("apiUrlIn").value)
+        .then(function (cfg) { S.cfg = cfg; toast("保存しました"); render(); })
+        .catch(function (e) { b.disabled = false; toast(e.message); });
+    };
+  }
+  function setupCard() {
+    if (IN_GAS || S.apiUrl) return "";
+    return '<section class="panel"><h2>この端末はまだ設定されていません</h2>' +
+      "<p>Apps Script のアプリのホームを開き、使いたいカメラの「撮影する」を押してください。この端末に保存先が記録され、次からはこのページを直接開いても使えます。</p>" +
+      "<details><summary>手で入力する</summary><div style=\"display:grid;gap:10px;margin-top:10px\">" +
+      '<label class="field">保存用デプロイのURL（…/exec）<input type="text" id="apiUrl" value=""></label>' +
+      '<label class="field">合言葉<input type="password" id="key" value=""></label>' +
+      '<label class="field">一覧を見るURL（Apps Script のアプリのURL）<input type="text" id="viewUrl" value=""></label>' +
+      '<div><button type="button" class="btn-mat" id="saveSetup">保存</button></div></div></details></section>';
+  }
+  function bindSetup() {
+    var b = document.getElementById("saveSetup");
+    if (!b) return;
+    b.onclick = function () {
+      S.apiUrl = document.getElementById("apiUrl").value.trim(); S.key = document.getElementById("key").value.trim(); S.viewUrl = document.getElementById("viewUrl").value.trim();
+      save(); toast("保存しました"); boot();
+    };
+  }
+
+  /* ---------- 撮影画面 ---------- */
+  var cam = { stream: null, timer: 0, rec: null, chunks: [], recStart: 0, lastMotion: 0, hits: 0, armed: false, cooldownUntil: 0, prev: null, cameraNo: 1, mime: "" };
+
+  function renderShoot(n) {
+    cam.cameraNo = n;
+    S.zone = loadZone(n);
+    var d = S.det;
+    $app.innerHTML = setupCard() + '<div class="shoot">' +
+      '<section style="display:grid;gap:12px;min-width:0">' +
+        '<div class="stage" id="stage"><video id="vid" playsinline muted autoplay></video><canvas id="ov"></canvas>' +
+          '<div class="status" id="status"><i></i><span>カメラを準備中</span></div><div class="camlabel">カメラ ' + n + '</div></div>' +
+        '<div style="display:grid;gap:4px"><div class="small" style="display:flex;justify-content:space-between"><b>動きの量</b><span class="muted">赤い線をこえると録画が始まります</span></div>' +
+          '<div class="meter"><i id="mFill"></i><b id="mLine"></b></div></div>' +
+        '<div class="bigrow"><button type="button" class="btn-mat" id="armBtn">自動録画をはじめる</button><button type="button" class="btn-box" id="manBtn">手動で録画</button></div>' +
+        '<p class="small muted">映像の上を指（マウス）でなぞると、動きを見る範囲を囲み直せます。範囲の外で動く人には反応しません。</p>' +
+        '<div id="camErr"></div>' +
+      '</section>' +
+      '<section class="panel">' +
+        '<div class="seg" role="group" aria-label="種目"><button type="button" data-ev="mat" aria-pressed="' + (S.event === "mat") + '">マット運動</button><button type="button" data-ev="vault" aria-pressed="' + (S.event === "vault") + '">跳び箱運動</button></div>' +
+        '<div class="chips" id="chips">' + chipsHtml() + "</div>" +
+        '<label class="field">一覧にない技<input type="text" id="skillFree" value="' + esc(SKILLS[S.event].indexOf(S.skill) >= 0 ? "" : S.skill) + '" placeholder="例：補助倒立"></label>' +
+        '<div class="row2"><label class="field">学年・組<input type="text" id="group" value="' + esc(S.group) + '" placeholder="2年3組"></label>' +
+        '<label class="field">次の人（任意）<input type="text" id="student" value="' + esc(S.student) + '" placeholder="12 小林"></label></div>' +
+        '<p class="small muted">「次の人」は1本保存するたびに空になります。空のままでも保存できます。</p>' +
+        "<details><summary>感度の調整</summary><div style=\"display:grid;gap:10px;margin-top:10px\">" +
+          slider("trigger", "録画を始める動きの量", 1, 20, 1, d.trigger, "%") +
+          slider("thr", "小さな変化を無視する強さ", 10, 60, 1, d.thr, "") +
+          slider("still", "止まってから保存するまで", 1, 5, 0.5, d.still, "秒") +
+          slider("max", "1本の最長時間", 5, 40, 1, d.max, "秒") +
+          '<label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="audio" ' + (d.audio ? "checked" : "") + "> 音も録る（次にカメラを開いた時から）</label>" +
+        "</div></details>" +
+        '<h2>保存の状況</h2><div class="jobs" id="jobs"></div>' +
+        '<a class="btn btn-ghost" target="_top" href="' + esc(linkList(n)) + '">カメラ' + n + 'の一覧を見る</a>' +
+      "</section></div>";
+    bindSetup();
+    bindShoot();
+    renderJobs();
+    startCamera();
+  }
+  function slider(id, label, min, max, step, val, unit) {
+    return '<label class="slider">' + label + '<output id="o_' + id + '">' + val + unit + '</output><input type="range" id="s_' + id + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + val + '" data-unit="' + unit + '"></label>';
+  }
+
+  function bindShoot() {
+    Array.prototype.forEach.call($app.querySelectorAll("[data-ev]"), function (b) {
+      b.onclick = function () { if (S.event !== b.dataset.ev) { S.event = b.dataset.ev; S.skill = ""; save(); refreshSide(); } };
+    });
+    bindChips();
+    document.getElementById("skillFree").onchange = function (e) { var v = e.target.value.trim(); if (v) { S.skill = v; save(); Array.prototype.forEach.call($app.querySelectorAll("[data-skill]"), function (c) { c.setAttribute("aria-pressed", "false"); }); } };
+    document.getElementById("group").onchange = function (e) { S.group = e.target.value.trim(); save(); };
+    document.getElementById("student").oninput = function (e) { S.student = e.target.value.trim(); };
+    ["trigger", "thr", "still", "max"].forEach(function (k) {
+      var el = document.getElementById("s_" + k);
+      el.oninput = function () { S.det[k] = parseFloat(el.value); document.getElementById("o_" + k).textContent = el.value + el.dataset.unit; save(); };
+    });
+    document.getElementById("audio").onchange = function (e) { S.det.audio = e.target.checked; save(); };
+    document.getElementById("armBtn").onclick = function () { cam.armed = !cam.armed; if (!cam.armed && cam.rec && cam.rec.auto) stopRec(); cam.hits = 0; cam.prev = null; updateStatus(); };
+    document.getElementById("manBtn").onclick = function () { if (cam.rec) stopRec(); else startRec(false); };
+    bindZone();
+  }
+  function chipsHtml() { return SKILLS[S.event].map(function (s) { return '<button type="button" class="chip" data-skill="' + esc(s) + '" aria-pressed="' + (S.skill === s) + '">' + esc(s) + "</button>"; }).join(""); }
+  function bindChips() {
+    Array.prototype.forEach.call($app.querySelectorAll("[data-skill]"), function (b) {
+      b.onclick = function () { S.skill = S.skill === b.dataset.skill ? "" : b.dataset.skill; save(); Array.prototype.forEach.call($app.querySelectorAll("[data-skill]"), function (c) { c.setAttribute("aria-pressed", c.dataset.skill === S.skill); }); document.getElementById("skillFree").value = ""; };
+    });
+  }
+  // 録画を止めないよう、種目を変えた時は技のボタンだけ描き直す
+  function refreshSide() {
+    Array.prototype.forEach.call($app.querySelectorAll("[data-ev]"), function (b) { b.setAttribute("aria-pressed", b.dataset.ev === S.event); });
+    document.getElementById("chips").innerHTML = chipsHtml(); document.getElementById("skillFree").value = ""; bindChips();
+  }
+
+  function bindZone() {
+    var ov = document.getElementById("ov"), start = null;
+    function pt(e) { var r = ov.getBoundingClientRect(); return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) }; }
+    ov.addEventListener("pointerdown", function (e) { start = pt(e); ov.setPointerCapture(e.pointerId); });
+    ov.addEventListener("pointermove", function (e) {
+      if (!start) return; var p = pt(e);
+      S.zone = { x: Math.min(start.x, p.x), y: Math.min(start.y, p.y), w: Math.abs(p.x - start.x), h: Math.abs(p.y - start.y) };
+    });
+    ov.addEventListener("pointerup", function () { if (start && S.zone.w > 0.03 && S.zone.h > 0.03) { saveZone(cam.cameraNo, S.zone); cam.prev = null; toast("範囲を決めました"); } else S.zone = loadZone(cam.cameraNo); start = null; });
+  }
+
+  function startCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { camError("この画面ではカメラが使えません。ホームの「撮影用ページの設定」を済ませてから「撮影する」を開いてください。"); return; }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }, audio: !!S.det.audio })
+      .then(function (stream) {
+        cam.stream = stream;
+        var v = document.getElementById("vid"); if (!v) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+        v.srcObject = stream; v.play().catch(function () {});
+        cam.mime = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].filter(function (t) { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } })[0] || "";
+        cam.timer = setInterval(tick, 100);
+        updateStatus();
+        try { navigator.wakeLock && navigator.wakeLock.request("screen").then(function (w) { cam.wake = w; }).catch(function () {}); } catch (e) {}
+      })
+      .catch(function (e) {
+        camError(IN_GAS ? "この画面の中ではカメラが使えません。ホームに戻り、「撮影用ページの設定」を済ませてから「撮影する」を開いてください。"
+          : e && e.name === "NotAllowedError" ? "カメラの使用が許可されていません。ブラウザのアドレスバーの設定からカメラを「許可」にして、読み込み直してください。"
+          : "カメラを開けませんでした（" + esc(e && (e.name || e.message)) + "）。");
+      });
+  }
+  function camError(msg) { var el = document.getElementById("camErr"); if (el) el.innerHTML = '<div class="notice">' + msg + "</div>"; var s = document.getElementById("status"); if (s) s.lastChild.textContent = "カメラが使えません"; }
+  function stopCamera() {
+    clearInterval(cam.timer); cam.timer = 0;
+    if (cam.rec) { try { cam.rec.stop(); } catch (e) {} }
+    if (cam.stream) cam.stream.getTracks().forEach(function (t) { t.stop(); });
+    cam.stream = null; cam.armed = false; cam.prev = null;
+    try { cam.wake && cam.wake.release(); } catch (e) {} cam.wake = null;
+  }
+
+  // 小さく縮めた映像を前の瞬間と比べて、範囲の中で変わった点の割合を出す
+  var small = document.createElement("canvas"); small.width = 96; small.height = 54;
+  var sctx = small.getContext("2d", { willReadFrequently: true });
+  function tick() {
+    var v = document.getElementById("vid"), ov = document.getElementById("ov");
+    if (!v || !ov || v.readyState < 2) return;
+    sctx.drawImage(v, 0, 0, 96, 54);
+    var z = S.zone, x0 = Math.floor(z.x * 96), y0 = Math.floor(z.y * 54), w = Math.max(2, Math.floor(z.w * 96)), h = Math.max(2, Math.floor(z.h * 54));
+    var img = sctx.getImageData(x0, y0, w, h).data, n = w * h, gray = new Uint8Array(n);
+    for (var i = 0; i < n; i++) gray[i] = (img[i * 4] * 3 + img[i * 4 + 1] * 6 + img[i * 4 + 2]) / 10;
+    var score = 0;
+    if (cam.prev && cam.prev.length === n) {
+      var changed = 0;
+      for (var j = 0; j < n; j++) if (Math.abs(gray[j] - cam.prev[j]) > S.det.thr) changed++;
+      score = (changed / n) * 100;
+    }
+    cam.prev = gray;
+    drawOverlay(ov, score);
+    var now = Date.now(), moving = score >= S.det.trigger;
+    if (moving) cam.lastMotion = now;
+    if (cam.armed && !cam.rec && now > cam.cooldownUntil) {
+      cam.hits = moving ? cam.hits + 1 : 0;
+      if (cam.hits >= 3) startRec(true);
+    }
+    if (cam.rec) {
+      var len = (now - cam.recStart) / 1000;
+      if (cam.rec.auto && (now - cam.lastMotion > S.det.still * 1000 || len >= S.det.max)) stopRec();
+      else if (!cam.rec.auto && len >= 60) stopRec();
+      var s = document.getElementById("status"); if (s) s.lastChild.textContent = "録画中 " + len.toFixed(0) + "秒";
+    }
+  }
+  function drawOverlay(ov, score) {
+    var r = ov.getBoundingClientRect();
+    if (ov.width !== Math.round(r.width)) { ov.width = Math.round(r.width); ov.height = Math.round(r.height); }
+    var c = ov.getContext("2d"), z = S.zone;
+    c.clearRect(0, 0, ov.width, ov.height);
+    c.fillStyle = "rgba(0,0,0,0.35)";
+    c.fillRect(0, 0, ov.width, ov.height);
+    c.clearRect(z.x * ov.width, z.y * ov.height, z.w * ov.width, z.h * ov.height);
+    c.strokeStyle = cam.rec ? "#ff5a3c" : score >= S.det.trigger ? "#ffd34d" : "#4cd07d";
+    c.lineWidth = 3; c.setLineDash([10, 6]);
+    c.strokeRect(z.x * ov.width, z.y * ov.height, z.w * ov.width, z.h * ov.height);
+    var f = document.getElementById("mFill"), l = document.getElementById("mLine"), max = 25;
+    if (f) { f.style.width = Math.min(100, (score / max) * 100) + "%"; f.style.background = score >= S.det.trigger ? "var(--box)" : "var(--ok)"; }
+    if (l) l.style.left = Math.min(99, (S.det.trigger / max) * 100) + "%";
+  }
+  function updateStatus() {
+    var s = document.getElementById("status"), b = document.getElementById("armBtn"), m = document.getElementById("manBtn");
+    if (!s) return;
+    s.className = "status" + (cam.rec ? " rec" : cam.armed ? " armed" : "");
+    s.lastChild.textContent = cam.rec ? "録画中" : cam.armed ? "待機中（動いたら録画）" : cam.stream ? "自動録画オフ" : "カメラを準備中";
+    b.textContent = cam.armed ? "自動録画をやめる" : "自動録画をはじめる";
+    b.className = cam.armed ? "btn-ghost" : "btn-mat";
+    m.textContent = cam.rec ? "録画を止める" : "手動で録画";
+  }
+
+  function startRec(auto) {
+    if (!cam.stream || cam.rec) return;
+    if (typeof MediaRecorder === "undefined") { camError("この端末のブラウザは録画に対応していません。"); return; }
+    var opts = { videoBitsPerSecond: 2500000 }; if (cam.mime) opts.mimeType = cam.mime;
+    var rec; try { rec = new MediaRecorder(cam.stream, opts); } catch (e) { rec = new MediaRecorder(cam.stream); }
+    var chunks = [], meta = {
+      camera: cam.cameraNo, event: S.event, skill: S.skill || document.getElementById("skillFree").value.trim() || "（技名なし）",
+      group: S.group, student: S.student, takenAt: Date.now()
+    };
+    rec.auto = auto;
+    rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = function () {
+      var dur = (Date.now() - meta.takenAt) / 1000 - (auto ? S.det.still : 0);
+      meta.durationSec = Math.round(Math.max(0, dur) * 10) / 10;
+      var blob = new Blob(chunks, { type: (rec.mimeType || cam.mime || "video/webm").split(";")[0] });
+      if ((Date.now() - meta.takenAt) / 1000 < S.det.min + (auto ? S.det.still : 0) && auto) { toast("短すぎる動きだったので保存しませんでした"); return; }
+      if (blob.size) addJob(blob, meta);
+    };
+    rec.start(1000);
+    cam.rec = rec; cam.recStart = Date.now(); cam.lastMotion = Date.now();
+    updateStatus();
+  }
+  function stopRec() {
+    if (!cam.rec) return;
+    try { cam.rec.stop(); } catch (e) {}
+    cam.rec = null; cam.hits = 0; cam.cooldownUntil = Date.now() + 1500;
+    // 次の人に備えて名前を空にする
+    S.student = ""; var st = document.getElementById("student"); if (st) st.value = "";
+    updateStatus();
+  }
+
+  /* ---------- 保存（アップロード） ---------- */
+  function addJob(blob, meta) {
+    var job = { id: Math.random().toString(36).slice(2), blob: blob, meta: meta, status: "upload", error: "" };
+    S.jobs.unshift(job); renderJobs(); runJob(job);
+  }
+  function runJob(job) {
+    job.status = "upload"; job.error = ""; renderJobs();
+    var fr = new FileReader();
+    fr.onload = function () {
+      var b64 = String(fr.result).split(",")[1];
+      api.upload(job.meta, b64, job.blob.type).then(function () {
+        job.status = "done"; job.blob = job.blob; renderJobs(); toast("保存しました：" + job.meta.skill);
+      }).catch(function (e) { job.status = "error"; job.error = e.message; renderJobs(); });
+    };
+    fr.onerror = function () { job.status = "error"; job.error = "映像を読み込めませんでした"; renderJobs(); };
+    fr.readAsDataURL(job.blob);
+  }
+  function renderJobs() {
+    var el = document.getElementById("jobs"); if (!el) return;
+    if (!S.jobs.length) { el.innerHTML = '<p class="small muted">録画が終わるとここに出て、保存が終わると「保存完了」になります。</p>'; return; }
+    el.innerHTML = S.jobs.slice(0, 8).map(function (j) {
+      var st = j.status === "done" ? '<span class="st-ok">保存完了</span>' : j.status === "error" ? '<span class="st-bad">失敗：' + esc(j.error) + "</span>" : '<span class="st-busy">保存中…</span>';
+      return '<div class="job"><span class="pill ' + j.meta.event + '">' + EV[j.meta.event] + '</span><span style="min-width:0"><b>' + esc(j.meta.skill) + "</b> " + esc(j.meta.student || "") + "<br>" + st + "</span>" +
+        (j.status === "error" ? '<button type="button" data-retry="' + j.id + '">もう一度</button>' : '<span class="muted">' + fmtSize(j.blob.size) + "</span>") + "</div>";
+    }).join("");
+    Array.prototype.forEach.call(el.querySelectorAll("[data-retry]"), function (b) { b.onclick = function () { var j = S.jobs.filter(function (x) { return x.id === b.dataset.retry; })[0]; if (j) runJob(j); }; });
+  }
+  window.addEventListener("beforeunload", function (e) { if (S.jobs.some(function (j) { return j.status === "upload"; })) { e.preventDefault(); e.returnValue = ""; } });
+
+  /* ---------- 一覧画面 ---------- */
+  var listTimer = 0;
+  function renderList(n) {
+    S.listCam = n;
+    paintList();
+    fetchList();
+    clearInterval(listTimer);
+    listTimer = setInterval(function () { if (document.visibilityState === "visible" && !document.querySelector(".clip iframe")) fetchList(); }, 20000);
+  }
+  function fetchList() {
+    api.list(S.listCam).then(function (rows) { S.clips = rows || []; S.loaded = true; S.listError = ""; paintList(); })
+      .catch(function (e) { S.loaded = true; S.listError = e.message; paintList(); });
+  }
+  function paintList() {
+    var n = S.listCam, f = S.filter, q = f.q.trim().toLowerCase();
+    var skills = S.clips.filter(function (c) { return !f.ev || c.event === f.ev; }).map(function (c) { return c.skill; }).filter(function (s, i, a) { return a.indexOf(s) === i; });
+    var shown = S.clips.filter(function (c) {
+      return (!f.ev || c.event === f.ev) && (!f.skill || c.skill === f.skill) && (!q || [c.group, c.student, c.skill].join(" ").toLowerCase().indexOf(q) >= 0);
+    });
+    var focus = document.activeElement && document.activeElement.id;
+    $app.innerHTML = setupCard() + '<section class="panel">' +
+      '<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start"><div style="display:flex;gap:14px;align-items:baseline;flex-wrap:wrap">' +
+        "<h2 style=\"font-size:1.35rem\">" + (n ? "カメラ" + n + "の映像" : "すべてのカメラの映像") + '</h2><span><span class="big">' + (S.loaded ? shown.length : "…") + "</span> 本</span></div>" +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn-ghost" id="reload">最新にする</button>' + (n ? '<a class="btn btn-box" target="_top" href="' + esc(linkCam(n)) + '">カメラ' + n + "で撮影</a>" : "") + "</div></div>" +
+      '<p class="small muted" style="word-break:break-all">このページのリンク：' + esc(linkList(n || "all")) + "</p>" +
+      '<div class="filters"><label class="field">種目<select id="fEv"><option value="">すべて</option><option value="mat"' + (f.ev === "mat" ? " selected" : "") + '>マット</option><option value="vault"' + (f.ev === "vault" ? " selected" : "") + ">跳び箱</option></select></label>" +
+      '<label class="field">技<select id="fSkill"><option value="">すべて</option>' + skills.map(function (s) { return "<option" + (f.skill === s ? " selected" : "") + ">" + esc(s) + "</option>"; }).join("") + "</select></label>" +
+      '<label class="field">名前・組で探す<input type="text" id="fQ" value="' + esc(f.q) + '" placeholder="小林"></label></div></section>' +
+      (S.listError ? '<div class="notice">一覧を読み込めませんでした：' + esc(S.listError) + "</div>" : "") +
+      (!S.loaded ? '<div class="empty">読み込んでいます…</div>' : shown.length ? '<section class="grid">' + shown.map(card).join("") + "</section>"
+        : '<div class="empty"><b>' + (S.clips.length ? "条件に合う映像がありません" : "まだ映像がありません") + '</b><span class="small">撮影すると、ここに追加されます（20秒ごとに自動で確認します）。</span></div>');
+    bindSetup();
+    document.getElementById("reload").onclick = fetchList;
+    document.getElementById("fEv").onchange = function (e) { f.ev = e.target.value; f.skill = ""; paintList(); };
+    document.getElementById("fSkill").onchange = function (e) { f.skill = e.target.value; paintList(); };
+    var fq = document.getElementById("fQ");
+    fq.oninput = function () { f.q = fq.value; clearTimeout(paintList.t); paintList.t = setTimeout(paintList, 300); };
+    if (focus === "fQ") { var x = document.getElementById("fQ"); x.focus(); x.setSelectionRange(x.value.length, x.value.length); }
+    Array.prototype.forEach.call($app.querySelectorAll("[data-play]"), function (b) {
+      b.onclick = function () { b.outerHTML = '<iframe src="https://drive.google.com/file/d/' + encodeURIComponent(b.dataset.play) + '/preview" allow="autoplay; fullscreen" allowfullscreen></iframe>'; };
+    });
+    Array.prototype.forEach.call($app.querySelectorAll("img[data-fallback]"), function (img) { img.onerror = function () { img.remove(); }; });
+    Array.prototype.forEach.call($app.querySelectorAll("[data-edit]"), function (b) { b.onclick = function () { openEdit(b.dataset.edit); }; });
+    Array.prototype.forEach.call($app.querySelectorAll("[data-del]"), function (b) { b.onclick = function () { openDelete(b.dataset.del); }; });
+  }
+  function card(c) {
+    return '<article class="clip"><button type="button" class="thumb" data-play="' + esc(c.id) + '" aria-label="再生">' +
+      '<em>処理中の場合は少し待ってください</em><img data-fallback src="https://drive.google.com/thumbnail?id=' + encodeURIComponent(c.id) + '&sz=w640" alt="" loading="lazy"><span></span></button>' +
+      '<div class="clip-body"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="pill ' + (c.event === "vault" ? "vault" : "mat") + '">' + EV[c.event === "vault" ? "vault" : "mat"] + "</span><b>" + esc(c.skill) + "</b></div>" +
+      ((c.group || c.student) ? '<div class="small">' + esc([c.group, c.student].filter(Boolean).join(" ")) + "</div>" : "") +
+      '<div class="meta"><span>' + fmtTime(c.takenAt) + "・カメラ" + c.camera + "</span><span>" + (c.durationSec ? Math.round(c.durationSec) + "秒・" : "") + fmtSize(c.sizeBytes || 0) + "</span></div>" +
+      (S.cfg.canManage && IN_GAS ? '<div class="tools"><button type="button" data-edit="' + esc(c.id) + '">名前・技を直す</button><button type="button" class="btn-danger" data-del="' + esc(c.id) + '">削除</button></div>' : "") +
+      "</div></article>";
+  }
+  function modal(html, bind) {
+    var r = document.getElementById("modalRoot");
+    r.innerHTML = '<div class="overlay"><div class="modal" role="dialog" aria-modal="true">' + html + "</div></div>";
+    var close = function () { r.innerHTML = ""; };
+    r.querySelector(".overlay").onclick = function (e) { if (e.target.className === "overlay") close(); };
+    bind(r, close);
+  }
+  function openEdit(id) {
+    var c = S.clips.filter(function (x) { return x.id === id; })[0]; if (!c) return;
+    modal('<h2>映像の情報を直す</h2><label class="field">技<input type="text" id="eSkill" value="' + esc(c.skill) + '"></label>' +
+      '<div class="row2"><label class="field">学年・組<input type="text" id="eGroup" value="' + esc(c.group) + '"></label><label class="field">番号・名前<input type="text" id="eStudent" value="' + esc(c.student) + '"></label></div>' +
+      '<label class="field">種目<select id="eEv"><option value="mat"' + (c.event !== "vault" ? " selected" : "") + '>マット</option><option value="vault"' + (c.event === "vault" ? " selected" : "") + ">跳び箱</option></select></label>" +
+      '<div class="acts"><button type="button" class="btn-ghost" id="mC">やめる</button><button type="button" class="btn-mat" id="mS">保存</button></div>', function (r, close) {
+        r.querySelector("#mC").onclick = close;
+        r.querySelector("#mS").onclick = function (e) {
+          e.currentTarget.disabled = true;
+          var patch = { skill: r.querySelector("#eSkill").value.trim(), group: r.querySelector("#eGroup").value.trim(), student: r.querySelector("#eStudent").value.trim(), event: r.querySelector("#eEv").value };
+          api.update(id, patch).then(function () { Object.assign(c, patch); close(); paintList(); toast("直しました"); }).catch(function (err) { close(); toast(err.message); });
+        };
+      });
+  }
+  function openDelete(id) {
+    var c = S.clips.filter(function (x) { return x.id === id; })[0]; if (!c) return;
+    modal("<h2>この映像を削除しますか？</h2><p>" + esc(c.skill) + " " + esc(c.student) + "（" + fmtTime(c.takenAt) + "）</p><p class=\"small muted\">Googleドライブのゴミ箱に移ります。30日以内ならドライブから戻せます。</p>" +
+      '<div class="acts"><button type="button" class="btn-ghost" id="mC">やめる</button><button type="button" class="btn-danger" id="mD">削除する</button></div>', function (r, close) {
+        r.querySelector("#mC").onclick = close;
+        r.querySelector("#mD").onclick = function (e) {
+          e.currentTarget.disabled = true;
+          api.remove(id).then(function () { S.clips = S.clips.filter(function (x) { return x.id !== id; }); close(); paintList(); toast("削除しました"); }).catch(function (err) { close(); toast(err.message); });
+        };
+      });
+  }
+
+  /* ---------- 起動 ---------- */
+  function boot() {
+    if (!IN_GAS) {
+      var m = location.hash.match(/cfg=([\w-]+)/);
+      if (m) {
+        try {
+          var j = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, "+").replace(/_/g, "/")))));
+          S.apiUrl = j.api || ""; S.key = j.key || ""; S.viewUrl = j.view || ""; save();
+        } catch (e) {}
+        try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+      }
+    }
+    var go = function (params) {
+      S.params = params || {};
+      api.config().then(function (cfg) { S.cfg = cfg || S.cfg; }).catch(function () {}).then(render);
+    };
+    if (IN_GAS && google.script.url) google.script.url.getLocation(function (loc) { go(loc.parameter); });
+    else { var p = {}; new URLSearchParams(location.search).forEach(function (v, k) { p[k] = v; }); go(p); }
+  }
+  boot();
+})();
+</script>
+</body>
+</html>

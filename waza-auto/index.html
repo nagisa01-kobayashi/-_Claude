@@ -151,19 +151,19 @@ summary { cursor: pointer; font-weight: 700; }
   var S = {
     cfg: { url: "", folderUrl: "", canManage: false, needKey: false },
     params: {}, clips: [], loaded: false, listError: "",
-    event: "mat", skill: "", group: "", student: "", key: "", apiUrl: "",
+    event: "mat", skill: "", group: "", student: "", key: "", apiUrl: "", viewUrl: "",
     det: { thr: 28, trigger: 3, still: 2, max: 20, min: 1.2, audio: false },
     zone: null, jobs: [], filter: { ev: "", skill: "", q: "" }
   };
   function load() {
     try {
       var s = JSON.parse(localStorage.getItem("waza-auto") || "{}");
-      ["event", "skill", "group", "key", "apiUrl"].forEach(function (k) { if (typeof s[k] === "string") S[k] = s[k]; });
+      ["event", "skill", "group", "key", "apiUrl", "viewUrl"].forEach(function (k) { if (typeof s[k] === "string") S[k] = s[k]; });
       if (s.det) Object.assign(S.det, s.det);
     } catch (e) {}
   }
   function save() {
-    try { localStorage.setItem("waza-auto", JSON.stringify({ event: S.event, skill: S.skill, group: S.group, key: S.key, apiUrl: S.apiUrl, det: S.det })); } catch (e) {}
+    try { localStorage.setItem("waza-auto", JSON.stringify({ event: S.event, skill: S.skill, group: S.group, key: S.key, apiUrl: S.apiUrl, viewUrl: S.viewUrl, det: S.det })); } catch (e) {}
   }
   function loadZone(cam) { try { var z = JSON.parse(localStorage.getItem("waza-zone-" + cam) || "null"); if (z && z.w > 0.02) return z; } catch (e) {} return { x: 0.1, y: 0.15, w: 0.8, h: 0.8 }; }
   function saveZone(cam, z) { try { localStorage.setItem("waza-zone-" + cam, JSON.stringify(z)); } catch (e) {} }
@@ -184,20 +184,33 @@ summary { cursor: pointer; font-weight: 700; }
     });
   }
   function http(api, body) {
-    if (!S.apiUrl) return Promise.reject(new Error("設定でApps ScriptのURLを入れてください"));
+    if (!S.apiUrl) return Promise.reject(new Error("この端末の設定がまだです。Apps Script のアプリのホームから「撮影する」を開いてください"));
     var req = body
-      ? fetch(S.apiUrl, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ api: api }, body)) })
-      : fetch(S.apiUrl + (S.apiUrl.indexOf("?") >= 0 ? "&" : "?") + "api=" + api + "&camera=" + (S.params.list || ""));
+      ? fetch(S.apiUrl, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ api: api, key: S.key }, body)) })
+      : fetch(S.apiUrl + (S.apiUrl.indexOf("?") >= 0 ? "&" : "?") + "api=" + api + "&key=" + encodeURIComponent(S.key) + "&camera=" + encodeURIComponent(S.params.list || ""));
     return req.then(function (r) { return r.json(); }).then(function (j) { if (!j.ok) throw new Error(j.error); return j.data; });
   }
   var api = {
     config: function () { return IN_GAS ? gas("getConfig") : http("config"); },
     list: function (cam) { return IN_GAS ? gas("listClips", cam) : http("list"); },
-    upload: function (meta, b64, type) { return IN_GAS ? gas("uploadClip", meta, b64, type, S.key) : http("upload", { meta: meta, data: b64, mimeType: type, key: S.key }); },
+    upload: function (meta, b64, type) { return IN_GAS ? gas("uploadClip", meta, b64, type) : http("upload", { meta: meta, data: b64, mimeType: type }); },
     update: function (id, patch) { return gas("updateClip", id, patch); },
     remove: function (id) { return gas("deleteClip", id); }
   };
-  function link(q) { return (S.cfg.url || location.href.split("?")[0]) + (q ? "?" + q : ""); }
+  function selfBase() { return location.href.split("#")[0].split("?")[0]; }
+  // このアプリ自身のページ
+  function link(q) { return (IN_GAS ? (S.cfg.url || selfBase()) : selfBase()) + (q ? "?" + q : ""); }
+  // 一覧はいつも Apps Script 側で開く（Googleドライブの再生や修正・削除がそこで使えるため）
+  function linkList(n) { var base = IN_GAS ? (S.cfg.url || selfBase()) : (S.viewUrl || S.cfg.url || ""); return base ? base + "?list=" + n : ""; }
+  // 撮影はカメラが使える撮影用ページで開く。設定（保存先と合言葉）をリンクに入れて渡す
+  function camReady() { return !IN_GAS || !!(S.cfg.cameraPageUrl && S.cfg.apiUrl && S.cfg.key); }
+  function linkCam(n) {
+    if (!IN_GAS) return selfBase() + "?cam=" + n;
+    if (!camReady()) return link("cam=" + n);
+    var json = JSON.stringify({ api: S.cfg.apiUrl, key: S.cfg.key, view: S.cfg.url });
+    var b64 = btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return S.cfg.cameraPageUrl.split("#")[0].split("?")[0] + "?cam=" + n + "#cfg=" + b64;
+  }
 
   /* ---------- 画面の切り替え ---------- */
   function render() {
@@ -205,7 +218,7 @@ summary { cursor: pointer; font-weight: 700; }
     document.getElementById("homeLink").href = link("");
     var p = S.params;
     $nav.innerHTML = (p.cam || p.list) ? '<a class="btn btn-ghost" target="_top" href="' + esc(link("")) + '">カメラ選択に戻る</a>'
-      : '<a class="btn btn-ghost" target="_top" href="' + esc(link("list=all")) + '">すべての映像</a>';
+      : (linkList("all") ? '<a class="btn btn-ghost" target="_top" href="' + esc(linkList("all")) + '">すべての映像</a>' : "");
     if (p.cam) renderShoot(parseInt(p.cam, 10) || 1);
     else if (p.list) renderList(p.list === "all" ? 0 : parseInt(p.list, 10) || 1);
     else renderHome();
@@ -215,11 +228,11 @@ summary { cursor: pointer; font-weight: 700; }
     var cams = "";
     for (var i = 1; i <= CAMERA_COUNT; i++) {
       cams += '<article class="panel"><div class="cam-no">カメラ<b>' + i + '</b></div><div class="two">' +
-        '<a class="btn btn-box" target="_top" href="' + esc(link("cam=" + i)) + '">撮影する</a>' +
-        '<a class="btn" target="_top" href="' + esc(link("list=" + i)) + '">一覧を見る</a></div>' +
-        '<p class="small muted" style="word-break:break-all">一覧のリンク：' + esc(link("list=" + i)) + "</p></article>";
+        '<a class="btn btn-box" target="_top" href="' + esc(linkCam(i)) + '">撮影する</a>' +
+        '<a class="btn" target="_top" href="' + esc(linkList(i)) + '">一覧を見る</a></div>' +
+        '<p class="small muted" style="word-break:break-all">一覧のリンク：' + esc(linkList(i)) + "</p></article>";
     }
-    $app.innerHTML = setupCard() + '<section class="cams">' + cams + '</section>' +
+    $app.innerHTML = setupCard() + ownerCard() + '<section class="cams">' + cams + '</section>' +
       '<section class="panel"><h2>使い方</h2><ol style="margin:0;padding-left:1.3em">' +
       "<li>撮影する端末で「カメラ○ → 撮影する」を開き、カメラの使用を許可します。</li>" +
       "<li>映像の上を指でなぞって、マットや跳び箱の範囲を囲みます（その範囲の動きだけを見ます）。</li>" +
@@ -227,21 +240,44 @@ summary { cursor: pointer; font-weight: 700; }
       "<li>別の端末で「一覧を見る」のリンクを開くと、そのカメラの映像がすべて見られます。</li></ol>" +
       (S.cfg.folderUrl ? '<p class="small"><a target="_blank" href="' + esc(S.cfg.folderUrl) + '">Googleドライブの保存先フォルダを開く</a></p>' : "") + "</section>";
     bindSetup();
+    bindOwner();
+  }
+  // Apps Script 側のホーム（作った先生だけ）：撮影用ページの場所を登録する
+  function ownerCard() {
+    if (!IN_GAS) return "";
+    if (!S.cfg.canManage) return camReady() ? "" : '<div class="notice">撮影の準備がまだです。アプリを作った先生のアカウントで開いて設定してください。</div>';
+    var ok = camReady();
+    return '<section class="panel"><h2>撮影用ページの設定' + (ok ? '　<span class="pill mat">設定済み</span>' : "") + "</h2>" +
+      (ok ? "" : '<div class="notice">この画面の中ではカメラが使えないため、撮影は別の撮影用ページで行います。設定ガイドの手順で2つのURLを入れてください。</div>') +
+      '<label class="field">撮影用ページのURL（GitHub Pages など）<input type="text" id="camPage" value="' + esc(S.cfg.cameraPageUrl || "") + '" placeholder="https://….github.io/…/"></label>' +
+      '<label class="field">保存用デプロイのURL（アクセス：全員、…/exec）<input type="text" id="apiUrlIn" value="' + esc(S.cfg.apiUrl || "") + '" placeholder="https://script.google.com/macros/s/…/exec"></label>' +
+      '<div><button type="button" class="btn-mat" id="saveLinks">保存</button></div></section>';
+  }
+  function bindOwner() {
+    var b = document.getElementById("saveLinks"); if (!b) return;
+    b.onclick = function () {
+      b.disabled = true;
+      gas("setLinks", document.getElementById("camPage").value, document.getElementById("apiUrlIn").value)
+        .then(function (cfg) { S.cfg = cfg; toast("保存しました"); render(); })
+        .catch(function (e) { b.disabled = false; toast(e.message); });
+    };
   }
   function setupCard() {
-    var need = (!IN_GAS && !S.apiUrl) || S.cfg.needKey;
-    if (!need) return "";
-    return '<section class="panel"><h2>この端末の設定</h2>' +
-      (!IN_GAS ? '<label class="field">Apps Script のURL（…/exec）<input type="text" id="apiUrl" value="' + esc(S.apiUrl) + '"></label>' : "") +
-      (S.cfg.needKey || !IN_GAS ? '<label class="field">合言葉（設定した場合のみ）<input type="password" id="key" value="' + esc(S.key) + '"></label>' : "") +
-      '<div><button type="button" class="btn-mat" id="saveSetup">保存</button></div></section>';
+    if (IN_GAS || S.apiUrl) return "";
+    return '<section class="panel"><h2>この端末はまだ設定されていません</h2>' +
+      "<p>Apps Script のアプリのホームを開き、使いたいカメラの「撮影する」を押してください。この端末に保存先が記録され、次からはこのページを直接開いても使えます。</p>" +
+      "<details><summary>手で入力する</summary><div style=\"display:grid;gap:10px;margin-top:10px\">" +
+      '<label class="field">保存用デプロイのURL（…/exec）<input type="text" id="apiUrl" value=""></label>' +
+      '<label class="field">合言葉<input type="password" id="key" value=""></label>' +
+      '<label class="field">一覧を見るURL（Apps Script のアプリのURL）<input type="text" id="viewUrl" value=""></label>' +
+      '<div><button type="button" class="btn-mat" id="saveSetup">保存</button></div></div></details></section>';
   }
   function bindSetup() {
     var b = document.getElementById("saveSetup");
     if (!b) return;
     b.onclick = function () {
-      var u = document.getElementById("apiUrl"), k = document.getElementById("key");
-      if (u) S.apiUrl = u.value.trim(); if (k) S.key = k.value; save(); toast("保存しました"); boot();
+      S.apiUrl = document.getElementById("apiUrl").value.trim(); S.key = document.getElementById("key").value.trim(); S.viewUrl = document.getElementById("viewUrl").value.trim();
+      save(); toast("保存しました"); boot();
     };
   }
 
@@ -277,7 +313,7 @@ summary { cursor: pointer; font-weight: 700; }
           '<label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="audio" ' + (d.audio ? "checked" : "") + "> 音も録る（次にカメラを開いた時から）</label>" +
         "</div></details>" +
         '<h2>保存の状況</h2><div class="jobs" id="jobs"></div>' +
-        '<a class="btn btn-ghost" target="_top" href="' + esc(link("list=" + n)) + '">カメラ' + n + 'の一覧を見る</a>' +
+        '<a class="btn btn-ghost" target="_top" href="' + esc(linkList(n)) + '">カメラ' + n + 'の一覧を見る</a>' +
       "</section></div>";
     bindSetup();
     bindShoot();
@@ -329,7 +365,7 @@ summary { cursor: pointer; font-weight: 700; }
   }
 
   function startCamera() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { camError("この画面ではカメラが使えません。設定ガイドの「カメラが使えないとき」を見てください。"); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { camError("この画面ではカメラが使えません。ホームの「撮影用ページの設定」を済ませてから「撮影する」を開いてください。"); return; }
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }, audio: !!S.det.audio })
       .then(function (stream) {
         cam.stream = stream;
@@ -341,7 +377,8 @@ summary { cursor: pointer; font-weight: 700; }
         try { navigator.wakeLock && navigator.wakeLock.request("screen").then(function (w) { cam.wake = w; }).catch(function () {}); } catch (e) {}
       })
       .catch(function (e) {
-        camError(e && e.name === "NotAllowedError" ? "カメラの使用が許可されていません。ブラウザのアドレスバーの設定からカメラを「許可」にして、読み込み直してください。"
+        camError(IN_GAS ? "この画面の中ではカメラが使えません。ホームに戻り、「撮影用ページの設定」を済ませてから「撮影する」を開いてください。"
+          : e && e.name === "NotAllowedError" ? "カメラの使用が許可されていません。ブラウザのアドレスバーの設定からカメラを「許可」にして、読み込み直してください。"
           : "カメラを開けませんでした（" + esc(e && (e.name || e.message)) + "）。");
       });
   }
@@ -493,8 +530,8 @@ summary { cursor: pointer; font-weight: 700; }
     $app.innerHTML = setupCard() + '<section class="panel">' +
       '<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start"><div style="display:flex;gap:14px;align-items:baseline;flex-wrap:wrap">' +
         "<h2 style=\"font-size:1.35rem\">" + (n ? "カメラ" + n + "の映像" : "すべてのカメラの映像") + '</h2><span><span class="big">' + (S.loaded ? shown.length : "…") + "</span> 本</span></div>" +
-        '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn-ghost" id="reload">最新にする</button>' + (n ? '<a class="btn btn-box" target="_top" href="' + esc(link("cam=" + n)) + '">カメラ' + n + "で撮影</a>" : "") + "</div></div>" +
-      '<p class="small muted" style="word-break:break-all">このページのリンク：' + esc(link("list=" + (n || "all"))) + "</p>" +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn-ghost" id="reload">最新にする</button>' + (n ? '<a class="btn btn-box" target="_top" href="' + esc(linkCam(n)) + '">カメラ' + n + "で撮影</a>" : "") + "</div></div>" +
+      '<p class="small muted" style="word-break:break-all">このページのリンク：' + esc(linkList(n || "all")) + "</p>" +
       '<div class="filters"><label class="field">種目<select id="fEv"><option value="">すべて</option><option value="mat"' + (f.ev === "mat" ? " selected" : "") + '>マット</option><option value="vault"' + (f.ev === "vault" ? " selected" : "") + ">跳び箱</option></select></label>" +
       '<label class="field">技<select id="fSkill"><option value="">すべて</option>' + skills.map(function (s) { return "<option" + (f.skill === s ? " selected" : "") + ">" + esc(s) + "</option>"; }).join("") + "</select></label>" +
       '<label class="field">名前・組で探す<input type="text" id="fQ" value="' + esc(f.q) + '" placeholder="小林"></label></div></section>' +
@@ -559,6 +596,16 @@ summary { cursor: pointer; font-weight: 700; }
 
   /* ---------- 起動 ---------- */
   function boot() {
+    if (!IN_GAS) {
+      var m = location.hash.match(/cfg=([\w-]+)/);
+      if (m) {
+        try {
+          var j = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, "+").replace(/_/g, "/")))));
+          S.apiUrl = j.api || ""; S.key = j.key || ""; S.viewUrl = j.view || ""; save();
+        } catch (e) {}
+        try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+      }
+    }
     var go = function (params) {
       S.params = params || {};
       api.config().then(function (cfg) { S.cfg = cfg || S.cfg; }).catch(function () {}).then(render);

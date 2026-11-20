@@ -9,8 +9,8 @@
 const ROOT_FOLDER_NAME = '技ビデオ';
 // true にすると「技ビデオ」フォルダを学校のドメイン内で閲覧できるよう共有します（別の先生の端末で見るため）
 const SHARE_IN_DOMAIN = true;
-// 空のままなら誰でも保存できます（アクセスできる人の範囲はデプロイ設定で決まります）。
-// 文字を入れると、アプリの設定に同じ合言葉を入れた端末だけが保存できます。
+// 撮影用ページ（GitHub Pages など）から保存するときの合言葉。
+// 空のままなら自動で作られます（ふだんは触らなくて大丈夫です）。
 const UPLOAD_KEY = '';
 // ================
 
@@ -30,11 +30,13 @@ function doPost(e) {
   return json_(handleApi_(body.api, body));
 }
 
+// 撮影用ページからの呼び出し（合言葉が必要）
 function handleApi_(api, p) {
   try {
-    if (api === 'config') return { ok: true, data: getConfig() };
+    if (String(p.key || '') !== uploadKey_()) return { ok: false, error: '合言葉が違います。Apps Script のアプリのホームから「撮影する」を開き直してください' };
+    if (api === 'config') return { ok: true, data: { url: viewUrl_(), needKey: false, canManage: false } };
     if (api === 'list') return { ok: true, data: listClips(p.camera) };
-    if (api === 'upload') return { ok: true, data: uploadClip(p.meta, p.data, p.mimeType, p.key) };
+    if (api === 'upload') return { ok: true, data: uploadClip(p.meta, p.data, p.mimeType) };
     return { ok: false, error: 'unknown_api' };
   } catch (err) {
     return { ok: false, error: String(err && err.message || err) };
@@ -50,16 +52,30 @@ function json_(obj) {
 function getConfig() {
   const me = Session.getActiveUser().getEmail();
   const owner = Session.getEffectiveUser().getEmail();
+  const canManage = !!me && me === owner;
+  const props = PropertiesService.getScriptProperties();
   return {
     url: ScriptApp.getService().getUrl(),
     folderUrl: rootFolder_().getUrl(),
-    canManage: !!me && me === owner,
-    needKey: !!UPLOAD_KEY
+    canManage: canManage,
+    needKey: false,
+    cameraPageUrl: props.getProperty('CAMERA_PAGE_URL') || '',
+    apiUrl: props.getProperty('API_URL') || '',
+    key: canManage ? uploadKey_() : ''
   };
 }
 
-function uploadClip(meta, base64, mimeType, key) {
-  if (UPLOAD_KEY && key !== UPLOAD_KEY) throw new Error('合言葉が違います');
+// 撮影用ページのURLと、保存用（全員アクセス）デプロイのURLを記録する
+function setLinks(cameraPageUrl, apiUrl) {
+  requireOwner_();
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('CAMERA_PAGE_URL', String(cameraPageUrl || '').trim());
+  props.setProperty('API_URL', String(apiUrl || '').trim());
+  props.setProperty('VIEW_URL', ScriptApp.getService().getUrl());
+  return getConfig();
+}
+
+function uploadClip(meta, base64, mimeType) {
   meta = meta || {};
   const camera = Math.max(1, Math.min(99, parseInt(meta.camera, 10) || 1));
   const takenAt = Number(meta.takenAt) || Date.now();
@@ -139,6 +155,18 @@ function deleteClip(id) {
 }
 
 // ----- 内部 -----
+
+function uploadKey_() {
+  if (UPLOAD_KEY) return UPLOAD_KEY;
+  const props = PropertiesService.getScriptProperties();
+  let k = props.getProperty('AUTO_KEY');
+  if (!k) { k = Utilities.getUuid().replace(/-/g, ''); props.setProperty('AUTO_KEY', k); }
+  return k;
+}
+
+function viewUrl_() {
+  return PropertiesService.getScriptProperties().getProperty('VIEW_URL') || ScriptApp.getService().getUrl();
+}
 
 function requireOwner_() {
   const me = Session.getActiveUser().getEmail();
