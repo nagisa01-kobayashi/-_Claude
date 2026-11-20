@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#0f766e" />
+  <title>マット運動 AIコーチ</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>🤸 マット運動 AIコーチ</h1>
+    <button id="historyBtn" class="ghost">ふりかえりの記録</button>
+  </header>
+
+  <main>
+    <!-- ステップ1: 技とめあて -->
+    <section id="step-skill" class="step">
+      <h2><span class="num">1</span>どの技をやりますか？</h2>
+      <div id="skillList" class="skill-grid"></div>
+
+      <div class="card">
+        <label for="goal" class="label">今日のめあて（なくてもOK）</label>
+        <input id="goal" type="text" maxlength="100" placeholder="例：あごを引いて、手をつかずに立ち上がる" />
+      </div>
+      <div id="pointsBox" class="card hidden">
+        <h3>この技のポイント</h3>
+        <ul id="pointsList"></ul>
+      </div>
+    </section>
+
+    <!-- ステップ2: 動画 -->
+    <section id="step-video" class="step">
+      <h2><span class="num">2</span>動画をえらぶ</h2>
+      <details class="card tips" open>
+        <summary>📷 じょうずな撮り方</summary>
+        <ul>
+          <li><b>真横</b>から撮る（マットの長い辺の横に立つ）</li>
+          <li>はじめから終わりまで、<b>頭から足まで全身</b>が入るように</li>
+          <li>iPad は<b>横向き</b>にして、動かさずに持つ</li>
+          <li>マットから <b>3〜5m</b> はなれる</li>
+          <li>映るのは<b>演技する人だけ</b>にする</li>
+          <li>1回の技だけを撮る（30秒以内）</li>
+        </ul>
+      </details>
+      <label class="big-btn" for="videoInput">🎥 動画を撮る／えらぶ</label>
+      <input id="videoInput" type="file" accept="video/*" class="hidden" />
+      <p class="note">動画はこのiPadの中だけで分析します。AIコーチには、顔の写らない「棒人間」と数値だけを送ります。</p>
+    </section>
+
+    <!-- ステップ3: 分析中 -->
+    <section id="step-progress" class="step hidden">
+      <h2><span class="num">3</span>分析しています…</h2>
+      <div class="card center">
+        <p id="progressText">準備しています…</p>
+        <div class="bar"><div id="progressBar"></div></div>
+        <p class="note">はじめての時は、準備に少し時間がかかります。</p>
+      </div>
+    </section>
+
+    <!-- ステップ4: 結果 -->
+    <section id="step-result" class="step hidden">
+      <h2><span class="num">3</span>ふりかえり</h2>
+      <div class="result-layout">
+        <div class="viewer card">
+          <div class="video-wrap">
+            <video id="video" playsinline muted preload="auto"></video>
+            <canvas id="overlay"></canvas>
+          </div>
+          <div class="controls">
+            <button id="playBtn" class="primary">▶ 再生</button>
+            <div class="speed" role="group" aria-label="再生の速さ">
+              <button data-speed="0.25">0.25倍</button>
+              <button data-speed="0.5" class="on">0.5倍</button>
+              <button data-speed="1">1倍</button>
+            </div>
+            <label class="toggle"><input id="skeletonToggle" type="checkbox" checked /> 骨格</label>
+          </div>
+          <input id="seek" type="range" min="0" max="1000" value="0" aria-label="再生位置" />
+          <div class="time"><span id="timeNow">0.00</span> 秒</div>
+          <h3>大事な場面</h3>
+          <div id="keyframes" class="keyframes"></div>
+        </div>
+
+        <div class="coach card">
+          <div class="coach-head">
+            <div class="avatar">🧑‍🏫</div>
+            <div>
+              <div class="coach-name">AIコーチ</div>
+              <div id="coachSkill" class="coach-skill"></div>
+            </div>
+          </div>
+          <div id="coachLoading" class="center">
+            <div class="spinner"></div>
+            <p>コーチが動きを見ています…</p>
+          </div>
+          <div id="coachError" class="error hidden"></div>
+          <div id="coachBody" class="hidden"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>✏️ 自分のふりかえり</h3>
+        <div class="label">今日の自分は？</div>
+        <div id="selfRating" class="chips"></div>
+        <label for="reflection" class="label">次にがんばること・気づいたこと</label>
+        <textarea id="reflection" rows="3" placeholder="例：次は、かかとをおしりに引きつけて立ち上がる"></textarea>
+        <div class="row">
+          <button id="saveBtn" class="primary">記録する</button>
+          <button id="againBtn" class="ghost">もう一回撮る</button>
+        </div>
+        <p id="saveMsg" class="note"></p>
+      </div>
+
+      <details class="card">
+        <summary>くわしいデータ（先生・興味がある人むけ）</summary>
+        <div id="metricsTable"></div>
+      </details>
+    </section>
+  </main>
+
+  <!-- 記録 -->
+  <dialog id="historyDialog">
+    <div class="dialog-head">
+      <h2>ふりかえりの記録</h2>
+      <button id="historyClose" class="ghost">とじる</button>
+    </div>
+    <p class="note">記録はこのiPadの中にだけ保存されます。</p>
+    <div id="historyList"></div>
+  </dialog>
+
+  <!-- 合言葉 -->
+  <dialog id="passDialog">
+    <form method="dialog">
+      <h2>合言葉を入れてください</h2>
+      <p class="note">先生から教えてもらった合言葉です。</p>
+      <input id="passInput" type="password" autocomplete="off" />
+      <div class="row"><button class="primary" value="ok">OK</button></div>
+    </form>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
