@@ -251,7 +251,7 @@ label.field { display: grid; gap: 4px; font-weight: 700; font-size: 13px; min-wi
           classes.map(function (c) { return '<button type="button" class="chip" data-cur="' + esc(c) + '" aria-pressed="' + (S.cur === c) + '">' + esc(c) + "</button>"; }).join("") + "</div></div>" : "") +
         '<div class="seg" role="group" aria-label="種目"><button type="button" data-ev="mat" aria-pressed="' + (S.event === "mat") + '">マット運動</button><button type="button" data-ev="vault" aria-pressed="' + (S.event === "vault") + '">跳び箱運動</button></div>' +
         '<div style="display:grid;gap:6px"><span class="label">技</span><div class="chips" id="skills"></div></div>' +
-        '<label class="field">氏名<input type="text" id="student" value="' + esc(S.student) + '" placeholder="例：小林 渚" autocomplete="off"></label>' +
+        '<label class="field">氏名<input type="text" id="student" value="' + esc(S.student) + '" placeholder="例：小林　凪沙" autocomplete="off"></label>' +
         '<div class="next" id="next"></div>' +
         '<label class="rec" for="camInput"><span class="dot" aria-hidden="true"></span>iPadのカメラで撮る<small>撮り終えて「ビデオを使用」を押すと、すぐに保存されます</small>' +
           '<input id="camInput" type="file" accept="video/*" capture="environment"></label>' +
