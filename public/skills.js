@@ -5,6 +5,7 @@
 export const SKILLS = [
   {
     id: "zenten",
+    goalIdeas: ["あごを引いて回る", "背中を丸めて転がる", "手をつかずに立つ"],
     name: "前転",
     group: "回転系（接転技群・前転グループ）",
     motion: "forward-roll",
@@ -22,6 +23,7 @@ export const SKILLS = [
   },
   {
     id: "kaikyaku-zenten",
+    goalIdeas: ["ひざを伸ばして回る", "足を大きく開く", "手で強く押して立つ"],
     name: "開脚前転",
     group: "回転系（接転技群・前転グループ）",
     motion: "forward-roll",
@@ -39,6 +41,7 @@ export const SKILLS = [
   },
   {
     id: "shinshitsu-zenten",
+    goalIdeas: ["ひざを伸ばしたまま回る", "手で強く押して立つ", "上体を深く倒す"],
     name: "伸膝前転",
     group: "回転系（接転技群・前転グループ）",
     motion: "forward-roll",
@@ -56,6 +59,7 @@ export const SKILLS = [
   },
   {
     id: "kouten",
+    goalIdeas: ["手でマットを押す", "背中を丸める", "まっすぐ回る"],
     name: "後転",
     group: "回転系（接転技群・後転グループ）",
     motion: "backward-roll",
@@ -73,6 +77,7 @@ export const SKILLS = [
   },
   {
     id: "kaikyaku-kouten",
+    goalIdeas: ["手で強く押す", "ひざを伸ばす", "足を大きく開く"],
     name: "開脚後転",
     group: "回転系（接転技群・後転グループ）",
     motion: "backward-roll",
@@ -90,6 +95,7 @@ export const SKILLS = [
   },
   {
     id: "shinshitsu-kouten",
+    goalIdeas: ["ひざを伸ばしたまま回る", "手で強く押す", "ひざを伸ばして立つ"],
     name: "伸膝後転",
     group: "回転系（接転技群・後転グループ）",
     motion: "backward-roll",
@@ -107,6 +113,7 @@ export const SKILLS = [
   },
   {
     id: "sokuhou-touritsu",
+    goalIdeas: ["足を高く上げる", "腕を伸ばして支える", "体をまっすぐにする"],
     name: "側方倒立回転",
     group: "回転系（ほん転技群・倒立回転グループ）",
     motion: "cartwheel",
@@ -125,6 +132,7 @@ export const SKILLS = [
   },
   {
     id: "touritsu-zenten",
+    goalIdeas: ["腕を伸ばして倒立になる", "体をまっすぐにする", "あごを引いて回る"],
     name: "倒立前転",
     group: "回転系（ほん転技群・倒立回転グループ）",
     motion: "handstand-roll",
@@ -142,6 +150,7 @@ export const SKILLS = [
   },
   {
     id: "touritsu",
+    goalIdeas: ["ひじを伸ばして支える", "体を一直線にする", "3秒止まる"],
     name: "補助倒立・壁倒立",
     group: "巧技系（平均立ち技群・倒立グループ）",
     motion: "handstand",

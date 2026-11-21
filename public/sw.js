@@ -1,6 +1,6 @@
 // 一度開いたら、インターネットがなくても使えるようにするためのしくみ（サービスワーカー）
 // ファイルを更新したら、VERSION の数字を上げてください。
-const VERSION = "v1";
+const VERSION = "v2";
 const CACHE = `mat-coach-${VERSION}`;
 const FILES = [
   "./",

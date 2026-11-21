@@ -63,54 +63,147 @@ export function loadLandmarker(onProgress) {
   return landmarkerPromise;
 }
 
-function seek(video, t) {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// コマを移動する。iPad では seeked が来ないことがあるので、時間で打ち切って先へ進む
+function seek(video, t, timeout = 1500) {
   return new Promise((resolve) => {
-    const done = () => {
-      video.removeEventListener("seeked", done);
-      // iPad の Safari では seeked の直後にまだ描画が終わっていないことがあるため1フレーム待つ
-      requestAnimationFrame(() => resolve());
+    let finished = false;
+    const done = (ok) => {
+      if (finished) return;
+      finished = true;
+      video.removeEventListener("seeked", onSeeked);
+      clearTimeout(timer);
+      requestAnimationFrame(() => resolve(ok));
     };
-    video.addEventListener("seeked", done);
-    video.currentTime = t;
+    const onSeeked = () => done(true);
+    const timer = setTimeout(() => done(false), timeout);
+    video.addEventListener("seeked", onSeeked);
+    if (Math.abs(video.currentTime - t) < 0.001) done(true);
+    else video.currentTime = t;
   });
 }
 
+// MediaPipe に渡す時刻は、動画を変えても増え続ける必要がある
+let lastTimestamp = 0;
+function detectOne(landmarker, video) {
+  const ts = Math.max(lastTimestamp + 1, Math.round(performance.now()));
+  lastTimestamp = ts;
+  let lm = null;
+  try {
+    const res = landmarker.detectForVideo(video, ts);
+    if (res.landmarks && res.landmarks.length > 0) {
+      lm = res.landmarks[0].map((p) => ({ x: p.x, y: p.y, z: p.z, v: p.visibility ?? 1 }));
+    }
+  } catch (e) {
+    console.warn("骨格推定エラー", e);
+  }
+  return lm;
+}
+
+// iPad 向け：動画をゆっくり再生しながら、届いたコマを順に読み取る
+async function detectByPlayback(video, landmarker, onProgress) {
+  const duration = video.duration;
+  const frames = [];
+  await seek(video, 0);
+  video.playbackRate = duration > 12 ? 0.5 : 0.25;
+  return new Promise((resolve, reject) => {
+    let finished = false;
+    let lastT = -1;
+    let lastProgressAt = Date.now();
+    const useRvfc = typeof video.requestVideoFrameCallback === "function";
+    const finish = (err) => {
+      if (finished) return;
+      finished = true;
+      clearInterval(watchdog);
+      video.pause();
+      video.playbackRate = 1;
+      if (err) reject(err);
+      else resolve(frames);
+    };
+    const handle = (t) => {
+      if (finished) return;
+      if (t > lastT + 0.04) {
+        lastT = t;
+        frames.push({ t, lm: detectOne(landmarker, video) });
+        lastProgressAt = Date.now();
+        onProgress(Math.min(1, t / duration));
+      }
+    };
+    const loop = (now, meta) => {
+      if (finished) return;
+      handle(meta && typeof meta.mediaTime === "number" ? meta.mediaTime : video.currentTime);
+      if (video.ended || video.currentTime >= duration - 0.03) return finish();
+      if (useRvfc) video.requestVideoFrameCallback(loop);
+      else requestAnimationFrame(() => loop());
+    };
+    video.addEventListener("ended", () => finish(), { once: true });
+    // 止まったままなら打ち切る
+    const watchdog = setInterval(() => {
+      if (Date.now() - lastProgressAt > 8000) {
+        if (frames.length >= 10) finish();
+        else finish(new Error("PLAYBACK_STALLED"));
+      }
+    }, 1000);
+    if (useRvfc) video.requestVideoFrameCallback(loop);
+    else requestAnimationFrame(() => loop());
+    const p = video.play();
+    if (p && p.catch) p.catch(() => finish(new Error("PLAYBACK_BLOCKED")));
+  });
+}
+
+// パソコン向け：コマを1つずつ移動して読み取る
+async function detectBySeeking(video, landmarker, onProgress) {
+  const duration = video.duration;
+  const fps = Math.min(15, 240 / duration);
+  const step = 1 / fps;
+  const frames = [];
+  let misses = 0;
+  for (let t = 0; t < duration - 0.02; t += step) {
+    const ok = await seek(video, t);
+    if (!ok && ++misses >= 5) throw new Error("SEEK_STALLED");
+    frames.push({ t, lm: detectOne(landmarker, video) });
+    onProgress(Math.min(1, t / duration));
+    if (frames.length % 10 === 0) await sleep(0);
+  }
+  return frames;
+}
+
+const isAppleTouch = () =>
+  /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
 /**
- * 動画を少しずつ進めながら骨格を推定する。
- * @returns {Promise<{fps:number, frames:Array<{t:number, lm:Array|null}>, width:number, height:number}>}
+ * 動画から骨格を推定する。
+ * ※ video は画面に見えている状態にしておくこと（iPad では、見えていない動画はコマが進まないため）
+ * @returns {Promise<{frames:Array<{t:number, lm:Array|null}>, width:number, height:number}>}
  */
 export async function detectPoses(video, onProgress = () => {}) {
   const landmarker = await loadLandmarker();
   const duration = video.duration;
   if (!isFinite(duration) || duration <= 0) throw new Error("動画の長さを読み取れませんでした。");
   if (duration > 30) throw new Error("動画が長すぎます。1回の技が映った30秒以内の動画にしてください。");
-
-  // 長い動画ほど間引く（最大で約240コマ）
-  const fps = Math.min(15, 240 / duration);
-  const step = 1 / fps;
-  const frames = [];
-  const wasMuted = video.muted;
   video.muted = true;
   video.pause();
 
-  for (let t = 0, i = 0; t < duration - 0.02; t += step, i++) {
-    await seek(video, t);
-    let lm = null;
+  let frames;
+  const order = isAppleTouch() ? ["playback", "seek"] : ["seek", "playback"];
+  let lastErr = null;
+  for (const mode of order) {
     try {
-      const res = landmarker.detectForVideo(video, Math.round(t * 1000) + 1);
-      if (res.landmarks && res.landmarks.length > 0) {
-        lm = res.landmarks[0].map((p) => ({ x: p.x, y: p.y, z: p.z, v: p.visibility ?? 1 }));
-      }
+      frames = mode === "playback" ? await detectByPlayback(video, landmarker, onProgress) : await detectBySeeking(video, landmarker, onProgress);
+      if (frames.length >= 5) break;
     } catch (e) {
-      console.warn("骨格推定エラー", e);
+      console.warn(`${mode} での読み取りに失敗`, e);
+      lastErr = e;
+      frames = null;
     }
-    frames.push({ t, lm });
-    onProgress(Math.min(1, t / duration));
   }
-  video.muted = wasMuted;
+  if (!frames) {
+    throw new Error("動画を読み取れませんでした。もう一度送るか、別の動画でためしてください。" + (lastErr ? `（${lastErr.message}）` : ""));
+  }
   onProgress(1);
   smoothFrames(frames);
-  return { fps, frames, width: video.videoWidth, height: video.videoHeight };
+  return { frames, width: video.videoWidth, height: video.videoHeight };
 }
 
 // 抜けたコマを前後から補い、ガタつきを軽くならす
