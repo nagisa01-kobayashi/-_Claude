@@ -517,8 +517,19 @@ export function drawSkeleton(ctx, lm, W, H, opts = {}) {
  * 進む方向が右になるように左右をそろえる。
  */
 export function renderStickFigure(pose, metrics, frameIndex, size = 384) {
-  const { frames, width: W, height: H } = pose;
-  const lm = frames[frameIndex].lm;
+  return renderStick(pose.frames[frameIndex].lm, stickDims(pose, metrics), size);
+}
+
+/** 棒人間を描くのに必要な寸法（保存しておけば、あとから骨格だけで描き直せる） */
+export function stickDims(pose, metrics) {
+  const r = (x) => Math.round(x * 10) / 10;
+  return { W: pose.width, H: pose.height, floorY: r(metrics.floorY), bodyLen: r(metrics.bodyLen), direction: metrics.direction };
+}
+
+/** 骨格（33点）だけから棒人間を描く */
+export function renderStick(lm, dims, size = 384) {
+  const { W, H } = dims;
+  const metrics = dims;
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;

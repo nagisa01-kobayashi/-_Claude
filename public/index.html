@@ -2,50 +2,69 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="theme-color" content="#273246" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f5f4ef" />
   <title>マット運動コーチ</title>
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="icons/icon-180.png" />
-  <link rel="icon" href="icons/icon-192.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="app">
-    <header class="talk-head">
-      <div class="head-avatar">🧑‍🏫</div>
-      <div class="head-title">
-        <div class="head-name">マット運動コーチ</div>
-        <div class="head-sub" id="headSub">技をえらんでね</div>
+  <div class="shell" id="shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="side-head">
+        <div class="brand">🤸 マット運動コーチ</div>
+        <button class="side-close" id="sideClose" aria-label="とじる">✕</button>
       </div>
-      <button id="historyBtn" class="head-btn" aria-label="ふりかえりの記録">📒<span>記録</span></button>
-    </header>
+      <nav class="side-body" id="sideBody"></nav>
+      <div class="side-foot" id="sideFoot"></div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
 
-    <main id="talk" class="talk" aria-live="polite"></main>
+    <section class="main">
+      <header class="main-head">
+        <button class="menu-btn" id="menuBtn" aria-label="メニュー">☰</button>
+        <div class="main-title">
+          <div id="mainTitle">マット運動コーチ</div>
+          <div id="mainSub" class="main-sub"></div>
+        </div>
+        <span id="saveState" class="save-state"></span>
+        <button class="head-btn" id="modelBtn">🎬 お手本</button>
+      </header>
 
-    <div id="quick" class="quick" role="group" aria-label="かんたん返信"></div>
+      <div id="chatView" class="chat-view">
+        <main id="talk" class="talk" aria-live="polite"></main>
+        <div id="quick" class="quick" role="group" aria-label="かんたん返信"></div>
+        <footer class="composer" id="composer">
+          <label for="videoInput" class="icon-btn camera" id="cameraBtn" aria-label="動画を送る">
+            <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="currentColor" d="M4 7a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1.6l3.4-2.3A1 1 0 0 1 20 7.1v9.8a1 1 0 0 1-1.6.8L15 15.4V17a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z"/></svg>
+          </label>
+          <input id="videoInput" type="file" accept="video/*" class="hidden" />
+          <textarea id="msgInput" rows="1" placeholder="メッセージを入力" enterkeyhint="send"></textarea>
+          <button id="sendBtn" class="send-btn" aria-label="送信" disabled>
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
+          </button>
+        </footer>
+      </div>
 
-    <footer class="composer">
-      <button id="plusBtn" class="icon-btn" aria-label="メニュー">＋</button>
-      <label for="videoInput" class="icon-btn camera" aria-label="動画を送る">
-        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="currentColor" d="M4 7a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1.6l3.4-2.3A1 1 0 0 1 20 7.1v9.8a1 1 0 0 1-1.6.8L15 15.4V17a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z"/></svg>
-      </label>
-      <input id="videoInput" type="file" accept="video/*" class="hidden" />
-      <textarea id="msgInput" rows="1" placeholder="メッセージを入力" enterkeyhint="send"></textarea>
-      <button id="sendBtn" class="send-btn" aria-label="送信" disabled>
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
-      </button>
-    </footer>
+      <div id="pageView" class="page-view hidden"></div>
+    </section>
   </div>
 
-  <dialog id="historyDialog">
-    <div class="dialog-head">
-      <h2>📒 ふりかえりの記録</h2>
-      <button id="historyClose" class="close-btn">とじる</button>
-    </div>
-    <p class="note">記録はこのiPadの中にだけ保存されます。</p>
-    <div id="historyList"></div>
+  <dialog id="modelDialog" class="wide-dialog">
+    <div class="dialog-head"><h2>🎬 お手本動画</h2><button class="close-btn" data-close>とじる</button></div>
+    <div id="modelList" class="model-list"></div>
+    <div id="modelPlayer" class="model-player"></div>
+  </dialog>
+
+  <dialog id="registerDialog">
+    <form id="registerForm">
+      <h2>はじめに登録してね</h2>
+      <p class="note">先生がトークを見るときに使います。</p>
+      <label class="f">組<span id="regClassBox"></span></label>
+      <label class="f">番号<input id="regNumber" type="number" min="1" max="60" inputmode="numeric" required /></label>
+      <label class="f">名前<input id="regName" type="text" maxlength="20" required /></label>
+      <p id="regMsg" class="note"></p>
+      <div class="form-btns"><button class="btn primary" type="submit">登録する</button></div>
+    </form>
   </dialog>
 
   <script type="module" src="app.js"></script>

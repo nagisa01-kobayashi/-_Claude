@@ -5,25 +5,7 @@
 const ASSET_VERSION = "mediapipe-0.10.14-full";
 const SIMD_TEST = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]);
 
-function gsRun(fn, ...args) {
-  return new Promise((resolve, reject) => {
-    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](...args);
-  });
-}
-
-async function withRetry(task, tries = 6) {
-  let wait = 1000;
-  for (let i = 0; ; i++) {
-    try {
-      return await task();
-    } catch (e) {
-      if (i >= tries - 1) throw e;
-      // 大勢が同時に開いたときに備えて、少しずつ間をあけてやり直す
-      await new Promise((r) => setTimeout(r, wait + Math.random() * 1000));
-      wait *= 2;
-    }
-  }
-}
+// gsRun と withRetry は api.js にあります
 
 // ---- iPad の中への保存（IndexedDB）。使えない環境では保存せずに進む ----
 function openDb() {

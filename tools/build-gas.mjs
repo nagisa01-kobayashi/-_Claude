@@ -16,8 +16,13 @@ fs.mkdirSync(path.join(out, "assets"), { recursive: true });
 // ---- モジュールを1つのスクリプトにまとめる ----
 const modules = [
   ["skills.js", pub("skills.js")],
+  ["methods.js", pub("methods.js")],
   ["analyze.js", pub("analyze.js")],
-  ["coach.js", pub("coach.js")],
+  ["observe.js", pub("observe.js")],
+  ["api.js", pub("api.js")],
+  ["localdb.js", pub("localdb.js")],
+  ["chat.js", pub("chat.js")],
+  ["teacher.js", pub("teacher.js")],
   ["gas-loader.js", gas("gas-loader.js")],
   ["app.js", pub("app.js")],
 ];
@@ -61,6 +66,7 @@ fs.writeFileSync(path.join(out, "index.html"), indexHtml);
 
 const codeGs = gas("Code.gs").replace("__ASSET_FOLDER_ID__", folderId);
 fs.writeFileSync(path.join(out, "Code.gs"), codeGs);
+fs.copyFileSync(path.join(root, "gas", "server.js"), path.join(out, "server.js"));
 for (const f of ["appsscript.json", "project.json"]) fs.rmSync(path.join(out, f), { force: true });
 
 // ---- ドライブに置く部品（base64 に変えて、分割する）----

@@ -1,33 +1,27 @@
 // マット運動コーチ（Google Apps Script 版）
-// 画面と骨格推定の部品は、下のフォルダに置いたファイルから読み込みます。
+// プログラム本体（server.js）と画面（index.html）は、下のフォルダから読み込みます。
+// ※ アプリを新しくするときは、フォルダの中のファイルを差しかえるだけで済みます。
 const FOLDER_ID = '__ASSET_FOLDER_ID__';
 
-function doGet() {
-  const html = getFile_('index.html').getBlob().getDataAsString('UTF-8');
-  return HtmlService.createHtmlOutput(html)
-    .setTitle('マット運動コーチ')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+function doGet(e) { return server_().doGet(e); }
+function api(name, args) { return server_().api(name, args); }
+function getAssetList() { return server_().getAssetList(); }
+function getAssetChunk(name) { return server_().getAssetChunk(name); }
+
+// はじめに一度だけ、エディタでこの関数を選んで「実行」してください（必要な許可を出して、データ用のスプレッドシートを作ります）
+function setup() {
+  // ↓ 必要な許可（ドライブ・スプレッドシート・メールアドレスの確認）をまとめて出すための行です
+  [SpreadsheetApp.openById, SpreadsheetApp.create, DriveApp.getRootFolder, DriveApp.createFile,
+   Session.getActiveUser, Session.getEffectiveUser, PropertiesService.getScriptProperties,
+   LockService.getScriptLock, Utilities.newBlob, HtmlService.createHtmlOutput];
+  Logger.log(server_().setup());
 }
 
-function getAssetList() {
-  const list = {};
-  const files = DriveApp.getFolderById(FOLDER_ID).getFiles();
-  while (files.hasNext()) {
-    const f = files.next();
-    const m = f.getName().match(/^([a-z_]+)\.(\d+)\.b64$/);
-    if (m) (list[m[1]] = list[m[1]] || []).push({ name: f.getName(), size: f.getSize() });
+function server_() {
+  if (!globalThis.__server) {
+    const it = DriveApp.getFolderById(FOLDER_ID).getFilesByName('server.js');
+    const src = it.next().getBlob().getDataAsString('UTF-8');
+    globalThis.__server = new Function('FOLDER_ID', src + '\nreturn { doGet, api, setup, getAssetList, getAssetChunk };')(FOLDER_ID);
   }
-  for (const k in list) list[k].sort((a, b) => (a.name < b.name ? -1 : 1));
-  return list;
-}
-
-function getAssetChunk(name) {
-  if (!/^[a-z_]+\.\d+\.b64$/.test(name)) throw new Error('bad name');
-  return getFile_(name).getBlob().getDataAsString();
-}
-
-function getFile_(name) {
-  const it = DriveApp.getFolderById(FOLDER_ID).getFilesByName(name);
-  if (!it.hasNext()) throw new Error('ファイルが見つかりません: ' + name);
-  return it.next();
+  return globalThis.__server;
 }
