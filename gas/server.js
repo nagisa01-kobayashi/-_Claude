@@ -77,6 +77,8 @@ const API = {
       lesson: me.student || me.isTeacher ? lessonFor_(me, today) : null,
       rooms: rooms.sort().reverse(),
       modelVideos: modelVideos_(),
+      // 生徒は今日のトークもいっしょに返す（通信の回数を減らすため）
+      room: me.email && !me.isTeacher ? roomOf_(me.email, today) : null,
     };
   },
 
@@ -148,6 +150,7 @@ const API = {
       const sh = sheet_("lessons");
       const values = sh.getDataRange().getValues();
       for (let i = values.length - 1; i >= 1; i--) if (String(values[i][0]) === id) sh.deleteRow(i + 1);
+      forget_("lessons");
     });
     return { ok: true };
   },
@@ -184,12 +187,36 @@ const API = {
 
 // ---------------- 部品 ----------------
 function roomOf_(email, date) {
-  const messages = rows_("talk")
-    .filter((r) => r.email === email && r.date === date)
-    .map((r) => ({ id: r.id, ts: r.ts, from: r.from, type: r.type, data: safeJson_(r.data) }));
+  const messages = talkOf_(email, date).map((r) => ({ id: r.id, ts: r.ts, from: r.from, type: r.type, data: safeJson_(r.data) }));
   const room = findRow_("rooms", (r) => r.email === email && r.date === date);
   const summary = findRow_("summaries", (r) => r.email === email && r.date === date);
   return { date, messages, ctx: room ? safeJson_(room.ctx) : null, summary: summary ? safeJson_(summary.json) : null };
+}
+
+// トークは行が多くなるので、まず「メール・日付」の列だけ読んで、必要な行の範囲だけを読む
+function talkOf_(email, date) {
+  const sh = sheet_("talk");
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  const keys = sh.getRange(2, 3, last - 1, 2).getValues();
+  let lo = -1, hi = -1;
+  for (let i = 0; i < keys.length; i++) {
+    if (String(keys[i][0]) === email && String(keys[i][1]) === date) {
+      if (lo < 0) lo = i;
+      hi = i;
+    }
+  }
+  if (lo < 0) return [];
+  const head = SHEETS.talk;
+  const values = sh.getRange(lo + 2, 1, hi - lo + 1, head.length).getValues();
+  const out = [];
+  for (let i = 0; i < values.length; i++) {
+    if (String(keys[lo + i][0]) !== email || String(keys[lo + i][1]) !== date) continue;
+    const o = {};
+    head.forEach((h, j) => (o[h] = values[i][j] == null ? "" : String(values[i][j])));
+    out.push(o);
+  }
+  return out;
 }
 
 function lessonFor_(me, date) {
@@ -270,6 +297,17 @@ function pdfHtml_(list, cls, from, to) {
 }
 
 function modelVideos_() {
+  try {
+    const hit = CacheService.getScriptCache().get("modelVideos");
+    if (hit) return JSON.parse(hit);
+  } catch (e) {}
+  const list = listModelVideos_();
+  try {
+    CacheService.getScriptCache().put("modelVideos", JSON.stringify(list), 300);
+  } catch (e) {}
+  return list;
+}
+function listModelVideos_() {
   try {
     const out = [];
     const it = videoFolder_().getFiles();
@@ -358,7 +396,35 @@ function sheet_(key) {
   return sh;
 }
 
+// よく読む表（設定・生徒・授業設定）は、しばらくのあいだキャッシュに置いて速くする
+const CACHED_SHEETS = ["settings", "students", "lessons"];
+const rowsMemo_ = {};
 function rows_(key) {
+  if (rowsMemo_[key]) return rowsMemo_[key];
+  const cacheable = CACHED_SHEETS.indexOf(key) >= 0;
+  if (cacheable) {
+    try {
+      const hit = CacheService.getScriptCache().get("rows:" + key);
+      if (hit) return (rowsMemo_[key] = JSON.parse(hit));
+    } catch (e) {}
+  }
+  const out = readRows_(key);
+  rowsMemo_[key] = out;
+  if (cacheable) {
+    try {
+      CacheService.getScriptCache().put("rows:" + key, JSON.stringify(out), 600);
+    } catch (e) {}
+  }
+  return out;
+}
+function forget_(key) {
+  delete rowsMemo_[key];
+  try {
+    CacheService.getScriptCache().remove("rows:" + key);
+  } catch (e) {}
+}
+
+function readRows_(key) {
   const values = sheet_(key).getDataRange().getValues();
   const head = SHEETS[key];
   const out = [];
@@ -379,9 +445,10 @@ function upsert_(key, pred, obj, locked) {
     const sh = sheet_(key);
     const head = SHEETS[key];
     const row = head.map((h) => (obj[h] == null ? "" : String(obj[h])));
-    const list = rows_(key);
+    const list = readRows_(key);
     const idx = list.findIndex(pred);
     writeRows_(sh, idx >= 0 ? idx + 2 : sh.getLastRow() + 1, [row]);
+    forget_(key);
   };
   if (locked) run();
   else withLock_(run);

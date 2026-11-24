@@ -20,6 +20,7 @@ const spreadsheets = {};
 const files = {};
 const folders = {};
 const props = {};
+const cache = {};
 let fakeToday = process.env.DEV_TODAY || null;
 
 class Range {
@@ -110,6 +111,7 @@ const services = (user) => ({
   },
   Session: { getActiveUser: () => ({ getEmail: () => user }), getEffectiveUser: () => ({ getEmail: () => TEACHER }) },
   PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props[k] ?? null, setProperty: (k, v) => (props[k] = v) }) },
+  CacheService: { getScriptCache: () => ({ get: (k) => cache[k] ?? null, put: (k, v) => (cache[k] = v), remove: (k) => delete cache[k] }) },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   Utilities: {
     formatDate: (d, tz, fmt) => {

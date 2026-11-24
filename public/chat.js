@@ -231,7 +231,9 @@ export function createPlayer(url, frames) {
   video.playsInline = true;
   video.src = url;
   let speed = 0.5;
-  const p = { el: root, show: true, last: "" };
+  const p = { el: root, show: true, last: "", dirty: true };
+  const markDirty = () => (p.dirty = true);
+  ["loadeddata", "seeked", "timeupdate", "play"].forEach((ev) => video.addEventListener(ev, markDirty));
   players.push(p);
   const updateBtn = () => (playBtn.textContent = video.paused ? "▶ 再生" : "⏸ 止める");
   playBtn.onclick = () => {
@@ -253,8 +255,13 @@ export function createPlayer(url, frames) {
     video.pause();
     if (video.duration) video.currentTime = (Number(range.value) / 1000) * video.duration;
   });
-  skeleton.onchange = () => (p.show = skeleton.checked);
+  skeleton.onchange = () => {
+    p.show = skeleton.checked;
+    p.dirty = true;
+  };
   p.tick = () => {
+    if (!p.dirty && video.paused) return;
+    p.dirty = false;
     const rect = video.getBoundingClientRect();
     if (!rect.width) return;
     const dpr = window.devicePixelRatio || 1;
@@ -302,6 +309,7 @@ function nearestFrame(frames, t) {
   return b && Math.abs(b.t - t) < Math.abs(a.t - t) ? b : a;
 }
 
+window.addEventListener("resize", () => players.forEach((p) => (p.dirty = true)));
 (function drawPlayers() {
   for (const p of players) if (p.el.isConnected) p.tick();
   requestAnimationFrame(drawPlayers);
@@ -379,7 +387,7 @@ export const Room = {
       for (const it of items) {
         const typing = showTyping();
         const len = typeof it === "string" ? it.length : 40;
-        await pause(Math.min(1000, 300 + len * 10));
+        await pause(Math.min(500, 180 + len * 4));
         typing.remove();
         lastFrom = typing.__prev;
         if (typeof it === "string") this.post("coach", "text", { text: it });
@@ -457,6 +465,8 @@ export const Room = {
 
   askMethod() {
     this.ctx.stage = "method";
+    // 動画の分析の準備を、方法を選んでいるあいだに先に始めておく
+    setTimeout(() => loadLandmarker().catch(() => {}), 1500);
     const items = methodsFor(this.lesson, this.ctx.skillId);
     this.coach(this.lesson.methodPrompt, { type: "methods", data: { skillName: this.skill.name, items } }).then(() => this.quick("method"));
   },

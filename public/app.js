@@ -27,7 +27,7 @@ const App = {
       this.showPage("つながりませんでした", "").innerHTML = `<div class="note">サーバーにつながりませんでした。通信を確かめて、ページを読みこみ直してください。<br>${esc(e.message)}</div>`;
       return;
     }
-    Object.assign(this, { me: init.me, today: init.today, settings: init.settings, rooms: init.rooms, modelVideos: init.modelVideos });
+    Object.assign(this, { me: init.me, today: init.today, settings: init.settings, rooms: init.rooms, modelVideos: init.modelVideos, initRoom: init.room });
     this.lesson = normalizeLesson(init.lesson);
     if (!this.me.email) {
       this.showPage("Google アカウントを確認できません", "").innerHTML = `<div class="note">学校の Google アカウントでログインしてから、もう一度開いてください。</div>`;
@@ -78,6 +78,7 @@ const App = {
         else {
           const init = await callApi("init");
           this.lesson = normalizeLesson(init.lesson);
+          this.initRoom = init.room;
           this.startStudent();
         }
       } catch (err) {
@@ -128,10 +129,16 @@ const App = {
     this.closeSidebarOnMobile();
     $a("talk").innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
     let room = { messages: [], ctx: null };
-    try {
-      room = await callApi("room", this.today);
-    } catch (e) {
-      console.warn(e);
+    if (this.initRoom) {
+      // 起動時に受け取った今日のトークを使う（通信を1回へらす）
+      room = this.initRoom;
+      this.initRoom = null;
+    } else {
+      try {
+        room = await callApi("room", this.today);
+      } catch (e) {
+        console.warn(e);
+      }
     }
     Room.onSaved = () => {
       if (!this.rooms.includes(this.today)) {

@@ -106,7 +106,7 @@ async function detectByPlayback(video, landmarker, onProgress) {
   const duration = video.duration;
   const frames = [];
   await seek(video, 0);
-  video.playbackRate = duration > 12 ? 0.5 : 0.25;
+  video.playbackRate = duration > 12 ? 1 : 0.5;
   return new Promise((resolve, reject) => {
     let finished = false;
     let lastT = -1;
