@@ -44,7 +44,7 @@ export function answerQuestion(text, { lesson, skill }) {
 
   const topics = TOPICS.filter((tp) => tp.words.some((w) => t.includes(w)));
   const terms = [...new Set(topics.flatMap((tp) => tp.terms))];
-  const targetSkill = SKILLS.find((s) => t.includes(s.name)) || skill;
+  const targetSkill = [...SKILLS].sort((a, b) => b.name.length - a.name.length).find((s) => t.includes(s.name)) || skill;
   const forSkill = new Set(targetSkill ? methodsFor(lesson, targetSkill.id) : lesson.methods);
 
   // 2) 練習方法メニューから、ことばが合うものを探す（今の技に合う方法を少し優先）

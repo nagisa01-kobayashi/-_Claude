@@ -425,7 +425,7 @@ export function computeMetrics(pose, motion = "") {
   const warnings = [];
   if (detectionRate < 0.6) warnings.push("体を見つけられないコマが多くありました。");
   if (bodyLen < H * 0.25 && bodyLen < W * 0.25) warnings.push("体が小さく映っています。もう少し近くから撮ると正確になります。");
-  if (!rotating.length && motion !== "handstand") warnings.push("回転している場面をはっきり見つけられませんでした。");
+  if (!rotating.length && motion !== "handstand" && motion !== "bridge") warnings.push("回転している場面をはっきり見つけられませんでした。");
 
   // コーチ機能が判定に使う値
   const median = (xs) => {

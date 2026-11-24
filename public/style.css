@@ -247,3 +247,16 @@ dialog h2 { margin: 0; font-size: 19px; }
   .stack, .stack.wide { max-width: 84%; }
   .stack.wide { width: 84%; }
 }
+
+/* 技えらび */
+.skill-group { font-weight: 700; font-size: 14px; color: var(--ink); margin: 12px 0 4px; padding-left: 8px; border-left: 4px solid var(--accent); }
+.skill-row { border: 1px solid var(--line); border-radius: 12px; margin: 6px 0; background: #fff; }
+.skill-row summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 12px; cursor: pointer; }
+.skill-row summary::-webkit-details-marker { display: none; }
+.skill-row summary::before { content: "▸"; color: var(--muted); font-size: 12px; transition: transform .15s; }
+.skill-row[open] summary::before { transform: rotate(90deg); }
+.skill-name { font-weight: 700; flex: 1; min-width: 0; }
+.skill-name small { font-weight: 400; color: var(--muted); }
+.stars { color: #f59e0b; letter-spacing: 1px; white-space: nowrap; font-size: 15px; }
+.skill-row .pick { border: 0; background: var(--accent); color: #fff; border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.checks-list { list-style: none; margin: 0; padding: 0 12px 10px 30px; font-size: 14px; color: var(--ink); }

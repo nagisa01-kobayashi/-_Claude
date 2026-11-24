@@ -1,4 +1,4 @@
-import { SKILLS } from "./skills.js";
+import { SKILLS, stars } from "./skills.js";
 import { DEFAULT_LESSON, METHOD_LIBRARY, TIMINGS, normalizeLesson } from "./methods.js";
 import { callApi } from "./api.js";
 import { esc, mk, Room, dateLabel, summaryBubble } from "./chat.js";
@@ -180,7 +180,7 @@ export const Teacher = {
         <label class="f">日付<input type="date" id="lDate" value="${esc(l.date)}" /></label>
         <label class="f">授業のタイトル<input type="text" id="lTitle" value="${esc(l.title)}" placeholder="例：前転グループの技を高めよう" /></label>
         <div class="f">対象のクラス（えらばないと全クラス）<div class="checks">${classes.map((c) => `<label><input type="checkbox" name="lCls" value="${esc(c)}" ${l.classes.includes(c) ? "checked" : ""}/> ${esc(c)}</label>`).join("") || `<span class="small">「設定」でクラスを登録できます</span>`}</div></div>
-        <div class="f">対象の技（えらばないと全部の技）<div class="checks">${SKILLS.map((s) => `<label><input type="checkbox" name="lSkill" value="${s.id}" ${l.skills.includes(s.id) ? "checked" : ""}/> ${esc(s.name)}</label>`).join("")}</div></div>
+        <div class="f">対象の技（えらばないと全部の技）<div class="checks">${SKILLS.map((s) => `<label><input type="checkbox" name="lSkill" value="${s.id}" ${l.skills.includes(s.id) ? "checked" : ""}/> ${esc(s.name)} <span class="stars">${"☆".repeat(s.level)}</span></label>`).join("")}</div></div>
 
         <h3>① 学習課題を決める</h3>
         <label class="f">コーチの問いかけ<textarea id="lTaskPrompt" rows="2">${esc(l.taskPrompt)}</textarea></label>

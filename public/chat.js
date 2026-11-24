@@ -1,4 +1,4 @@
-import { SKILLS, findSkill } from "./skills.js";
+import { SKILLS, SKILL_GROUPS, findSkill, stars } from "./skills.js";
 import { loadLandmarker, detectPoses, computeMetrics, drawSkeleton, renderStick, stickDims } from "./analyze.js";
 import { observe, compareObs, packKeyframes, unpackLm } from "./observe.js";
 import { methodsFor } from "./methods.js";
@@ -84,6 +84,8 @@ export function renderMessage(msg, opts = {}) {
       const b = mk("div", "bubble card", `<div class="card-title">${esc(d.title)}</div>${d.lines?.length ? `<ul>${d.lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}${d.note ? `<div class="small">${esc(d.note)}</div>` : ""}`);
       return placeBubble(from, b, { wide: true, ts: msg.ts });
     }
+    case "skills":
+      return placeBubble(from, skillsBubble(msg, opts), { wide: true, ts: msg.ts });
     case "methods":
       return placeBubble(from, methodsBubble(msg, opts), { wide: true, ts: msg.ts });
     case "video":
@@ -97,6 +99,35 @@ export function renderMessage(msg, opts = {}) {
     default:
       return null;
   }
+}
+
+// 技えらび（難しさの☆とチェックポイントつき）
+function skillsBubble(msg, opts) {
+  const ids = msg.data.ids || SKILLS.map((x) => x.id);
+  const b = mk("div", "bubble card", `<div class="card-title">🤸 技をえらぼう</div><div class="small">☆が多いほど難しい技だよ。チェックポイントを見て、今の自分に合う技をえらんでね。</div>`);
+  for (const g of SKILL_GROUPS) {
+    const list = SKILLS.filter((x) => x.group === g && ids.includes(x.id));
+    if (!list.length) continue;
+    b.appendChild(mk("div", "skill-group", esc(g)));
+    for (const sk of list) {
+      const row = mk(
+        "details",
+        "skill-row",
+        `<summary><span class="skill-name">${esc(sk.name)}${sk.note ? `<small>（${esc(sk.note)}）</small>` : ""}</span><span class="stars" aria-label="難しさ${sk.level}">${stars(sk.level)}</span></summary>
+        <ul class="checks-list">${sk.points.map((p) => `<li>□ ${esc(p)}</li>`).join("")}</ul>`
+      );
+      if (opts.onPickSkill) {
+        const pick = mk("button", "pick", "この技にする");
+        pick.onclick = (e) => {
+          e.preventDefault();
+          opts.onPickSkill(sk);
+        };
+        row.querySelector("summary").appendChild(pick);
+      }
+      b.appendChild(row);
+    }
+  }
+  return b;
 }
 
 function methodsBubble(msg, opts) {
@@ -366,6 +397,10 @@ export const Room = {
 
   renderOpts(msg, all) {
     const opts = { onModel: this.onModel };
+    if (!this.readOnly && msg.type === "skills") {
+      const last = [...(all || [])].reverse().find((m) => m.type === "skills");
+      if (last === msg) opts.onPickSkill = (sk) => this.pickSkillFromCard(sk);
+    }
     if (!this.readOnly && msg.type === "methods") {
       const lastMethods = [...(all || [])].reverse().find((m) => m.type === "methods");
       if (lastMethods === msg) opts.onPickMethod = (m) => this.pickMethod(m, true);
@@ -434,20 +469,32 @@ export const Room = {
     this.coach(`${name}こんにちは！今日の授業は「${this.lesson.title}」だよ。`, "学習課題を決めて、練習方法を選んで、動画でためして、最後に振り返ろう。").then(() => {
       const skills = this.allowedSkills();
       if (skills.length === 1) {
-        this.ctx.skillId = skills[0].id;
-        this.coach(`今日の技は「${skills[0].name}」だよ。`).then(() => this.askTask());
+        this.coach(`今日の技は「${skills[0].name}」だよ。`).then(() => this.chooseSkill(skills[0].id));
       } else this.askSkill();
     });
   },
 
   askSkill() {
     this.ctx.stage = "skill";
-    this.coach("まずは、今日練習する技をえらんでね👇").then(() => this.quick("skill"));
+    const ids = this.allowedSkills().map((x) => x.id);
+    this.coach("まずは、今日練習する技をえらんでね👇", { type: "skills", data: { ids } }).then(() => this.quick("skill"));
+  },
+
+  pickSkillFromCard(sk) {
+    if (this.ctx.stage !== "skill") return;
+    clearQuick();
+    this.say(sk.name);
+    this.chooseSkill(sk.id);
   },
 
   chooseSkill(id) {
     this.ctx.skillId = id;
-    this.askTask();
+    this.ctx.stage = "skill-picked";
+    const sk = findSkill(id);
+    this.coach({
+      type: "card",
+      data: { title: `📌 ${sk.name}（${stars(sk.level)}）のチェックポイント`, lines: sk.points, note: "この中から、今日の学習課題を考えてみよう。" },
+    }).then(() => this.askTask());
   },
 
   askTask() {
@@ -664,7 +711,8 @@ export const Room = {
     clearQuick();
     this.say(t);
     const st = this.ctx.stage;
-    const hit = SKILLS.find((s) => t.includes(s.name));
+    // 「開脚前転」が「前転」とまちがわれないように、長い名前から探す
+    const hit = [...SKILLS].sort((a, b) => b.name.length - a.name.length).find((s) => t.includes(s.name));
     if (/お手本/.test(t) && st !== "q" && st !== "task") return this.onModel && this.onModel(null, this.skill);
     // 質問には答えてから、もとの流れにもどる
     if (st !== "analyzing" && isQuestion(t, st === "q" || st === "task" || st === "selfcheck")) return this.respondQuestion(t);
@@ -709,7 +757,7 @@ export const Room = {
     const cam = { label: "📹 動画を送る", main: true, echo: false, action: () => byId("videoInput").click() };
     const model = { label: "🎬 お手本を見る", echo: false, action: () => this.onModel && this.onModel(null, this.skill) };
     const S = {
-      skill: () => this.allowedSkills().map((s) => ({ label: s.name, action: () => this.chooseSkill(s.id) })),
+      skill: () => this.allowedSkills().map((s) => ({ label: `${s.name} ${"☆".repeat(s.level)}`, say: s.name, action: () => this.chooseSkill(s.id) })),
       task: () => [
         ...((this.lesson.taskOptions?.length ? this.lesson.taskOptions : this.skill?.goalIdeas) || []).map((g) => ({ label: g, action: () => this.setTask(g) })),
         { label: "💡 ヒントを見る", echo: false, action: () => this.showHints() },
@@ -749,6 +797,7 @@ export const Room = {
       return this.coach(`続きからだよ。\n${list[i] || ""}`);
     }
     if (this.ctx.stage === "method-picked") return this.runQuestions("afterMethod");
+    if (this.ctx.stage === "skill-picked") return this.askTask();
     this.quick(this.ctx.stage);
   },
 };
