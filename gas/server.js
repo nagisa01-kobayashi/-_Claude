@@ -273,7 +273,8 @@ function pdfHtml_(list, cls, from, to) {
       <div class="sub">動画を見ての気づき</div>${qa(s.videoAnswers)}
       <div class="sub">振り返り（コツや感覚の言語化）</div>${qa(s.reflection)}
       <h3>主体的に学習に取り組む態度にかかわる様子</h3>
-      <div class="ind">動画で試した回数：${esc_(ind.trials || 0)}回／試した方法：${esc_(ind.methodsTried || 0)}種類／振り返りの文字数：${esc_(ind.reflectionChars || 0)}字／方法を変えた回数：${esc_(ind.methodChanges || 0)}回</div>
+      <div class="ind">動画で試した回数：${esc_(ind.trials || 0)}回／試した方法：${esc_(ind.methodsTried || 0)}種類／振り返りの文字数：${esc_(ind.reflectionChars || 0)}字／方法を変えた回数：${esc_(ind.methodChanges || 0)}回／コーチへの質問：${esc_(ind.questions || 0)}回</div>
+      ${(s.questions || []).length ? `<div class="sub">コーチに質問したこと</div><div class="qa">${s.questions.map((x) => `<div class="a">・${esc_(x)}</div>`).join("")}</div>` : ""}
       <table class="eval"><tr><th>思考・判断・表現</th><td>${esc_(r.thinking || "　")}</td><th>主体的に学習に取り組む態度</th><td>${esc_(r.attitude || "　")}</td></tr>
       <tr><th>メモ</th><td colspan="3">${esc_(r.memo || "")}</td></tr></table>
     </div>`;

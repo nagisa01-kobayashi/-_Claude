@@ -19,6 +19,7 @@ const modules = [
   ["methods.js", pub("methods.js")],
   ["analyze.js", pub("analyze.js")],
   ["observe.js", pub("observe.js")],
+  ["qa.js", pub("qa.js")],
   ["api.js", pub("api.js")],
   ["localdb.js", pub("localdb.js")],
   ["chat.js", pub("chat.js")],

@@ -42,6 +42,8 @@ export const DEFAULT_LESSON = {
     reflection: ["今日わかったコツを、自分の言葉で書こう。", "やってみて、体はどんな感覚だった？", "次の時間にためしてみたいことは？"],
   },
   selfCheck: true,
+  // よくある質問（keywords のどれかが質問に入っていたら、answer を返す）
+  faq: [],
 };
 
 /** 授業設定に足りない項目を、ひな形でうめる */

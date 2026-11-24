@@ -194,6 +194,10 @@ export const Teacher = {
         ${TIMINGS.map((t) => `<label class="f">${esc(t.label)}<textarea id="q_${t.key}" rows="3" placeholder="例：今日学んだコツは？">${lines(l.questions[t.key])}</textarea></label>`).join("")}
         <label class="check1"><input type="checkbox" id="lSelfCheck" ${l.selfCheck ? "checked" : ""}/> 振り返りの最初に「課題は達成できた？（◎○△）」と聞く</label>
 
+        <h3>④ 生徒からの質問への答え</h3>
+        <div class="small">生徒が「〜はどうすればいい？」と質問すると、コーチは練習方法メニューと技のポイントから合うものを探して答えます。決まった答えを返したいときは、下に「キーワード → 答え」の形で書いてください（1行に1つ。キーワードは「・」で区切ると複数にできます）。</div>
+        <label class="f">よくある質問<textarea id="lFaq" rows="4" placeholder="例：ひざ・膝 → 長座でひざの裏をマットにつける練習をしてから、坂道マットでためしてみよう。">${esc((l.faq || []).map((f) => `${(f.keywords || []).join("・")} → ${f.answer}`).join("\n"))}</textarea></label>
+
         <div class="form-btns"><button id="lSave" class="btn primary">保存する</button><button id="lCancel" class="btn">もどる</button><span id="lMsg" class="note"></span></div>
       </div>`;
 
@@ -250,6 +254,12 @@ export const Teacher = {
         methods: methods.filter((m) => m.name.trim()),
         questions: Object.fromEntries(TIMINGS.map((t) => [t.key, split(`q_${t.key}`)])),
         selfCheck: $t("lSelfCheck").checked,
+        faq: split("lFaq")
+          .map((line) => {
+            const [k, ...rest] = line.split(/→|->|＞|>/);
+            return { keywords: k.split(/[・,、，\s]+/).map((x) => x.trim()).filter(Boolean), answer: rest.join("→").trim() };
+          })
+          .filter((f) => f.keywords.length && f.answer),
       };
       if (!lesson.date) {
         $t("lMsg").textContent = "日付を入れてください。";

@@ -2,6 +2,7 @@ import { SKILLS, findSkill } from "./skills.js";
 import { loadLandmarker, detectPoses, computeMetrics, drawSkeleton, renderStick, stickDims } from "./analyze.js";
 import { observe, compareObs, packKeyframes, unpackLm } from "./observe.js";
 import { methodsFor } from "./methods.js";
+import { isQuestion, answerQuestion } from "./qa.js";
 import { callApi } from "./api.js";
 import { saveVideo, loadVideo, savePose, loadPose } from "./localdb.js";
 
@@ -205,7 +206,8 @@ export function summaryBubble(s) {
     </div>
     ${qa(s.planAnswers) ? `<div class="sub-title">計画</div>${qa(s.planAnswers)}` : ""}
     ${qa(s.videoAnswers) ? `<div class="sub-title">動画を見ての気づき</div>${qa(s.videoAnswers)}` : ""}
-    ${qa(s.reflection) ? `<div class="sub-title">振り返り</div>${qa(s.reflection)}` : ""}`
+    ${qa(s.reflection) ? `<div class="sub-title">振り返り</div>${qa(s.reflection)}` : ""}
+    ${s.questions?.length ? `<div class="sub-title">コーチに質問したこと</div><ul>${s.questions.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}`
   );
 }
 
@@ -550,7 +552,9 @@ export const Room = {
       planAnswers: [{ q: "学習課題", a: c.task }, { q: "選んだ学習方法", a: c.methodsTried.join("／") }, ...c.answers.afterTask, ...c.answers.afterMethod],
       videoAnswers: c.answers.afterVideo.map((x) => ({ q: `${x.trial ? `（${x.trial}回目）` : ""}${x.q}`, a: x.a })),
       reflection,
+      questions: c.questions || [],
       indicators: {
+        questions: (c.questions || []).length,
         trials: c.trials,
         methodsTried: c.methodsTried.length,
         methodChanges: c.methodChanges || 0,
@@ -662,6 +666,8 @@ export const Room = {
     const st = this.ctx.stage;
     const hit = SKILLS.find((s) => t.includes(s.name));
     if (/お手本/.test(t) && st !== "q" && st !== "task") return this.onModel && this.onModel(null, this.skill);
+    // 質問には答えてから、もとの流れにもどる
+    if (st !== "analyzing" && isQuestion(t, st === "q" || st === "task" || st === "selfcheck")) return this.respondQuestion(t);
     switch (st) {
       case "skill":
         if (hit && this.allowedSkills().includes(hit)) return this.chooseSkill(hit.id);
@@ -679,6 +685,23 @@ export const Room = {
       default:
         return this.coach("練習したら動画を送ってね📹（下のカメラボタン）").then(() => this.quick(st));
     }
+  },
+
+  respondQuestion(text) {
+    (this.ctx.questions ||= []).push(text);
+    const ans = answerQuestion(text, { lesson: this.lesson, skill: this.skill });
+    const items = [ans.text];
+    if (ans.card) items.push({ type: "card", data: ans.card });
+    this.coach(...items).then(() => {
+      const st = this.ctx.stage;
+      if (st === "q") {
+        const { key, i } = this.ctx.q;
+        const list = (this.lesson.questions[key] || []).filter((q) => q && q.trim());
+        this.coach(`では、さっきの続きだよ。\n${list[i] || ""}`);
+      } else if (st === "task") this.coach("学習課題が決まったら送ってね。").then(() => this.quick("task"));
+      else if (st === "method") this.coach("ためしたい方法が決まったら、えらんでね👇").then(() => this.quick("method"));
+      else this.quick(st);
+    });
   },
 
   /** 段階ごとのかんたん返信 */
