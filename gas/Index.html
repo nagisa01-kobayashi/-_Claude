@@ -1,0 +1,2017 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>コツッター</title>
+<style>
+:root {
+  --bg: #ffffff;
+  --bg2: #f7f9f9;
+  --text: #0f1419;
+  --muted: #536471;
+  --line: #eff3f4;
+  --line2: #cfd9de;
+  --hover: rgba(15, 20, 25, .04);
+  --blue: #1d9bf0;
+  --blue-d: #1a8cd8;
+  --blue-soft: #e8f5fd;
+  --c-naruhodo: #c98a00;
+  --c-naruhodo-bg: #fff6dc;
+  --c-yatta: #e8590c;
+  --c-yatta-bg: #fff0e6;
+  --c-dekita: #f91880;
+  --c-dekita-bg: #feecf4;
+  --c-repost: #00ba7c;
+  --c-repost-bg: #e5f8f1;
+  --gold: #e0a100;
+  --danger: #f4212e;
+  --danger-bg: #fdecee;
+  --ok: #00ba7c;
+  --shadow: 0 0 15px rgba(101, 119, 134, .2), 0 0 3px 1px rgba(101, 119, 134, .15);
+  --overlay: rgba(0, 0, 0, .4);
+  --glass: rgba(255, 255, 255, .85);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000; --bg2: #16181c; --text: #e7e9ea; --muted: #71767b; --line: #2f3336; --line2: #3e4144;
+    --hover: rgba(231, 233, 234, .05); --blue-soft: #0b2235;
+    --c-naruhodo: #ffc83d; --c-naruhodo-bg: #2e2508; --c-yatta: #ff8f4d; --c-yatta-bg: #2e1a0d;
+    --c-dekita-bg: #2e0b1b; --c-repost-bg: #062a1e; --danger-bg: #2e0b0e;
+    --shadow: 0 0 15px rgba(255, 255, 255, .12), 0 0 3px 1px rgba(255, 255, 255, .1);
+    --overlay: rgba(91, 112, 131, .4); --glass: rgba(0, 0, 0, .75);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #000000; --bg2: #16181c; --text: #e7e9ea; --muted: #71767b; --line: #2f3336; --line2: #3e4144;
+  --hover: rgba(231, 233, 234, .05); --blue-soft: #0b2235;
+  --c-naruhodo: #ffc83d; --c-naruhodo-bg: #2e2508; --c-yatta: #ff8f4d; --c-yatta-bg: #2e1a0d;
+  --c-dekita-bg: #2e0b1b; --c-repost-bg: #062a1e; --danger-bg: #2e0b0e;
+  --shadow: 0 0 15px rgba(255, 255, 255, .12), 0 0 3px 1px rgba(255, 255, 255, .1);
+  --overlay: rgba(91, 112, 131, .4); --glass: rgba(0, 0, 0, .75);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Segoe UI", Meiryo, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+button:disabled { cursor: default; opacity: .5; }
+input, textarea, select { font: inherit; color: var(--text); }
+a { color: var(--blue); text-decoration: none; }
+svg { display: block; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* ---------- レイアウト ---------- */
+.layout { display: flex; justify-content: center; min-height: 100vh; }
+.side { display: none; }
+.main { width: 100%; max-width: 600px; min-height: 100vh; padding-bottom: 96px; }
+.right { display: none; }
+.bottom {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  display: flex; justify-content: space-around; align-items: stretch;
+  background: var(--glass); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.bottom button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0 6px; font-size: 11px; color: var(--muted); position: relative; }
+.bottom button.on { color: var(--text); font-weight: 700; }
+.bottom svg { width: 26px; height: 26px; }
+.fab {
+  position: fixed; right: 16px; bottom: calc(72px + env(safe-area-inset-bottom)); z-index: 31;
+  width: 60px; height: 60px; border-radius: 50%; background: var(--blue); color: #fff;
+  display: grid; place-items: center; box-shadow: 0 4px 14px rgba(29, 155, 240, .45);
+}
+.fab svg { width: 28px; height: 28px; }
+.fab.closed { background: var(--muted); box-shadow: none; }
+
+@media (min-width: 700px) {
+  .side {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    position: sticky; top: 0; height: 100vh; width: 88px; flex: none; padding: 8px 12px;
+  }
+  .main { border-left: 1px solid var(--line); border-right: 1px solid var(--line); padding-bottom: 40px; }
+  .bottom, .fab { display: none; }
+}
+@media (min-width: 1100px) {
+  .right { display: block; width: 340px; flex: none; padding: 12px 0 0 28px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+}
+.side .lbl { display: none; }
+@media (min-width: 1240px) {
+  .side { width: 250px; align-items: stretch; }
+  .side .lbl { display: inline; }
+}
+.logo { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 999px; font-weight: 800; font-size: 20px; color: var(--text); }
+.logo .mark { width: 36px; height: 36px; }
+.side .nav { display: flex; align-items: center; gap: 18px; padding: 12px; border-radius: 999px; font-size: 19px; position: relative; }
+.side .nav:hover { background: var(--hover); }
+.side .nav.on { font-weight: 800; }
+.side .nav svg { width: 27px; height: 27px; flex: none; }
+.side .post-btn { margin-top: 12px; width: 52px; height: 52px; border-radius: 50%; background: var(--blue); color: #fff; display: grid; place-items: center; }
+.side .post-btn:hover { background: var(--blue-d); }
+.side .post-btn svg { width: 26px; height: 26px; }
+.side .post-btn.closed { background: var(--muted); }
+@media (min-width: 1240px) {
+  .side .post-btn { width: 100%; border-radius: 999px; height: 52px; }
+  .side .post-btn .lbl { display: inline; font-size: 17px; font-weight: 700; }
+  .side .post-btn svg { display: none; }
+}
+.side .me { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 999px; width: 100%; }
+.side .me:hover { background: var(--hover); }
+.side .me .who { display: none; min-width: 0; text-align: left; }
+@media (min-width: 1240px) { .side .me .who { display: block; } }
+.who b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.who span { color: var(--muted); font-size: 13px; }
+.badge {
+  position: absolute; top: 4px; left: 28px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+  background: var(--blue); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; line-height: 1;
+}
+.bottom .badge { left: calc(50% + 4px); top: 3px; }
+
+/* ---------- ヘッダー ---------- */
+.top {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--glass); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.top-row { display: flex; align-items: center; gap: 12px; min-height: 53px; padding: 0 16px; }
+.top-row h1 { font-size: 20px; margin: 0; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top-row .sub { color: var(--muted); font-size: 13px; }
+.top-row .grow { flex: 1; min-width: 0; }
+.icon-btn { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+.icon-btn:hover { background: var(--hover); }
+.icon-btn svg { width: 20px; height: 20px; }
+.select {
+  appearance: none; -webkit-appearance: none; border: 1px solid var(--line2); background: var(--bg);
+  border-radius: 999px; padding: 6px 30px 6px 14px; font-weight: 700; font-size: 14px; max-width: 46vw;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23536471'%3E%3Cpath d='M3.5 8.5l8.5 8 8.5-8-1.4-1.4-7.1 6.6-7.1-6.6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center; background-size: 14px;
+}
+.tabs { display: flex; }
+.tabs button { flex: 1; height: 53px; position: relative; color: var(--muted); font-weight: 600; font-size: 15px; }
+.tabs button:hover { background: var(--hover); }
+.tabs button.on { color: var(--text); font-weight: 800; }
+.tabs button.on::after { content: ""; position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 64px; height: 4px; border-radius: 4px; background: var(--blue); }
+.grp-row { display: flex; align-items: center; gap: 8px; padding: 0 16px 10px; flex-wrap: wrap; }
+.seg { display: inline-flex; background: var(--bg2); border-radius: 999px; padding: 3px; gap: 2px; flex-wrap: wrap; }
+.seg button { padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.seg button.on { background: var(--bg); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+
+/* ---------- 絞り込みチップ ---------- */
+.chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px; scrollbar-width: none; border-bottom: 1px solid var(--line); }
+.chips::-webkit-scrollbar { display: none; }
+.chips.tags { padding-top: 0; border-bottom: 0; }
+.chip {
+  flex: none; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line2); font-size: 14px; font-weight: 600;
+  white-space: nowrap; background: var(--bg);
+}
+.chip.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.chip.tag { color: var(--blue); border-color: transparent; background: var(--blue-soft); padding: 4px 12px; font-size: 13px; }
+.chip.tag.on { background: var(--blue); color: #fff; }
+.chip.pickchip.on { background: var(--gold); border-color: var(--gold); color: #fff; }
+
+/* ---------- お知らせ ---------- */
+.notice { margin: 12px 16px 0; padding: 12px 14px; border-radius: 14px; background: var(--bg2); font-size: 14px; display: flex; gap: 10px; align-items: flex-start; }
+.notice.warn { background: var(--c-yatta-bg); }
+.notice.danger { background: var(--danger-bg); }
+.notice b { display: block; }
+.new-pill {
+  position: sticky; top: 112px; z-index: 15; margin: 8px auto 0; display: flex; width: max-content;
+  background: var(--blue); color: #fff; font-weight: 700; padding: 8px 18px; border-radius: 999px; box-shadow: var(--shadow);
+}
+.empty { padding: 48px 32px; text-align: center; color: var(--muted); }
+.empty b { display: block; font-size: 22px; color: var(--text); margin-bottom: 6px; }
+.loading { padding: 40px; text-align: center; color: var(--muted); }
+.spinner { width: 28px; height: 28px; border: 3px solid var(--blue-soft); border-top-color: var(--blue); border-radius: 50%; margin: 0 auto 10px; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- 投稿カード ---------- */
+.post { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); align-items: flex-start; }
+.post.pending { background: var(--bg2); }
+.post.static { border: 1px solid var(--line); border-radius: 16px; margin: 0 0 10px; }
+.av {
+  --h: 200; width: 44px; height: 44px; border-radius: 50%; flex: none;
+  background: hsl(var(--h) 60% 52%); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 18px;
+}
+.av.t { background: #0f1419; }
+:root[data-theme="dark"] .av.t { background: #e7e9ea; color: #000; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .av.t { background: #e7e9ea; color: #000; } }
+.av.sm { width: 22px; height: 22px; font-size: 11px; }
+.av.lg { width: 84px; height: 84px; font-size: 34px; border: 4px solid var(--bg); }
+.pbody { flex: 1; min-width: 0; }
+.phead { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.phead .name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+.phead .name:hover { text-decoration: underline; }
+.phead .meta { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+.phead .more { margin-left: auto; color: var(--muted); }
+.tbadge { flex: none; font-size: 11px; font-weight: 800; color: #fff; background: var(--blue); border-radius: 4px; padding: 1px 5px; }
+.label-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px; }
+.pick { font-size: 12px; font-weight: 800; color: var(--gold); display: inline-flex; align-items: center; gap: 4px; }
+.state { font-size: 12px; font-weight: 700; color: var(--c-yatta); background: var(--c-yatta-bg); border-radius: 6px; padding: 1px 8px; }
+.pill { font-size: 13px; font-weight: 700; color: var(--blue); background: var(--blue-soft); border-radius: 999px; padding: 1px 10px; }
+.sect-lbl { font-size: 12px; font-weight: 800; color: var(--muted); margin-top: 6px; }
+.task { margin-top: 2px; font-weight: 700; }
+.text { word-break: break-word; overflow-wrap: anywhere; margin-top: 2px; }
+.tags-line { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; }
+.tags-line button { color: var(--blue); font-size: 14px; }
+.tags-line button:hover { text-decoration: underline; }
+.quote { margin-top: 10px; border: 1px solid var(--line2); border-radius: 16px; padding: 10px 12px; font-size: 14px; }
+.quote .qh { display: flex; align-items: center; gap: 6px; color: var(--muted); min-width: 0; }
+.quote .qh b { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quote.gone { color: var(--muted); background: var(--bg2); }
+.video-chip { margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--muted); background: var(--bg2); border-radius: 999px; padding: 4px 12px; }
+a.video-chip { color: var(--blue); background: var(--blue-soft); }
+.actions { display: flex; gap: 4px; margin: 6px 0 -4px -8px; flex-wrap: wrap; }
+.act {
+  display: inline-flex; align-items: center; gap: 4px; color: var(--muted); padding: 6px 10px; border-radius: 999px;
+  font-size: 13px; font-weight: 600; min-height: 36px; transition: background .15s, color .15s;
+}
+.act .em { font-size: 17px; line-height: 1; filter: grayscale(1); opacity: .75; transition: filter .15s, transform .15s; }
+.act .n { min-width: 1ch; }
+.act:hover:not(:disabled) { background: var(--hover); }
+.act.naruhodo.on { color: var(--c-naruhodo); background: var(--c-naruhodo-bg); }
+.act.yatta.on { color: var(--c-yatta); background: var(--c-yatta-bg); }
+.act.dekita.on { color: var(--c-dekita); background: var(--c-dekita-bg); }
+.act.repost.on { color: var(--c-repost); background: var(--c-repost-bg); }
+.act.on .em { filter: none; opacity: 1; transform: scale(1.1); }
+.act.repost svg { width: 18px; height: 18px; }
+.act:disabled { opacity: 1; }
+.act.own { cursor: default; }
+.act.own .em { filter: grayscale(1); opacity: .6; }
+@media (max-width: 480px) { .act .t { display: none; } }
+.pinned-lbl { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; font-weight: 700; padding: 10px 16px 0 72px; }
+
+/* ---------- プロフィール ---------- */
+.banner { height: 110px; background: linear-gradient(135deg, var(--blue), #7856ff); }
+.prof { padding: 0 16px 12px; border-bottom: 1px solid var(--line); }
+.prof .av.lg { margin-top: -42px; }
+.prof h2 { margin: 8px 0 0; font-size: 21px; font-weight: 800; }
+.prof .sub { color: var(--muted); }
+.stats { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; font-size: 14px; color: var(--muted); }
+.stats b { color: var(--text); font-size: 16px; }
+.ach { padding: 8px 16px 16px; }
+.ach h3 { font-size: 14px; color: var(--muted); margin: 16px 0 6px; }
+.ach-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); margin-bottom: 6px; width: 100%; text-align: left; font-weight: 600; }
+.ach-row .box { width: 26px; height: 26px; border-radius: 8px; border: 2px solid var(--line2); display: grid; place-items: center; flex: none; color: #fff; }
+.ach-row.on { border-color: var(--c-repost); background: var(--c-repost-bg); }
+.ach-row.on .box { background: var(--c-repost); border-color: var(--c-repost); }
+.progress { height: 10px; border-radius: 99px; background: var(--bg2); overflow: hidden; margin: 6px 0; }
+.progress i { display: block; height: 100%; background: var(--c-repost); border-radius: 99px; }
+
+/* ---------- 右カラム ---------- */
+.panel { background: var(--bg2); border-radius: 16px; padding: 14px 16px; margin-bottom: 16px; }
+.panel h3 { margin: 0 0 8px; font-size: 19px; font-weight: 800; }
+.panel .big { font-size: 34px; font-weight: 800; line-height: 1.1; }
+.panel p { margin: 6px 0; color: var(--muted); font-size: 14px; }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; }
+
+/* ---------- スイッチ ---------- */
+.switch { position: relative; width: 46px; height: 28px; flex: none; display: inline-block; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch span { position: absolute; inset: 0; border-radius: 99px; background: var(--line2); transition: .2s; cursor: pointer; }
+.switch span::before { content: ""; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: .2s; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
+.switch input:checked + span { background: var(--ok); }
+.switch input:checked + span::before { transform: translateX(18px); }
+.open-pill { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); display: inline-block; }
+.dot.on { background: var(--ok); box-shadow: 0 0 0 3px var(--c-repost-bg); }
+
+/* ---------- モーダル ---------- */
+.overlay { position: fixed; inset: 0; z-index: 100; background: var(--overlay); display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 5vh 12px; }
+.sheet { background: var(--bg); width: 100%; max-width: 600px; border-radius: 18px; box-shadow: var(--shadow); position: relative; }
+.sheet.wide { max-width: 1000px; }
+.sheet-head { display: flex; align-items: center; gap: 8px; min-height: 53px; padding: 0 12px; position: sticky; top: 0; background: var(--bg); border-radius: 18px 18px 0 0; z-index: 2; border-bottom: 1px solid var(--line); }
+.sheet-head h2 { font-size: 18px; margin: 0; flex: 1; font-weight: 800; }
+.sheet-body { padding: 14px 16px 18px; }
+@media (max-width: 699px) {
+  .overlay { padding: 0; align-items: stretch; }
+  .sheet { border-radius: 0; min-height: 100%; max-width: none; }
+  .sheet-head { border-radius: 0; }
+  .overlay.menu { align-items: flex-end; }
+  .overlay.menu .sheet { min-height: 0; border-radius: 18px 18px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+}
+.overlay.menu { align-items: center; }
+.menu-list button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 15px 18px; font-weight: 700; text-align: left; font-size: 16px; }
+.menu-list button:hover { background: var(--hover); }
+.menu-list button.danger { color: var(--danger); }
+.menu-list .cancel { justify-content: center; border-top: 1px solid var(--line); color: var(--muted); }
+.type-pick { display: grid; gap: 12px; }
+.type-card { display: flex; gap: 14px; align-items: center; text-align: left; padding: 18px; border: 2px solid var(--line); border-radius: 18px; }
+.type-card:hover { border-color: var(--blue); background: var(--blue-soft); }
+.type-card .ic { font-size: 34px; }
+.type-card b { font-size: 18px; display: block; }
+.type-card span { color: var(--muted); font-size: 14px; }
+.field { margin-bottom: 16px; }
+.field > label, .field > .flabel { display: flex; align-items: baseline; gap: 8px; font-weight: 800; margin-bottom: 6px; }
+.field .opt { font-weight: 500; color: var(--muted); font-size: 13px; }
+.cat { font-size: 12px; color: var(--muted); font-weight: 700; margin: 8px 0 4px; }
+.pick-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pick-chips .chip { font-size: 14px; }
+textarea.ta, input.in {
+  width: 100%; border: 1px solid var(--line2); border-radius: 12px; padding: 12px; background: var(--bg); resize: vertical; font-size: 16px;
+}
+textarea.ta:focus, input.in:focus, select:focus { outline: 2px solid var(--blue); outline-offset: -1px; border-color: transparent; }
+textarea.ta { min-height: 96px; line-height: 1.6; }
+.counter { text-align: right; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.counter.over { color: var(--danger); font-weight: 700; }
+.hint { font-size: 13px; color: var(--muted); background: var(--bg2); border-radius: 12px; padding: 8px 12px; margin-bottom: 8px; }
+.hint ol { margin: 2px 0 0; padding-left: 20px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 0 18px; border-radius: 999px;
+  font-weight: 800; background: var(--text); color: var(--bg); white-space: nowrap;
+}
+.btn.blue { background: var(--blue); color: #fff; }
+.btn.line { background: transparent; color: var(--text); border: 1px solid var(--line2); }
+.btn.danger { background: var(--danger); color: #fff; }
+.btn.sm { min-height: 32px; padding: 0 14px; font-size: 14px; }
+.btn.lg { min-height: 50px; font-size: 17px; width: 100%; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.err { color: var(--danger); font-size: 14px; font-weight: 700; margin-top: 6px; }
+.quote-src { border: 1px solid var(--line2); border-radius: 16px; padding: 10px 12px; margin-bottom: 14px; font-size: 14px; }
+.video-box { border: 1px dashed var(--line2); border-radius: 14px; padding: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.video-box .ok { color: var(--ok); font-weight: 700; }
+
+/* ---------- トースト ---------- */
+#toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 200; display: grid; gap: 8px; width: max-content; max-width: calc(100vw - 32px); }
+.toast { background: var(--blue); color: #fff; padding: 12px 18px; border-radius: 10px; font-weight: 700; box-shadow: var(--shadow); animation: up .2s ease-out; }
+.toast.bad { background: var(--danger); }
+.toast a { color: #fff; text-decoration: underline; }
+@keyframes up { from { transform: translateY(10px); opacity: 0; } }
+
+/* ---------- 先生画面 ---------- */
+.page { padding: 14px 16px; }
+.page h2 { font-size: 18px; margin: 22px 0 10px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+.page h2:first-child { margin-top: 4px; }
+.count-badge { background: var(--blue); color: #fff; font-size: 12px; border-radius: 99px; padding: 1px 8px; }
+.mod-item { border: 1px solid var(--line); border-radius: 16px; padding: 12px; margin-bottom: 12px; }
+.mod-item .why { font-size: 14px; margin-bottom: 8px; }
+.mod-item .why b { color: var(--danger); }
+.log-item { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.log-item .when { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.log-item .what { flex: 1; min-width: 0; }
+.log-item .snap { color: var(--muted); white-space: pre-wrap; word-break: break-word; background: var(--bg2); border-radius: 8px; padding: 6px 8px; margin-top: 4px; }
+.tag-act { font-size: 12px; font-weight: 800; border-radius: 6px; padding: 1px 6px; background: var(--bg2); }
+.tag-act.red { color: var(--danger); background: var(--danger-bg); }
+.rank { display: flex; gap: 12px; align-items: flex-start; border-bottom: 1px solid var(--line); padding: 12px 0; }
+.rank .no { font-size: 26px; font-weight: 900; width: 40px; text-align: center; color: var(--muted); flex: none; }
+.rank .no.r1 { color: var(--gold); } .rank .no.r2 { color: #8a9ba8; } .rank .no.r3 { color: #c07a3a; }
+.rank .post { flex: 1; padding: 0; border: 0; }
+.score { display: flex; gap: 10px; font-weight: 800; font-size: 14px; margin-bottom: 4px; flex-wrap: wrap; }
+.score .d { color: var(--c-dekita); }
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; }
+table.tbl { border-collapse: collapse; width: 100%; font-size: 14px; }
+.tbl th, .tbl td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: center; white-space: nowrap; }
+.tbl th { font-size: 12px; color: var(--muted); font-weight: 800; background: var(--bg2); position: sticky; top: 0; }
+.tbl td.l, .tbl th.l { text-align: left; }
+.tbl tr.click { cursor: pointer; }
+.tbl tr.click:hover td { background: var(--hover); }
+.tbl .stick { position: sticky; left: 0; background: var(--bg); z-index: 1; }
+.tbl th.stick { background: var(--bg2); z-index: 2; }
+.tbl th.v { padding: 8px 4px; vertical-align: bottom; min-width: 48px; max-width: 64px; white-space: normal; word-break: break-all; font-size: 11px; line-height: 1.3; }
+.tbl td.yes { color: var(--c-repost); font-weight: 900; }
+.grade { display: inline-block; min-width: 24px; font-weight: 900; }
+.grade.A { color: var(--c-dekita); } .grade.B { color: var(--blue); } .grade.C { color: var(--muted); }
+.rubric { font-size: 13px; border: 1px solid var(--line); border-radius: 14px; padding: 4px 12px; margin-bottom: 12px; }
+.rubric summary { cursor: pointer; font-weight: 800; padding: 8px 0; }
+.rubric dl { margin: 0 0 8px; }
+.rubric dt { font-weight: 800; margin-top: 8px; }
+.rubric dd { margin: 2px 0 0 0; color: var(--muted); }
+.ev-layout { display: grid; gap: 16px; }
+@media (min-width: 900px) { .ev-layout { grid-template-columns: 1fr 320px; align-items: start; } .ev-form { position: sticky; top: 64px; } }
+.ev-form { background: var(--bg2); border-radius: 16px; padding: 14px; }
+.ev-form .k { font-weight: 800; margin: 10px 0 4px; }
+.ev-form .rb { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.abc { display: flex; gap: 6px; }
+.abc button { flex: 1; height: 40px; border-radius: 10px; border: 1px solid var(--line2); background: var(--bg); font-weight: 900; font-size: 16px; }
+.abc button.on { background: var(--blue); color: #fff; border-color: var(--blue); }
+.mat-h { font-weight: 800; font-size: 16px; margin: 18px 0 8px; display: flex; align-items: center; gap: 8px; }
+.mat-h .k { font-size: 11px; color: #fff; background: var(--muted); border-radius: 6px; padding: 1px 6px; }
+.helped-by { font-size: 13px; color: var(--c-dekita); font-weight: 700; margin: -4px 0 12px; }
+.statgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.stat { background: var(--bg2); border-radius: 12px; padding: 8px 10px; }
+.stat b { font-size: 22px; display: block; }
+.stat span { font-size: 12px; color: var(--muted); }
+.missing-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.missing-list span { background: var(--bg2); border-radius: 10px; padding: 8px 12px; font-weight: 700; }
+.set-sec { border: 1px solid var(--line); border-radius: 16px; padding: 4px 14px 14px; margin-bottom: 18px; }
+.set-sec h2 { margin-top: 12px !important; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.set-row:last-child { border-bottom: 0; }
+.set-row .d { font-size: 13px; color: var(--muted); }
+.note { font-size: 13px; color: var(--muted); margin: 6px 0 10px; }
+.unit-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.unit-item .grow { flex: 1; min-width: 0; }
+.grp-edit { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
+details.cls { border-bottom: 1px solid var(--line); }
+details.cls summary { padding: 10px 0; font-weight: 800; cursor: pointer; }
+.stu { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 14px; }
+.stu .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- 発表モード ---------- */
+.present { position: fixed; inset: 0; z-index: 300; background: linear-gradient(160deg, #0b1b2b, #10273d 60%, #1d9bf0 160%); color: #fff; display: flex; flex-direction: column; padding: 3vh 4vw; }
+.present .ph { display: flex; align-items: center; gap: 16px; font-size: 2.4vw; font-weight: 900; }
+.present .ph .grow { flex: 1; }
+.present .ctl { display: flex; gap: 10px; }
+.present .ctl button { color: #fff; border: 2px solid rgba(255, 255, 255, .5); border-radius: 999px; padding: 6px 16px; font-size: 16px; font-weight: 800; }
+.present .stage { flex: 1; display: flex; align-items: center; justify-content: center; }
+.present .pcard { background: #fff; color: #0f1419; border-radius: 28px; padding: 4vh 4vw; width: min(1100px, 92vw); box-shadow: 0 20px 60px rgba(0, 0, 0, .4); animation: up .35s ease-out; }
+.present .prank { font-size: 5vw; font-weight: 900; color: var(--gold); line-height: 1; }
+.present .pname { font-size: 2.2vw; font-weight: 800; margin-top: 1vh; }
+.present .pskill { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 1vh; }
+.present .pskill span { background: #e8f5fd; color: #1d9bf0; font-weight: 800; border-radius: 99px; padding: 4px 16px; font-size: 1.6vw; }
+.present .ptext { font-size: 2.8vw; font-weight: 700; line-height: 1.5; margin-top: 2vh; word-break: break-word; }
+.present .ptask { font-size: 1.8vw; color: #536471; margin-top: 1.5vh; font-weight: 700; }
+.present .pscore { display: flex; gap: 3vw; font-size: 2.2vw; font-weight: 900; margin-top: 2.5vh; }
+.present .pscore .d { color: #f91880; }
+.present .pnav { display: flex; justify-content: center; gap: 16px; }
+.present .pnav button { color: #fff; font-size: 20px; font-weight: 900; border: 2px solid rgba(255, 255, 255, .6); border-radius: 999px; padding: 10px 28px; }
+@media (max-width: 800px) {
+  .present .ph { font-size: 20px; } .present .prank { font-size: 40px; } .present .pname { font-size: 18px; }
+  .present .ptext { font-size: 20px; } .present .ptask { font-size: 15px; } .present .pscore { font-size: 18px; } .present .pskill span { font-size: 14px; }
+}
+.center-msg { max-width: 460px; margin: 18vh auto 0; text-align: center; padding: 0 16px; }
+.center-msg .mark { width: 64px; height: 64px; margin: 0 auto 16px; }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading"><div class="spinner"></div>読み込み中…</div></div>
+<div id="modal"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+'use strict';
+/* =====================================================================
+   コツッター 画面側
+   ===================================================================== */
+
+const LOGO = '<svg class="mark" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="14" fill="#1d9bf0"/><path d="M24 10c-6.6 0-11.5 5-11.5 11.2 0 4 2 6.9 4.4 9.1 1.2 1.1 1.8 2.3 1.8 3.7V35h10.6v-1c0-1.4.6-2.6 1.8-3.7 2.4-2.2 4.4-5.1 4.4-9.1C35.5 15 30.6 10 24 10z" fill="#fff"/><rect x="19" y="37" width="10" height="3" rx="1.5" fill="#fff"/><path d="M21 22.5l2.4 2.4 4.6-5" stroke="#1d9bf0" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+const IC = {
+  home: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.7L.8 9.2l1.1 1.6L3 10.1V21h7v-6h4v6h7V10.1l1.1.7 1.1-1.6L12 1.7zM19 19h-3v-6H8v6H5V8.8l7-4.7 7 4.7V19z"/></svg>',
+  homeOn: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.7L.8 9.2l1.1 1.6L3 10.1V22h7v-7h4v7h7V10.1l1.1.7 1.1-1.6L12 1.7z"/></svg>',
+  user: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5.7 21h12.6c-.5-3.4-3-6-6.3-6s-5.8 2.6-6.3 6zM3.6 22c.4-4.8 3.8-9 8.4-9s8 4.2 8.4 9l.1 1H3.5l.1-1zM12 11a3 3 0 100-6 3 3 0 000 6zm5-3a5 5 0 11-10 0 5 5 0 0110 0z"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.5l9 3.6V11c0 5.4-3.6 10-9 11.5C6.6 21 3 16.4 3 11V5.1l9-3.6zM5 6.4V11c0 4.3 2.8 8.1 7 9.4 4.2-1.3 7-5.1 7-9.4V6.4l-7-2.8-7 2.8zm11.2 3.3l-5.2 5.8-3.2-3 1.4-1.5 1.7 1.6 3.8-4.2 1.5 1.3z"/></svg>',
+  trophy: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 2h10v2h4v3.5A4.5 4.5 0 0116.7 12a5 5 0 01-3.7 2.9V18h3v2H8v-2h3v-3.1A5 5 0 017.3 12 4.5 4.5 0 013 7.5V4h4V2zm0 4H5v1.5c0 1.1.8 2.1 1.9 2.4A5 5 0 017 9V6zm10 3c0 .3 0 .6-.1.9A2.5 2.5 0 0019 7.5V6h-2v3zM9 4v5a3 3 0 006 0V4H9zM5 22h14v-1H5v1z"/></svg>',
+  clip: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 2h6a2 2 0 012 2h2a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2h2a2 2 0 012-2zm0 2v2h6V4H9zM5 6v14h14V6h-2a2 2 0 01-2 2H9a2 2 0 01-2-2H5zm3 5h8v2H8v-2zm0 4h5v2H8v-2z"/></svg>',
+  grid: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm11.3 5.4l-3-3 1.4-1.4 1.6 1.6 3.6-3.6 1.4 1.4-5 5z"/></svg>',
+  list: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 5h2v2H4V5zm4 0h12v2H8V5zm-4 6h2v2H4v-2zm4 0h12v2H8v-2zm-4 6h2v2H4v-2zm4 0h12v2H8v-2z"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10.5 1h3l.5 2.9 1.6.7 2.4-1.7 2.1 2.1-1.7 2.4.7 1.6 2.9.5v3l-2.9.5-.7 1.6 1.7 2.4-2.1 2.1-2.4-1.7-1.6.7-.5 2.9h-3l-.5-2.9-1.6-.7-2.4 1.7-2.1-2.1 1.7-2.4-.7-1.6L1 13.5v-3l2.9-.5.7-1.6-1.7-2.4 2.1-2.1 2.4 1.7 1.6-.7.5-2.9zM12 8a4 4 0 100 8 4 4 0 000-8zm0 2a2 2 0 110 4 2 2 0 010-4z"/></svg>',
+  menu: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h18v2H3V5zm0 6h18v2H3v-2zm0 6h18v2H3v-2z"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7V4z"/></svg>',
+  back: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7.4 13l5.1 5.1-1.4 1.4L3.6 12l7.5-7.5 1.4 1.4L7.4 11H21v2H7.4z"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10.6 12L4.5 5.9l1.4-1.4 6.1 6.1 6.1-6.1 1.4 1.4-6.1 6.1 6.1 6.1-1.4 1.4-6.1-6.1-6.1 6.1-1.4-1.4 6.1-6.1z"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="currentColor" width="19" height="19"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+  repost: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.5 3.9l4.4 4.1-1.4 1.5-2-1.9V16c0 1.1.9 2 2 2H13v2H7.5a4 4 0 01-4-4V7.6l-2 1.9L.1 8l4.4-4.1zM16.5 6H11V4h5.5a4 4 0 014 4v8.4l2-1.9 1.4 1.5-4.4 4.1-4.4-4.1 1.4-1.5 2 1.9V8c0-1.1-.9-2-2-2z"/></svg>',
+  quote: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.2 4.6l5.2 5.2-10.8 10.8H3.4v-5.2L14.2 4.6zm0 2.8l-8.8 8.8v2.4h2.4l8.8-8.8-2.4-2.4zm2.8-5.6l5.2 5.2-1.4 1.4-5.2-5.2 1.4-1.4z"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.2 4.6l5.2 5.2L8.6 20.6H3.4v-5.2L14.2 4.6zm0 2.8l-8.8 8.8v2.4h2.4l8.8-8.8-2.4-2.4z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 2h6l1 2h5v2H3V4h5l1-2zM5 8h14l-1 14H6L5 8zm2.1 2l.8 10h8.2l.8-10H7.1z"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M15 2l7 7-2 1-3.5 3.5L17 19l-2 2-4.5-4.5L5 22l-1-1 5.5-5.5L5 11l2-2 5.5.5L16 6l1-2-2-2z"/></svg>',
+  flag: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 2h2v1h13l-2.5 5 2.5 5H6v9H4V2zm2 3v6h9.8l-1.5-3 1.5-3H6z"/></svg>',
+  star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.6 7 .7-5.3 4.8 1.6 7L12 17.5 5.7 21.1l1.6-7L2 9.3l7-.7L12 2z"/></svg>',
+  stop: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 110 20 10 10 0 010-20zm0 2a8 8 0 00-6.3 12.9L16.9 5.7A8 8 0 0012 4zm6.3 3.1L7.1 18.3A8 8 0 0018.3 7.1z"/></svg>',
+  tv: '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M2 4h20v13H2V4zm2 2v9h16V6H4zm4 13h8v2H8v-2z"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4a8 8 0 017.4 5H16v2h7V4h-2v3.3A10 10 0 002 12h2a8 8 0 018-8zm8 8a8 8 0 01-15.4 3H8v-2H1v7h2v-3.3A10 10 0 0022 12h-2z"/></svg>'
+};
+
+const RX = [
+  { k: 'naruhodo', em: '💡', t: 'なるほど' },
+  { k: 'yatta', em: '💪', t: 'やってみた' },
+  { k: 'dekita', em: '🎉', t: 'できた！' }
+];
+
+const RUBRIC = {
+  t: { name: '思考・判断・表現', a: '課題→試したこと→結果→理由の筋道で振り返れている。人のコツから自分に合うものを選んだ理由と結果を書けている。自分のコツが仲間の「できた！」につながっている。' },
+  k: { name: '知識・技能', a: '技のポイントを場面（助走・踏切・着手など）に沿って正しく書けている。動画やできた技のチェックから、技ができていることが分かる。' },
+  a: { name: '主体的に学習に取り組む態度', a: '自分から何度も投稿・挑戦している。仲間の投稿にリアクションし、仲間のコツを積極的に試している。' }
+};
+
+/* ---------- 状態 ---------- */
+const S = {
+  boot: null, me: null, groups: [], units: [], limits: {},
+  unitId: '', groupId: '', tab: 'reflection', skill: '', tag: '', pickOnly: false,
+  feed: null, ver: '', open: true, suspended: false, showCounts: true, approvalMode: false,
+  cutoff: 0, view: { name: 'home' }, stack: [], badges: {}, posts: {}, profileTab: 'posts',
+  myAch: null, settings: null
+};
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('kotsutter:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('kotsutter:' + k, JSON.stringify(v)); } catch (e) { /* 保存できなくても動く */ } }
+};
+
+/* ---------- サーバー呼び出し ---------- */
+function call(action, payload) {
+  return new Promise(function (resolve, reject) {
+    google.script.run
+      .withSuccessHandler(function (r) { try { resolve(JSON.parse(r)); } catch (e) { reject(e); } })
+      .withFailureHandler(function (e) { reject(e); })
+      .api(action, JSON.stringify(payload || {}));
+  });
+}
+function errMsg(e) {
+  const m = (e && (e.message || e)) + '';
+  return m.replace(/^(Exception|Error):\s*/i, '') || 'エラーが起きました。もう一度試してください。';
+}
+
+/* ---------- 小さな道具 ---------- */
+const $ = function (sel, root) { return (root || document).querySelector(sel); };
+const $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function nl(s) { return esc(s).replace(/\n/g, '<br>'); }
+function hue(id) { let h = 0; String(id).split('').forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) % 360; }); return h; }
+function clsNo(s) { return s.cls + '・' + s.number + '番'; }
+function displayName(a) { return a.teacher ? a.name + '先生' : a.name; }
+function avatar(a, cls) {
+  const ch = a.teacher ? '先' : String(a.name || '？').trim().charAt(0);
+  return '<span class="av ' + (a.teacher ? 't ' : '') + (cls || '') + '" style="--h:' + hue(a.id) + '">' + esc(ch) + '</span>';
+}
+function ago(ms) {
+  const d = (Date.now() - ms) / 1000;
+  if (d < 60) return 'たった今';
+  if (d < 3600) return Math.floor(d / 60) + '分前';
+  if (d < 86400) return Math.floor(d / 3600) + '時間前';
+  const t = new Date(ms);
+  return (t.getMonth() + 1) + '月' + t.getDate() + '日';
+}
+function stamp(ms) {
+  const t = new Date(ms);
+  return (t.getMonth() + 1) + '/' + t.getDate() + ' ' + t.getHours() + ':' + ('0' + t.getMinutes()).slice(-2);
+}
+function toast(msg, bad, html) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (bad ? ' bad' : '');
+  if (html) el.innerHTML = msg; else el.textContent = msg;
+  $('#toast').appendChild(el);
+  setTimeout(function () { el.remove(); }, bad ? 5000 : (html ? 8000 : 2600));
+}
+function unit() { return S.units.filter(function (u) { return u.id === S.unitId; })[0] || null; }
+function group(id) { return S.groups.filter(function (g) { return g.id === (id || S.groupId); })[0] || null; }
+function flatSkills(u) { const out = []; (u ? u.skills : []).forEach(function (c) { c.items.forEach(function (s) { out.push(s); }); }); return out; }
+function isOther(s) { return s.indexOf('その他：') === 0; }
+
+/* =====================================================================
+   起動
+   ===================================================================== */
+async function start() {
+  let b;
+  try {
+    b = await call('bootstrap');
+  } catch (e) {
+    $('#app').innerHTML = '<div class="center-msg">' + LOGO + '<h2>読み込めませんでした</h2><p>' + esc(errMsg(e)) + '</p><button class="btn blue" onclick="location.reload()">もう一度読み込む</button></div>';
+    return;
+  }
+  if (b.unregistered) {
+    $('#app').innerHTML = '<div class="center-msg">' + LOGO + '<h2>このアカウントは登録されていません</h2><p>' + esc(b.email) + '</p><p>先生に、このアカウントを名簿に入れてもらってください。</p></div>';
+    return;
+  }
+  S.boot = b; S.me = b.me; S.groups = b.groups; S.units = b.units; S.limits = b.limits;
+  S.showCounts = b.showCounts; S.approvalMode = b.approvalMode; S.suspended = b.me.suspended;
+  S.groupId = S.me.teacher ? store.get('group', (S.groups[0] || {}).id) : S.me.groupId;
+  if (!group(S.groupId)) S.groupId = (S.groups[0] || {}).id || '';
+  pickDefaultUnit();
+  S.tab = store.get('tab', 'reflection');
+  renderShell();
+  go('home', {}, true);
+  loadFeed(true);
+  setInterval(poll, 20000);
+  if (S.me.teacher) { refreshBadges(); setInterval(refreshBadges, 30000); }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
+}
+
+function unitsForGroup() {
+  return S.units.filter(function (u) { return S.me.teacher ? u.groups.indexOf(S.groupId) >= 0 : true; });
+}
+function pickDefaultUnit() {
+  const list = unitsForGroup();
+  const saved = store.get('unit', '');
+  if (list.some(function (u) { return u.id === saved; })) { S.unitId = saved; return; }
+  const act = list.filter(function (u) { return u.active; });
+  S.unitId = (act[0] || list[0] || {}).id || '';
+}
+
+/* =====================================================================
+   外枠（ナビ）
+   ===================================================================== */
+function navItems() {
+  if (S.me.teacher) {
+    return [
+      { v: 'home', t: 'ホーム', ic: 'home' },
+      { v: 'mod', t: '見守り', ic: 'shield', badge: (S.badges.reports || 0) + (S.badges.pending || 0) },
+      { v: 'buzz', t: 'バズ', ic: 'trophy' },
+      { v: 'eval', t: '評価', ic: 'clip' },
+      { v: 'matrix', t: 'できた技', ic: 'grid' },
+      { v: 'missing', t: '未提出', ic: 'list' },
+      { v: 'settings', t: '設定', ic: 'gear' }
+    ];
+  }
+  return [
+    { v: 'home', t: 'ホーム', ic: 'home' },
+    { v: 'me', t: '自分のページ', ic: 'user' }
+  ];
+}
+function renderShell() {
+  $('#app').innerHTML =
+    '<div class="layout">' +
+      '<nav class="side" id="side"></nav>' +
+      '<main class="main" id="main"></main>' +
+      '<aside class="right" id="right"></aside>' +
+    '</div>' +
+    '<nav class="bottom" id="bottom"></nav>' +
+    '<button class="fab" id="fab" data-act="compose" aria-label="投稿する">' + IC.plus + '</button>';
+  renderNav();
+}
+function currentNav() {
+  const v = S.view.name;
+  if (v === 'profile') return S.view.userId === S.me.id ? 'me' : '';
+  return v;
+}
+function renderNav() {
+  const cur = currentNav();
+  const items = navItems();
+  const canPost = canCompose();
+  $('#side').innerHTML =
+    '<button class="logo" data-act="nav" data-v="home" aria-label="ホーム">' + LOGO + '<span class="lbl">コツッター</span></button>' +
+    items.map(function (it) {
+      const ic = it.v === 'home' && cur === 'home' ? IC.homeOn : IC[it.ic];
+      return '<button class="nav ' + (cur === it.v ? 'on' : '') + '" data-act="nav" data-v="' + it.v + '" title="' + it.t + '">' + ic +
+        '<span class="lbl">' + it.t + '</span>' + (it.badge ? '<span class="badge">' + it.badge + '</span>' : '') + '</button>';
+    }).join('') +
+    '<button class="post-btn ' + (canPost ? '' : 'closed') + '" data-act="compose" aria-label="投稿する">' + IC.plus + '<span class="lbl">投稿する</span></button>' +
+    '<button class="me" data-act="' + (S.me.teacher ? 'nav' : 'profile') + '" data-v="settings" data-uid="' + S.me.id + '">' + avatar(S.me) +
+      '<span class="who"><b>' + esc(displayName(S.me)) + '</b><span>' + esc(S.me.teacher ? '管理者' : S.me.cls + ' ' + S.me.number + '番') + '</span></span></button>';
+  let bottom = items;
+  if (S.me.teacher) {
+    bottom = items.slice(0, 4).concat([{ v: 'more', t: 'メニュー', ic: 'menu' }]);
+  }
+  $('#bottom').innerHTML = bottom.map(function (it) {
+    const on = cur === it.v || (it.v === 'more' && ['matrix', 'missing', 'settings'].indexOf(cur) >= 0);
+    const ic = it.v === 'home' && on ? IC.homeOn : IC[it.ic];
+    return '<button class="' + (on ? 'on' : '') + '" data-act="nav" data-v="' + it.v + '">' + ic + '<span>' + it.t + '</span>' +
+      (it.badge ? '<span class="badge">' + it.badge + '</span>' : '') + '</button>';
+  }).join('');
+  const fab = $('#fab');
+  fab.style.display = S.view.name === 'home' ? '' : 'none';
+  fab.classList.toggle('closed', !canPost);
+}
+function canCompose() {
+  if (S.me.teacher) return true;
+  const u = unit();
+  return S.open && !S.suspended && !!u && u.active;
+}
+
+/* =====================================================================
+   画面の切り替え
+   ===================================================================== */
+function go(name, params, reset) {
+  if (reset) S.stack = [];
+  else S.stack.push(S.view);
+  S.view = Object.assign({ name: name }, params || {});
+  if (name === 'profile') S.profileTab = 'posts';
+  render();
+  window.scrollTo(0, 0);
+}
+function back() {
+  S.view = S.stack.pop() || { name: 'home' };
+  render();
+}
+function render() {
+  renderNav();
+  const v = S.view.name;
+  const fn = {
+    home: viewHome, profile: viewProfile, mod: viewMod, buzz: viewBuzz, eval: viewEval,
+    matrix: viewMatrix, missing: viewMissing, settings: viewSettings
+  }[v];
+  (fn || viewHome)();
+  renderRight();
+}
+function header(title, opts) {
+  opts = opts || {};
+  return '<div class="top-row">' +
+    (opts.back ? '<button class="icon-btn" data-act="back" aria-label="もどる">' + IC.back + '</button>' : '') +
+    '<div class="grow"><h1>' + esc(title) + '</h1>' + (opts.sub ? '<div class="sub">' + esc(opts.sub) + '</div>' : '') + '</div>' +
+    (opts.right || '') + '</div>';
+}
+function unitSelect() {
+  const list = unitsForGroup();
+  if (!list.length) return '';
+  return '<select class="select" data-change="unit" aria-label="単元">' + list.map(function (u) {
+    return '<option value="' + u.id + '"' + (u.id === S.unitId ? ' selected' : '') + '>' + esc(u.name) + (u.active ? '' : '（終了）') + '</option>';
+  }).join('') + '</select>';
+}
+function groupSeg() {
+  return '<div class="seg" role="tablist">' + S.groups.map(function (g) {
+    return '<button class="' + (g.id === S.groupId ? 'on' : '') + '" data-act="group" data-gid="' + g.id + '">' + esc(g.name) + '</button>';
+  }).join('') + '</div>';
+}
+
+/* =====================================================================
+   ホーム（タイムライン）
+   ===================================================================== */
+function viewHome() {
+  const u = unit();
+  const teacherRow = S.me.teacher
+    ? '<div class="grp-row">' + groupSeg() +
+      '<label class="open-pill" style="margin-left:auto"><span class="dot ' + (S.open ? 'on' : '') + '"></span>' + (S.open ? '投稿受付中' : '受付停止中') +
+      '<span class="switch"><input type="checkbox" data-change="open"' + (S.open ? ' checked' : '') + ' aria-label="投稿の受付"><span></span></span></label></div>'
+    : '';
+  $('#main').innerHTML =
+    '<header class="top">' +
+      header(S.me.teacher ? 'ホーム' : 'コツッター', { right: unitSelect(), sub: S.me.teacher ? '' : (group() ? group().name : '') }) +
+      teacherRow +
+      '<div class="tabs" role="tablist">' +
+        '<button class="' + (S.tab === 'reflection' ? 'on' : '') + '" data-act="tab" data-tab="reflection">📝 振り返り</button>' +
+        '<button class="' + (S.tab === 'tweet' ? 'on' : '') + '" data-act="tab" data-tab="tweet">💬 つぶやき</button>' +
+      '</div>' +
+    '</header>' +
+    '<div id="filters"></div><div id="notices"></div><div id="list"></div>';
+  if (!u) {
+    $('#list').innerHTML = '<div class="empty"><b>単元がまだありません</b>' + (S.me.teacher ? '「設定」から単元を追加してください。' : '先生が準備中です。') + '</div>';
+    return;
+  }
+  renderFilters();
+  renderNotices();
+  renderList();
+}
+function renderFilters() {
+  const u = unit();
+  const el = $('#filters');
+  if (!el || !u) return;
+  const skills = flatSkills(u);
+  const hasOther = (S.feed ? S.feed.posts : []).some(function (p) { return p.skills.some(isOther); });
+  let chips = '<button class="chip ' + (!S.skill && !S.pickOnly ? 'on' : '') + '" data-act="skill" data-skill="">すべて</button>' +
+    '<button class="chip pickchip ' + (S.pickOnly ? 'on' : '') + '" data-act="pickonly">⭐ 先生のおすすめ</button>';
+  chips += skills.map(function (s) {
+    return '<button class="chip ' + (S.skill === s ? 'on' : '') + '" data-act="skill" data-skill="' + esc(s) + '">' + esc(s) + '</button>';
+  }).join('');
+  if (hasOther) chips += '<button class="chip ' + (S.skill === '*other' ? 'on' : '') + '" data-act="skill" data-skill="*other">その他の技</button>';
+  const tags = '<div class="chips tags">' + u.tags.map(function (t) {
+    return '<button class="chip tag ' + (S.tag === t ? 'on' : '') + '" data-act="tag" data-tag="' + esc(t) + '">#' + esc(t) + '</button>';
+  }).join('') + '</div>';
+  el.innerHTML = '<div style="border-bottom:1px solid var(--line)"><div class="chips" style="border:0">' + chips + '</div>' + tags + '</div>';
+}
+function renderNotices() {
+  const el = $('#notices');
+  if (!el) return;
+  const u = unit();
+  const out = [];
+  if (u && !u.active) out.push('<div class="notice"><span>📦</span><div><b>この単元は終了しました</b>投稿を読み返すことはできます。</div></div>');
+  else if (!S.me.teacher && S.suspended) out.push('<div class="notice danger"><span>⛔</span><div><b>いまは投稿できません</b>先生に確認してください。読むことはできます。</div></div>');
+  else if (!S.me.teacher && !S.open) out.push('<div class="notice"><span>⏸️</span><div><b>いまは投稿の受付時間外です</b>読むことと、リアクションはできます。</div></div>');
+  if (!S.me.teacher && S.approvalMode && S.open) out.push('<div class="notice warn"><span>👀</span><div>いまは、先生が確認してから投稿が公開されます。</div></div>');
+  el.innerHTML = out.join('');
+}
+function filteredPosts() {
+  if (!S.feed) return [];
+  return S.feed.posts.filter(function (p) {
+    if (p.type !== S.tab) return false;
+    if (S.pickOnly && !p.pick) return false;
+    if (S.skill === '*other') { if (!p.skills.some(isOther)) return false; }
+    else if (S.skill && p.skills.indexOf(S.skill) < 0) return false;
+    if (S.tag && p.tags.indexOf(S.tag) < 0) return false;
+    if (S.cutoff && p.createdAt > S.cutoff && !p.mine) return false;
+    return true;
+  });
+}
+function renderList() {
+  const el = $('#list');
+  if (!el) return;
+  if (!S.feed) { el.innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中…</div>'; return; }
+  const posts = filteredPosts();
+  const newer = S.cutoff ? S.feed.posts.filter(function (p) { return p.createdAt > S.cutoff && !p.mine; }).length : 0;
+  let html = newer ? '<button class="new-pill" data-act="shownew">↑ 新しい投稿 ' + newer + '件</button>' : '';
+  if (!posts.length) {
+    const what = S.tab === 'reflection' ? '振り返り' : 'つぶやき';
+    const filt = S.skill || S.tag || S.pickOnly;
+    html += '<div class="empty"><b>' + (filt ? '見つかりませんでした' : 'まだ' + what + 'がありません') + '</b>' +
+      (filt ? '絞り込みを「すべて」にすると、ほかの投稿も見られます。' : (S.tab === 'tweet' ? '気づいたコツを、最初につぶやいてみよう！' : '今日の学びを振り返ってみよう！')) + '</div>';
+  } else {
+    html += posts.map(function (p) { return card(p); }).join('');
+  }
+  el.innerHTML = html;
+}
+
+/* ---------- 投稿カード ---------- */
+function card(p, opt) {
+  opt = opt || {};
+  S.posts[p.id] = p;
+  const a = p.author;
+  const interactive = !opt.static;
+  const meta = (a.teacher ? '' : esc(a.cls) + ' · ') + ago(p.createdAt) + (p.editedAt ? ' · 編集済み' : '');
+  const labels = [];
+  if (p.pick) labels.push('<span class="pick">' + IC.star.replace('<svg', '<svg width="14" height="14"') + '先生のおすすめ</span>');
+  if (p.status === 'pending') labels.push('<span class="state">⏳ 先生の確認待ち</span>');
+  if (p.status === 'deleted_teacher' || p.status === 'deleted_self' || p.status === 'rejected') labels.push('<span class="state">削除済み</span>');
+  if (opt.showType) labels.push('<span class="state" style="color:var(--muted);background:var(--bg2)">' + (p.type === 'reflection' ? '📝 振り返り' : '💬 つぶやき') + '</span>');
+  p.skills.forEach(function (s) { labels.push('<span class="pill">' + esc(s) + '</span>'); });
+  let body = '';
+  if (p.type === 'reflection') {
+    body += '<div class="sect-lbl">🎯 学習課題</div><div class="task">' + nl(p.task) + '</div>' +
+      '<div class="sect-lbl">💡 つかんだコツ・学んだ過程</div>';
+  }
+  body += '<div class="text">' + nl(p.body) + '</div>';
+  if (p.tags.length) {
+    body += '<div class="tags-line">' + p.tags.map(function (t) {
+      return interactive ? '<button data-act="tag" data-tag="' + esc(t) + '">#' + esc(t) + '</button>' : '<span style="color:var(--blue);font-size:14px">#' + esc(t) + '</span>';
+    }).join('') + '</div>';
+  }
+  if (p.quote) body += quoteBox(p.quote);
+  if (p.hasVideo) {
+    body += p.videoUrl
+      ? '<a class="video-chip" href="' + esc(p.videoUrl) + '" target="_blank" rel="noopener">🎥 提出動画を見る</a>'
+      : '<div class="video-chip">🎥 動画提出済み</div>';
+  }
+  return '<article class="post ' + (p.status === 'pending' ? 'pending ' : '') + (opt.static ? 'static' : '') + '" data-id="' + p.id + '">' +
+    (interactive ? '<button data-act="profile" data-uid="' + a.id + '" aria-label="' + esc(displayName(a)) + 'のページ">' + avatar(a) + '</button>' : avatar(a)) +
+    '<div class="pbody">' +
+      '<div class="phead">' +
+        (interactive ? '<button class="name" data-act="profile" data-uid="' + a.id + '">' + esc(displayName(a)) + '</button>' : '<span class="name">' + esc(displayName(a)) + '</span>') +
+        (a.teacher ? '<span class="tbadge">先生</span>' : '') +
+        '<span class="meta">' + meta + '</span>' +
+        (interactive && !opt.noMenu ? '<button class="icon-btn more" data-act="menu" data-id="' + p.id + '" aria-label="メニュー">' + IC.more + '</button>' : '') +
+      '</div>' +
+      (labels.length ? '<div class="label-row">' + labels.join('') + '</div>' : '') +
+      body +
+      (interactive && p.status === 'published' ? actions(p) : '') +
+    '</div></article>';
+}
+function quoteBox(q) {
+  if (q.unavailable) return '<div class="quote gone">元の投稿は表示できません</div>';
+  return '<div class="quote"><div class="qh">' + avatar(q.author, 'sm') + '<b>' + esc(displayName(q.author)) + '</b><span>' + (q.author.teacher ? '' : esc(q.author.cls) + ' · ') + ago(q.createdAt) + '</span></div>' +
+    (q.skills.length ? '<div class="label-row">' + q.skills.map(function (s) { return '<span class="pill">' + esc(s) + '</span>'; }).join('') + '</div>' : '') +
+    (q.type === 'reflection' ? '<div class="task" style="font-size:14px">🎯 ' + nl(q.task) + '</div>' : '') +
+    '<div class="text">' + nl(q.body) + '</div></div>';
+}
+function actions(p) {
+  const own = p.mine;
+  const c = p.counts;
+  let html = '<div class="actions">';
+  RX.forEach(function (r) {
+    const n = c ? c[r.k] : null;
+    const on = !own && p.my[r.k];
+    html += '<button class="act ' + r.k + (on ? ' on' : '') + (own ? ' own' : '') + '"' +
+      (own ? ' disabled title="自分の投稿へのリアクション"' : ' data-act="react" data-id="' + p.id + '" data-kind="' + r.k + '"') +
+      ' aria-pressed="' + (on ? 'true' : 'false') + '"><span class="em">' + r.em + '</span><span class="t">' + r.t + '</span>' +
+      (n != null && n > 0 ? '<span class="n">' + n + '</span>' : '') + '</button>';
+  });
+  const rn = c ? c.repost : null;
+  html += '<button class="act repost' + (p.my.repost ? ' on' : '') + '" data-act="rp" data-id="' + p.id + '" aria-label="リポスト">' + IC.repost +
+    (rn ? '<span class="n">' + rn + '</span>' : '') + '</button>';
+  return html + '</div>';
+}
+
+/* ---------- タイムラインの読み込み ---------- */
+async function loadFeed(force) {
+  if (!S.unitId || !S.groupId) return;
+  const key = S.unitId + '|' + S.groupId;
+  try {
+    const r = await call('feed', { unitId: S.unitId, groupId: S.groupId, ver: force ? '' : S.ver });
+    if (key !== S.unitId + '|' + S.groupId) return;
+    if (r.unchanged) return;
+    const prevTop = S.feed && S.feed.posts.length ? Math.max.apply(null, S.feed.posts.map(function (p) { return p.createdAt; })) : 0;
+    const hadFeed = !!S.feed;
+    S.feed = r; S.ver = r.ver; S.open = r.open; S.suspended = r.suspended;
+    S.showCounts = r.showCounts; S.approvalMode = r.approvalMode;
+    if (r.units) {
+      S.units = r.units;
+      if (!S.units.some(function (u) { return u.id === S.unitId; })) { pickDefaultUnit(); S.feed = null; S.ver = ''; return loadFeed(true); }
+    }
+    const scrolled = window.scrollY > 150;
+    const hasNewer = r.posts.some(function (p) { return p.createdAt > prevTop && !p.mine; });
+    if (hadFeed && !force && scrolled && hasNewer && S.view.name === 'home') {
+      if (!S.cutoff) S.cutoff = prevTop;
+    } else if (!scrolled || force) {
+      S.cutoff = 0;
+    }
+    if (S.view.name === 'home') {
+      if (!$('#list')) viewHome(); else { renderFilters(); renderNotices(); renderList(); }
+      const top = $('.top'); if (top && S.me.teacher) { /* 受付スイッチの表示を更新 */
+        const sw = $('[data-change="open"]'); if (sw) sw.checked = S.open;
+        const pill = $('.open-pill'); if (pill) pill.firstChild.className = 'dot ' + (S.open ? 'on' : '');
+      }
+    }
+    renderNav();
+    renderRight();
+  } catch (e) {
+    if (force) toast(errMsg(e), true);
+  }
+}
+function poll() {
+  if (document.hidden) return;
+  if (S.view.name === 'home' || !S.feed) loadFeed(false);
+}
+async function refreshBadges() {
+  try { S.badges = await call('badges'); renderNav(); } catch (e) { /* 次回 */ }
+}
+
+/* =====================================================================
+   右カラム
+   ===================================================================== */
+async function loadMyAch() {
+  if (S.me.teacher || !S.unitId) return;
+  try {
+    const r = await call('profile', { userId: S.me.id, unitId: S.unitId });
+    S.myAch = { unitId: S.unitId, list: r.achievements || [], helped: r.stats.helped };
+    renderRight();
+  } catch (e) { /* 表示しないだけ */ }
+}
+function renderRight() {
+  const el = $('#right');
+  if (!el || getComputedStyle(el).display === 'none') return;
+  const u = unit();
+  if (S.me.teacher) {
+    const g = group();
+    el.innerHTML = '<div class="panel"><h3>' + esc(g ? g.name : '') + '</h3>' +
+      '<div class="row-between"><span><span class="dot ' + (S.open ? 'on' : '') + '"></span> 投稿の受付</span><b>' + (S.open ? '受付中' : '停止中') + '</b></div>' +
+      '<div class="row-between"><span>承認モード</span><b>' + (S.approvalMode ? 'オン' : 'オフ') + '</b></div>' +
+      '<div class="row-between"><span>リアクション数の表示</span><b>' + (S.showCounts ? '表示' : '非表示') + '</b></div>' +
+      '<p>切り替えは「設定」から。受付はホーム上部のスイッチでも切り替えられます。</p></div>' +
+      '<div class="panel"><h3>見守り</h3><div class="row-between"><span>通報</span><b>' + (S.badges.reports || 0) + '件</b></div>' +
+      '<div class="row-between"><span>承認待ち</span><b>' + (S.badges.pending || 0) + '件</b></div>' +
+      '<button class="btn sm line" data-act="nav" data-v="mod">見守りを開く</button></div>';
+    return;
+  }
+  if (!S.myAch || S.myAch.unitId !== S.unitId) { loadMyAch(); }
+  const total = flatSkills(u).length;
+  const done = S.myAch && S.myAch.unitId === S.unitId ? S.myAch.list.length : 0;
+  const helped = S.myAch && S.myAch.helped != null ? S.myAch.helped : null;
+  el.innerHTML =
+    (helped != null ? '<div class="panel"><h3>あなたのコツ</h3><div class="big">🎉 ' + helped + '</div><p>あなたのコツで、仲間が「できた！」と言った数</p></div>' : '') +
+    '<div class="panel"><h3>できた技</h3><div class="big">' + done + ' <span style="font-size:18px;color:var(--muted)">/ ' + total + '</span></div>' +
+    '<div class="progress"><i style="width:' + (total ? Math.round(done / total * 100) : 0) + '%"></i></div>' +
+    '<button class="btn sm line" data-act="profile" data-uid="' + S.me.id + '" data-ptab="ach">チェックする</button></div>' +
+    '<div class="panel"><h3>コツッターの使い方</h3><p>💡 なるほど … 読んで「なるほど」と思った</p><p>💪 やってみた … そのコツを試してみた</p><p>🎉 できた！ … そのコツのおかげでできた</p><p>🔁 引用して「やってみた報告」を書くと、コツがどう役に立ったか伝わります。</p></div>';
+}
+
+/* =====================================================================
+   投稿する（作成・編集・引用）
+   ===================================================================== */
+let C = null;
+function openCompose(opts) {
+  opts = opts || {};
+  if (!opts.edit && !canCompose()) {
+    const u = unit();
+    toast(!u || !u.active ? 'この単元は終了しています' : S.suspended ? 'いまは投稿できません。先生に確認してください。' : 'いまは投稿の受付時間外です', true);
+    return;
+  }
+  C = {
+    step: opts.edit ? 'form' : 'type', type: opts.edit ? opts.edit.type : '', editId: opts.edit ? opts.edit.id : '',
+    skills: opts.edit ? opts.edit.skills.slice() : (S.skill && S.skill !== '*other' ? [S.skill] : []),
+    tags: opts.edit ? opts.edit.tags.slice() : (S.tag ? [S.tag] : []),
+    task: opts.edit ? opts.edit.task : '', body: opts.edit ? opts.edit.body : '',
+    quote: opts.quote || null, file: null, fileInfo: '', fileErr: '', target: S.groupId, err: '', busy: false,
+    other: ''
+  };
+  if (opts.edit) {
+    const o = C.skills.filter(isOther)[0];
+    if (o) C.other = o.replace('その他：', '');
+  }
+  if (opts.quote) {
+    C.skills = opts.quote.skills.filter(function (s) { return !isOther(s) && flatSkills(unit()).indexOf(s) >= 0; });
+  }
+  renderCompose();
+}
+function renderCompose() {
+  if (!C) return;
+  const title = C.editId ? '投稿を編集' : C.quote ? '引用して「やってみた報告」' : '投稿する';
+  let body = '';
+  if (C.quote) body += '<div class="quote-src"><div class="sect-lbl" style="margin:0 0 4px">引用する投稿</div>' + quoteBox(C.quote).replace('class="quote"', 'class="quote" style="margin:0;border:0;padding:0"') + '</div>';
+  if (C.step === 'type') {
+    body += '<div class="type-pick">' +
+      '<button class="type-card" data-act="ctype" data-type="reflection"><span class="ic">📝</span><span><b>振り返り</b><span>学習課題・行った技・つかんだコツや学んだ過程を、じっくり書く</span></span></button>' +
+      '<button class="type-card" data-act="ctype" data-type="tweet"><span class="ic">💬</span><span><b>つぶやき</b><span>技を選んで、気づいたコツをサッとつぶやく（' + S.limits.tweet + '字まで）</span></span></button>' +
+    '</div>';
+  } else {
+    body += composeForm();
+  }
+  showModal('<div class="sheet-head"><button class="icon-btn" data-act="' + (C.step === 'form' && !C.editId ? 'cback' : 'close') + '" aria-label="もどる">' + (C.step === 'form' && !C.editId ? IC.back : IC.close) + '</button><h2>' + title + '</h2>' +
+    (C.step === 'form' ? '<button class="btn blue sm" data-act="csubmit" ' + (C.busy ? 'disabled' : '') + '>' + (C.busy ? '送信中…' : C.editId ? '保存' : C.type === 'tweet' ? 'つぶやく' : '投稿する') + '</button>' : '') +
+    '</div><div class="sheet-body" id="cbody">' + body + '</div>', { keep: true });
+  updateCounters();
+}
+function skillPicker(multi) {
+  const u = unit();
+  const required = !S.me.teacher;
+  let html = '<div class="field"><div class="flabel">' + (C.type === 'reflection' ? '行った技' : '技をえらぶ') +
+    '<span class="opt">' + (required ? (multi ? '（いくつでも）' : '') : '（先生は省略できます）') + '</span></div>';
+  u.skills.forEach(function (c) {
+    html += '<div class="cat">' + esc(c.cat) + '</div><div class="pick-chips">' + c.items.map(function (s) {
+      return '<button class="chip ' + (C.skills.indexOf(s) >= 0 ? 'on' : '') + '" data-act="cskill" data-skill="' + esc(s) + '" data-multi="' + (multi ? 1 : 0) + '">' + esc(s) + '</button>';
+    }).join('') + '</div>';
+  });
+  const otherOn = C.skills.some(isOther) || C.other !== '' || C._otherOpen;
+  html += '<div class="cat">ほかの技</div><div class="pick-chips"><button class="chip ' + (otherOn ? 'on' : '') + '" data-act="cother" data-multi="' + (multi ? 1 : 0) + '">その他（自由に入力）</button></div>' +
+    (otherOn ? '<input class="in" style="margin-top:8px" maxlength="' + S.limits.other + '" placeholder="技の名前" data-input="other" value="' + esc(C.other) + '">' : '');
+  return html + '</div>';
+}
+function tagPicker() {
+  const u = unit();
+  if (!u.tags.length) return '';
+  return '<div class="field"><div class="flabel">場面タグ<span class="opt">（なくてもOK・いくつでも）</span></div><div class="pick-chips">' +
+    u.tags.map(function (t) {
+      return '<button class="chip tag ' + (C.tags.indexOf(t) >= 0 ? 'on' : '') + '" data-act="ctag" data-tag="' + esc(t) + '">#' + esc(t) + '</button>';
+    }).join('') + '</div></div>';
+}
+function lastTask() {
+  const mine = (S.feed ? S.feed.posts : []).filter(function (p) { return p.mine && p.type === 'reflection'; });
+  return mine.length ? mine[0].task : '';
+}
+function composeForm() {
+  let html = '';
+  if (S.me.teacher && !C.editId) {
+    html += '<div class="field"><div class="flabel">投稿先</div><div class="seg">' +
+      '<button class="' + (C.target !== '*' ? 'on' : '') + '" data-act="ctarget" data-t="' + S.groupId + '">' + esc(group().name) + '</button>' +
+      '<button class="' + (C.target === '*' ? 'on' : '') + '" data-act="ctarget" data-t="*">全集団</button></div></div>';
+  }
+  if (C.type === 'tweet') {
+    html += skillPicker(false);
+    html += '<div class="field"><label for="c-body">' + (C.quote ? 'やってみてどうだった？' : 'つぶやき') + '</label>' +
+      (C.quote ? '<div class="hint">書き方のヒント：①このコツを選んだ理由 ②やってみた結果 ③自分に合わせて工夫したこと</div>' : '') +
+      '<textarea class="ta" id="c-body" data-input="body" rows="4" placeholder="' + (C.quote ? '例）手を遠くにつくコツを選んだのは、ぼくはいつも手前についていたから。やってみたら、おしりが上がって跳びやすくなった！' : '例）着手のとき、手を遠くにつくと回りやすい！') + '">' + esc(C.body) + '</textarea>' +
+      '<div class="counter" data-for="body" data-max="' + S.limits.tweet + '"></div></div>';
+    html += tagPicker();
+  } else {
+    const lt = !C.editId && !C.task ? lastTask() : '';
+    html += '<div class="field"><label for="c-task">🎯 学習課題</label>' +
+      '<textarea class="ta" id="c-task" data-input="task" rows="2" style="min-height:64px" placeholder="例）開脚跳びで、着手のあとに体を前に運ぶにはどうすればよいか">' + esc(C.task) + '</textarea>' +
+      '<div class="counter" data-for="task" data-max="' + S.limits.task + '"></div>' +
+      (lt ? '<button class="chip" style="margin-top:4px" data-act="clast">前回の課題を使う：' + esc(lt.length > 24 ? lt.slice(0, 24) + '…' : lt) + '</button>' : '') + '</div>';
+    html += skillPicker(true);
+    html += '<div class="field"><label for="c-body">💡 つかんだコツ・学んだ過程</label>' +
+      '<div class="hint">' + (C.quote
+        ? '書き方のヒント：<ol><li>このコツを選んだ理由は？</li><li>やってみてどうだった？</li><li>自分に合わせて工夫したことは？</li></ol>'
+        : '書き方のヒント：<ol><li>やってみたこと</li><li>どうなったか</li><li>なぜそうなったと思う？</li><li>次は何を試す？</li></ol>') + '</div>' +
+      '<textarea class="ta" id="c-body" data-input="body" rows="7" placeholder="' + (C.quote
+        ? '例）○○さんの「手を遠くにつく」を選んだのは…。やってみたら…。自分は…を工夫した。'
+        : '例）手をつく位置を前にしたら、おしりが上がって跳びやすくなった。なぜなら…。次は、踏切を強くすることを試したい。') + '">' + esc(C.body) + '</textarea>' +
+      '<div class="counter" data-for="body" data-max="' + S.limits.body + '"></div></div>';
+    html += tagPicker();
+    if (!S.me.teacher && !C.editId) {
+      html += '<div class="field"><div class="flabel">🎥 動画の提出<span class="opt">（なくてもOK・先生だけが見られます・15秒まで）</span></div>' +
+        '<div class="video-box"><label class="btn line sm" style="cursor:pointer">動画を選ぶ<input type="file" accept="video/*" class="sr" data-change="video"></label>' +
+        (C.file ? '<span class="ok">✓ ' + esc(C.fileInfo) + '</span><button class="btn line sm" data-act="cnovideo">取り消す</button>' : '<span class="opt" style="color:var(--muted);font-size:13px">ほかの人には「動画提出済み」とだけ表示されます</span>') +
+        (C.fileErr ? '<div class="err" style="width:100%">' + esc(C.fileErr) + '</div>' : '') + '</div></div>';
+    }
+  }
+  if (C.err) html += '<div class="err">' + esc(C.err) + '</div>';
+  html += '<button class="btn blue lg" data-act="csubmit" ' + (C.busy ? 'disabled' : '') + '>' + (C.busy ? (C.file ? '動画を送信中…' : '送信中…') : C.editId ? '保存する' : C.type === 'tweet' ? 'つぶやく' : '振り返りを投稿する') + '</button>';
+  return html;
+}
+function updateCounters() {
+  $$('.counter').forEach(function (el) {
+    const k = el.getAttribute('data-for');
+    const max = Number(el.getAttribute('data-max'));
+    const n = (C[k] || '').trim().length;
+    el.textContent = n + ' / ' + max;
+    el.classList.toggle('over', n > max);
+  });
+}
+function pickVideo(input) {
+  const f = input.files && input.files[0];
+  C.fileErr = ''; C.file = null; C.fileInfo = '';
+  if (!f) { renderCompose(); return; }
+  if (f.size > S.limits.videoBytes) {
+    C.fileErr = '動画が大きすぎます（' + Math.round(f.size / 1048576) + 'MB）。30MBまでにしてください。';
+    renderCompose(); return;
+  }
+  const url = URL.createObjectURL(f);
+  const v = document.createElement('video');
+  v.preload = 'metadata'; v.muted = true; v.playsInline = true;
+  let done = false;
+  const finish = function (d) {
+    if (done) return;
+    done = true;
+    URL.revokeObjectURL(url);
+    if (!isFinite(d) || d > 15.9) {
+      C.fileErr = '15秒以内の動画にしてください' + (isFinite(d) ? '（いまは' + Math.round(d) + '秒）' : '') + '。写真アプリの「編集」で短くできます。';
+    } else {
+      C.file = f; C.fileInfo = Math.round(d * 10) / 10 + '秒・' + (Math.round(f.size / 104857.6) / 10) + 'MB';
+    }
+    renderCompose();
+  };
+  v.onloadedmetadata = function () {
+    if (v.duration === Infinity) {
+      // 一部の動画は長さが後からわかるので、最後まで飛ばして調べる
+      v.ontimeupdate = function () { v.ontimeupdate = null; finish(v.duration); };
+      v.currentTime = 1e101;
+    } else {
+      finish(v.duration);
+    }
+  };
+  v.onerror = function () { if (done) return; done = true; URL.revokeObjectURL(url); C.fileErr = '動画を読み込めませんでした。別の動画を選んでください。'; renderCompose(); };
+  v.src = url;
+}
+function readBase64(file) {
+  return new Promise(function (resolve, reject) {
+    const r = new FileReader();
+    r.onload = function () { resolve(String(r.result).split(',')[1] || ''); };
+    r.onerror = function () { reject(new Error('動画を読み込めませんでした')); };
+    r.readAsDataURL(file);
+  });
+}
+function composeSkills() {
+  let skills = C.skills.filter(function (s) { return !isOther(s); });
+  const o = C.other.trim();
+  if (o && (C.skills.some(isOther) || C._otherOpen)) skills.push('その他：' + o);
+  return skills;
+}
+async function submitCompose() {
+  if (C.busy) return;
+  const L = S.limits;
+  const skills = composeSkills();
+  const body = C.body.trim(), task = C.task.trim();
+  C.err = '';
+  if (!S.me.teacher && !skills.length) C.err = '技を選んでください。';
+  else if (C.type === 'reflection' && !task) C.err = '学習課題を書いてください。';
+  else if (C.type === 'reflection' && task.length > L.task) C.err = '学習課題は' + L.task + '字までです。';
+  else if (!body) C.err = C.type === 'tweet' ? 'つぶやきを書いてください。' : 'つかんだコツや学んだ過程を書いてください。';
+  else if (body.length > (C.type === 'tweet' ? L.tweet : L.body)) C.err = (C.type === 'tweet' ? 'つぶやきは' + L.tweet : '振り返りは' + L.body) + '字までです。';
+  if (C.err) { renderCompose(); return; }
+  C.busy = true; renderCompose();
+  try {
+    let r;
+    if (C.editId) {
+      r = await call('editPost', { id: C.editId, skills: skills, tags: C.tags, task: task, body: body });
+    } else {
+      let token = '';
+      if (C.file) {
+        const data = await readBase64(C.file);
+        const up = await call('uploadVideo', { name: C.file.name, mime: C.file.type || 'video/quicktime', data: data });
+        token = up.token;
+      }
+      r = await call('createPost', {
+        type: C.type, unitId: S.unitId, groupId: C.target, skills: skills, tags: C.tags,
+        task: task, body: body, quoteOf: C.quote ? C.quote.id : '', uploadToken: token
+      });
+    }
+    const wasType = C.type;
+    C = null; closeModal();
+    toast(r.pending ? '送信しました。先生が確認したら公開されます。' : (wasType === 'tweet' ? 'つぶやきました！' : '投稿しました！'));
+    if (S.tab !== wasType) { S.tab = wasType; store.set('tab', wasType); }
+    if (S.view.name !== 'home') go('home', {}, true);
+    else viewHome();
+    S.cutoff = 0;
+    await loadFeed(true);
+    window.scrollTo(0, 0);
+  } catch (e) {
+    if (C) { C.busy = false; C.err = errMsg(e); renderCompose(); }
+    else toast(errMsg(e), true);
+  }
+}
+
+/* =====================================================================
+   モーダル・メニュー
+   ===================================================================== */
+function showModal(html, opt) {
+  opt = opt || {};
+  const root = $('#modal');
+  const scroll = opt.keep && root.firstChild ? root.firstChild.scrollTop : 0;
+  const active = document.activeElement;
+  const activeKey = active && active.getAttribute ? active.getAttribute('data-input') : null;
+  const sel = active && typeof active.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null;
+  root.innerHTML = '<div class="overlay ' + (opt.menu ? 'menu' : '') + '" data-act="overlay"><div class="sheet ' + (opt.wide ? 'wide' : '') + '" role="dialog" aria-modal="true">' + html + '</div></div>';
+  document.body.style.overflow = 'hidden';
+  if (opt.keep) {
+    root.firstChild.scrollTop = scroll;
+    if (activeKey) {
+      const el = $('[data-input="' + activeKey + '"]', root);
+      if (el) { el.focus(); if (sel) try { el.setSelectionRange(sel[0], sel[1]); } catch (e) { /* noop */ } }
+    }
+  }
+}
+function closeModal() {
+  $('#modal').innerHTML = '';
+  document.body.style.overflow = '';
+  MENU = [];
+  C = null;
+  EV = null;
+}
+let MENU = [];
+function openMenu(items) {
+  MENU = items;
+  showModal('<div class="menu-list">' + items.map(function (it, i) {
+    return '<button class="' + (it.danger ? 'danger' : '') + '" data-act="menuitem" data-i="' + i + '">' + (it.ic ? IC[it.ic].replace('<svg', '<svg width="20" height="20"') : '') + esc(it.t) + '</button>';
+  }).join('') + '<button class="cancel" data-act="close">キャンセル</button></div>', { menu: true });
+}
+function confirmBox(msg, ok, danger) {
+  return new Promise(function (resolve) {
+    MENU = [{ fn: function () { resolve(true); } }, { fn: function () { resolve(false); } }];
+    showModal('<div class="sheet-body"><p style="font-size:16px;font-weight:700;margin:4px 0 16px;white-space:pre-wrap">' + esc(msg) + '</p>' +
+      '<div class="btn-row"><button class="btn ' + (danger ? 'danger' : 'blue') + ' lg" data-act="menuitem" data-i="0">' + esc(ok) + '</button>' +
+      '<button class="btn line lg" data-act="menuitem" data-i="1">やめる</button></div></div>', { menu: true });
+  });
+}
+function postMenu(p) {
+  const items = [];
+  if (p.mine && (p.status === 'published' || p.status === 'pending')) {
+    const u = unit();
+    if (u && u.active) items.push({ t: '編集する', ic: 'edit', fn: function () { openCompose({ edit: p }); } });
+    if (!S.me.teacher && p.type === 'reflection' && p.status === 'published') {
+      items.push({ t: '自分のページに固定する（ベスト振り返り）', ic: 'pin', fn: function () { doPin(p.id); } });
+    }
+    items.push({ t: '削除する', ic: 'trash', danger: true, fn: async function () {
+      if (!(await confirmBox('この投稿を削除しますか？', '削除する', true))) return;
+      try { await call('deletePost', { id: p.id }); toast('削除しました'); afterChange(); } catch (e) { toast(errMsg(e), true); }
+    } });
+  }
+  if (S.me.teacher) {
+    items.push({ t: p.pick ? '「先生のおすすめ」を外す' : '「先生のおすすめ」にする', ic: 'star', fn: async function () {
+      try { await call('setPick', { postId: p.id, on: !p.pick }); toast(p.pick ? 'おすすめを外しました' : 'おすすめにしました'); afterChange(); } catch (e) { toast(errMsg(e), true); }
+    } });
+    if (!p.mine) {
+      items.push({ t: 'この投稿を削除する（先生）', ic: 'trash', danger: true, fn: function () { teacherDelete(p); } });
+      if (!p.author.teacher) {
+        items.push({ t: displayName(p.author) + 'の投稿を一時停止する', ic: 'stop', danger: true, fn: async function () {
+          if (!(await confirmBox(displayName(p.author) + 'さんの投稿を一時停止します。\n再開は「見守り」からできます。', '一時停止する', true))) return;
+          try { await call('setSuspended', { userId: p.author.id, on: true }); toast('投稿を一時停止しました'); } catch (e) { toast(errMsg(e), true); }
+        } });
+      }
+    }
+  } else if (!p.mine) {
+    items.push({ t: '先生に知らせる', ic: 'flag', danger: true, fn: function () { reportMenu(p); } });
+  }
+  if (!items.length) return;
+  openMenu(items);
+}
+async function teacherDelete(p) {
+  if (!(await confirmBox('この投稿を削除しますか？\n生徒の画面からは跡を残さず消えます（記録は「見守り」に残ります）。', '削除する', true))) return;
+  try { await call('teacherDelete', { postId: p.id }); toast('削除しました'); afterChange(); refreshBadges(); } catch (e) { toast(errMsg(e), true); }
+}
+function reportMenu(p) {
+  const reasons = ['悪口・からかいが書いてある', 'ふざけている・関係ない投稿', '個人情報が書いてある', 'そのほか気になる'];
+  openMenu(reasons.map(function (r) {
+    return { t: r, fn: async function () {
+      try { await call('report', { postId: p.id, reason: r }); toast('先生に知らせました。ありがとう。'); } catch (e) { toast(errMsg(e), true); }
+    } };
+  }));
+}
+function repostMenu(p) {
+  openMenu([
+    { t: p.my.repost ? 'リポストを取り消す' : 'リポスト（自分のページに残す）', ic: 'repost', fn: async function () {
+      try {
+        const r = await call('repost', { postId: p.id });
+        toast(r.on ? 'リポストしました。自分のページに残ります。' : 'リポストを取り消しました');
+        afterChange();
+      } catch (e) { toast(errMsg(e), true); }
+    } },
+    { t: '引用して「やってみた報告」を書く', ic: 'quote', fn: function () {
+      openCompose({ quote: { id: p.id, type: p.type, skills: p.skills, task: p.task, body: p.body, createdAt: p.createdAt, author: p.author } });
+    } }
+  ]);
+}
+async function doPin(id) {
+  try { await call('pin', { postId: id, unitId: S.unitId }); toast('自分のページに固定しました'); if (S.view.name === 'profile') viewProfile(); } catch (e) { toast(errMsg(e), true); }
+}
+function afterChange() {
+  if (S.view.name === 'home') loadFeed(true);
+  else render();
+}
+async function react(btn) {
+  const id = btn.getAttribute('data-id'), kind = btn.getAttribute('data-kind');
+  const p = S.posts[id];
+  if (!p) return;
+  const on = !p.my[kind];
+  p.my[kind] = on;
+  if (p.counts) p.counts[kind] = Math.max(0, (p.counts[kind] || 0) + (on ? 1 : -1));
+  const art = btn.closest('.actions');
+  if (art) art.outerHTML = actions(p);
+  try {
+    await call('react', { postId: id, kind: kind });
+    if (kind === 'dekita' && on) toast('🎉 「できた！」を送りました');
+  } catch (e) {
+    p.my[kind] = !on;
+    if (p.counts) p.counts[kind] = Math.max(0, (p.counts[kind] || 0) + (on ? -1 : 1));
+    toast(errMsg(e), true);
+    const a2 = document.querySelector('.post[data-id="' + id + '"] .actions');
+    if (a2) a2.outerHTML = actions(p);
+  }
+}
+
+/* =====================================================================
+   プロフィール
+   ===================================================================== */
+async function viewProfile() {
+  const uid = S.view.userId;
+  const isMe = uid === S.me.id;
+  $('#main').innerHTML = '<header class="top">' + header(isMe ? '自分のページ' : 'プロフィール', { back: S.stack.length > 0, right: unitSelect() }) + '</header><div class="loading"><div class="spinner"></div>読み込み中…</div>';
+  let r;
+  try { r = await call('profile', { userId: uid, unitId: S.unitId }); } catch (e) {
+    $('#main').innerHTML = '<header class="top">' + header('プロフィール', { back: true }) + '</header><div class="empty"><b>表示できません</b>' + esc(errMsg(e)) + '</div>';
+    return;
+  }
+  if (S.view.name !== 'profile' || S.view.userId !== uid) return;
+  if (isMe) S.myAch = { unitId: S.unitId, list: r.achievements || [], helped: r.stats.helped };
+  const u = r.user;
+  const tabs = [['posts', '投稿'], ['reposts', 'リポスト']];
+  if (r.achievements) tabs.push(['ach', 'できた技']);
+  if (S.view.ptab) { S.profileTab = S.view.ptab; delete S.view.ptab; }
+  if (!tabs.some(function (t) { return t[0] === S.profileTab; })) S.profileTab = 'posts';
+  let list = '';
+  if (S.profileTab === 'posts') {
+    if (r.pinned) list += '<div class="pinned-lbl">' + IC.pin + '固定されたベスト振り返り</div>' + card(r.pinned, { showType: true });
+    const rest = r.posts.filter(function (p) { return !r.pinned || p.id !== r.pinned.id; });
+    list += rest.length ? rest.map(function (p) { return card(p, { showType: true }); }).join('') : (r.pinned ? '' : '<div class="empty"><b>まだ投稿がありません</b></div>');
+  } else if (S.profileTab === 'reposts') {
+    list += r.reposts.length ? r.reposts.map(function (p) { return card(p, { showType: true }); }).join('') : '<div class="empty"><b>リポストはまだありません</b>真似したコツや、残しておきたいコツをリポストしよう。</div>';
+  } else {
+    list += achView(r, isMe);
+  }
+  $('#main').innerHTML = '<header class="top">' + header(isMe ? '自分のページ' : displayName(u), { back: S.stack.length > 0, right: unitSelect(), sub: r.stats.posts + '件の投稿' }) + '</header>' +
+    '<div class="banner" style="background:linear-gradient(135deg,hsl(' + hue(u.id) + ' 70% 55%),hsl(' + ((hue(u.id) + 60) % 360) + ' 70% 55%))"></div>' +
+    '<div class="prof">' + avatar(u, 'lg') + '<h2>' + esc(displayName(u)) + '</h2><div class="sub">' + (u.teacher ? '先生' : esc(u.cls)) + '</div>' +
+      (u.teacher ? '' : '<div class="stats"><span><b>' + r.stats.posts + '</b> 投稿</span><span><b>' + r.stats.quotes + '</b> やってみた報告</span>' +
+        (r.stats.helped != null ? '<span><b>🎉 ' + r.stats.helped + '</b> コツが生かされた</span>' : '') + '</div>') +
+    '</div>' +
+    '<div class="tabs" style="border-bottom:1px solid var(--line)">' + tabs.map(function (t) {
+      return '<button class="' + (S.profileTab === t[0] ? 'on' : '') + '" data-act="ptab" data-t="' + t[0] + '">' + t[1] + '</button>';
+    }).join('') + '</div>' + list;
+}
+function achView(r, isMe) {
+  const u = unit();
+  if (!u) return '';
+  const have = r.achievements || [];
+  const total = flatSkills(u).length;
+  let html = '<div class="ach"><p class="note">' + (isMe ? 'できるようになった技にチェックしよう。先生も見ています。' : 'この生徒がチェックした「できた技」です。') + '</p>' +
+    '<div style="font-weight:800">' + have.length + ' / ' + total + ' 技</div><div class="progress"><i style="width:' + (total ? Math.round(have.length / total * 100) : 0) + '%"></i></div>';
+  u.skills.forEach(function (c) {
+    html += '<h3>' + esc(c.cat) + '</h3>' + c.items.map(function (s) {
+      const on = have.indexOf(s) >= 0;
+      const inner = '<span class="box">' + (on ? '✓' : '') + '</span>' + esc(s);
+      return isMe && u.active ? '<button class="ach-row ' + (on ? 'on' : '') + '" data-act="ach" data-skill="' + esc(s) + '">' + inner + '</button>'
+        : '<div class="ach-row ' + (on ? 'on' : '') + '">' + inner + '</div>';
+    }).join('');
+  });
+  return html + '</div>';
+}
+
+/* =====================================================================
+   先生：見守り
+   ===================================================================== */
+const LOG_LABEL = {
+  delete_teacher: ['先生が削除', true], delete_self: ['本人が削除', false], edit: ['編集前の内容', false],
+  blocked: ['NGワードでブロック', true], reject: ['承認せず非公開', true], suspend: ['投稿を一時停止', true], unsuspend: ['投稿を再開', false]
+};
+async function viewMod() {
+  $('#main').innerHTML = '<header class="top">' + header('見守り', { right: '<button class="icon-btn" data-act="reload" aria-label="更新">' + IC.refresh + '</button>' }) + '</header><div class="loading"><div class="spinner"></div></div>';
+  let r;
+  try { r = await call('moderation'); } catch (e) { $('#main').innerHTML += '<div class="err">' + esc(errMsg(e)) + '</div>'; return; }
+  if (S.view.name !== 'mod') return;
+  S.badges = { reports: r.reports.length, pending: r.pending.length };
+  renderNav();
+  let html = '<div class="page">';
+  html += '<h2>🚩 通報 <span class="count-badge">' + r.reports.length + '</span></h2>';
+  html += r.reports.length ? r.reports.map(function (x) {
+    return '<div class="mod-item"><div class="why"><b>' + esc(x.reason || '通報') + '</b> — ' + esc(displayName(x.reporter)) + '（' + esc(x.reporter.cls) + '）・' + stamp(x.at) + '</div>' +
+      (x.post ? card(x.post, { static: true }) : '<div class="note">投稿が見つかりません</div>') +
+      '<div class="btn-row">' + (x.post && (x.post.status === 'published' || x.post.status === 'pending') ? '<button class="btn danger sm" data-act="tdel" data-id="' + x.post.id + '">投稿を削除</button>' : '') +
+      '<button class="btn line sm" data-act="resolve" data-id="' + x.id + '">問題なし（対応済み）</button></div></div>';
+  }).join('') : '<p class="note">通報はありません。</p>';
+  html += '<h2>⏳ 承認待ち <span class="count-badge">' + r.pending.length + '</span></h2>';
+  html += r.pending.length ? r.pending.map(function (p) {
+    return '<div class="mod-item">' + card(p, { static: true }) + '<div class="btn-row"><button class="btn blue sm" data-act="approve" data-id="' + p.id + '" data-ok="1">公開する</button>' +
+      '<button class="btn line sm" data-act="approve" data-id="' + p.id + '" data-ok="0">公開しない</button></div></div>';
+  }).join('') : '<p class="note">承認待ちの投稿はありません。' + (S.approvalMode ? '' : '（承認モードはオフです）') + '</p>';
+  html += '<h2>⛔ 投稿を一時停止中の生徒</h2>';
+  html += r.suspended.length ? r.suspended.map(function (s) {
+    return '<div class="stu"><span class="grow">' + esc(clsNo(s)) + ' ' + esc(s.name) + '</span><button class="btn line sm" data-act="unsuspend" data-uid="' + s.id + '">再開する</button></div>';
+  }).join('') : '<p class="note">いません。</p>';
+  html += '<h2>📋 記録（新しい順）</h2>';
+  html += r.log.length ? r.log.map(function (l) {
+    const lab = LOG_LABEL[l.action] || [l.action, false];
+    const d = l.detail || {};
+    let who = '';
+    if (l.action === 'suspend' || l.action === 'unsuspend') who = esc(d.cls + ' ' + d.name);
+    else if (l.author) who = esc(displayName(l.author)) + (l.author.cls ? '（' + esc(l.author.cls) + '）' : '');
+    else who = esc(displayName(l.actor));
+    const snap = l.action === 'blocked' ? (d.text || '') : [d.task, d.body].filter(Boolean).join('\n');
+    return '<div class="log-item"><div class="when">' + stamp(l.at) + '</div><div class="what"><span class="tag-act ' + (lab[1] ? 'red' : '') + '">' + lab[0] + '</span> ' + who +
+      (l.action === 'delete_teacher' || l.action === 'reject' || l.action === 'suspend' || l.action === 'unsuspend' ? ' <span class="note">（' + esc(displayName(l.actor)) + '）</span>' : '') +
+      (l.action === 'blocked' ? ' <span class="note">引っかかった言葉：' + esc(d.word) + '</span>' : '') +
+      (snap ? '<div class="snap">' + esc(snap) + '</div>' : '') + '</div></div>';
+  }).join('') : '<p class="note">記録はまだありません。</p>';
+  $('#main').innerHTML = '<header class="top">' + header('見守り', { right: '<button class="icon-btn" data-act="reload" aria-label="更新">' + IC.refresh + '</button>' }) + '</header>' + html + '</div>';
+}
+
+/* =====================================================================
+   先生：バズ
+   ===================================================================== */
+async function viewBuzz() {
+  const range = S.view.range || 'today';
+  const head = '<header class="top">' + header('バズったコツ', { right: unitSelect(), sub: '先生だけが見られます' }) +
+    '<div class="grp-row">' + groupSeg() + '<div class="seg" style="margin-left:auto"><button class="' + (range === 'today' ? 'on' : '') + '" data-act="brange" data-r="today">今日</button>' +
+    '<button class="' + (range === 'all' ? 'on' : '') + '" data-act="brange" data-r="all">全期間</button></div></div></header>';
+  $('#main').innerHTML = head + '<div class="loading"><div class="spinner"></div></div>';
+  let r;
+  try { r = await call('buzz', { groupId: S.groupId, unitId: S.unitId, range: range }); } catch (e) { toast(errMsg(e), true); return; }
+  if (S.view.name !== 'buzz') return;
+  S.buzz = r.list;
+  let html = '<div class="page"><div class="btn-row" style="justify-content:space-between"><p class="note" style="margin:0">「できた！」の多い順' + (range === 'today' ? '（今日ついたリアクション）' : '') + '</p>' +
+    (r.list.length ? '<button class="btn blue sm" data-act="present">' + IC.tv + '発表モード</button>' : '') + '</div>';
+  html += r.list.length ? r.list.map(function (p, i) {
+    return '<div class="rank"><div class="no ' + (i < 3 ? 'r' + (i + 1) : '') + '">' + (i + 1) + '</div><div style="flex:1;min-width:0"><div class="score"><span class="d">🎉 できた！ ' + p.score.dekita + '</span><span>💪 ' + p.score.yatta + '</span><span>💡 ' + p.score.naruhodo + '</span></div>' +
+      card(p, { static: true, showType: true }).replace('class="post ', 'class="post static ') + '</div></div>';
+  }).join('') : '<div class="empty"><b>まだありません</b>' + (range === 'today' ? '今日はまだリアクションがついていません。' : 'リアクションがついた投稿がありません。') + '</div>';
+  $('#main').innerHTML = head + html + '</div>';
+}
+let PRES = null;
+function openPresent() {
+  const list = (S.buzz || []).slice(0, 5);
+  if (!list.length) return;
+  PRES = { list: list, i: list.length - 1, names: true };
+  renderPresent();
+  document.addEventListener('keydown', presKey);
+}
+function presKey(e) {
+  if (!PRES) return;
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); presMove(-1); }
+  if (e.key === 'ArrowLeft') presMove(1);
+  if (e.key === 'Escape') closePresent();
+}
+function presMove(d) {
+  if (!PRES) return;
+  PRES.i = Math.max(0, Math.min(PRES.list.length - 1, PRES.i + d));
+  renderPresent();
+}
+function closePresent() {
+  PRES = null;
+  document.removeEventListener('keydown', presKey);
+  const el = $('#present'); if (el) el.remove();
+}
+function renderPresent() {
+  let el = $('#present');
+  if (!el) { el = document.createElement('div'); el.id = 'present'; el.className = 'present'; document.body.appendChild(el); }
+  const p = PRES.list[PRES.i];
+  const range = S.view.range === 'all' ? '全期間' : '今日';
+  const g = group();
+  el.innerHTML = '<div class="ph"><span>🏆 ' + range + 'のバズったコツ</span><span class="grow" style="font-size:.6em;opacity:.8">' + esc(g ? g.name : '') + '・' + esc(unit() ? unit().name : '') + '</span>' +
+    '<div class="ctl"><button data-act="pnames">' + (PRES.names ? '名前をかくす' : '名前を出す') + '</button><button data-act="pclose">とじる</button></div></div>' +
+    '<div class="stage"><div class="pcard" key="' + PRES.i + '">' +
+      '<div class="prank">' + (PRES.i + 1) + '位</div>' +
+      '<div class="pname">' + (PRES.names ? esc(displayName(p.author)) + (p.author.cls ? '（' + esc(p.author.cls) + '）' : '') : '？？？さん') + '</div>' +
+      (p.skills.length ? '<div class="pskill">' + p.skills.map(function (s) { return '<span>' + esc(s) + '</span>'; }).join('') + '</div>' : '') +
+      (p.type === 'reflection' ? '<div class="ptask">🎯 ' + nl(p.task) + '</div>' : '') +
+      '<div class="ptext">' + nl(p.body) + '</div>' +
+      '<div class="pscore"><span class="d">🎉 できた！ ' + p.score.dekita + '</span><span>💪 やってみた ' + p.score.yatta + '</span><span>💡 なるほど ' + p.score.naruhodo + '</span></div>' +
+    '</div></div>' +
+    '<div class="pnav"><button data-act="pmove" data-d="1"' + (PRES.i >= PRES.list.length - 1 ? ' disabled' : '') + '>← 前へ</button><button data-act="pmove" data-d="-1"' + (PRES.i <= 0 ? ' disabled' : '') + '>次へ →</button></div>';
+}
+
+/* =====================================================================
+   先生：評価
+   ===================================================================== */
+function rubricBox(open) {
+  return '<details class="rubric"' + (open ? ' open' : '') + '><summary>ルーブリック（Aの目安）と材料</summary><dl>' +
+    '<dt>思考・判断・表現</dt><dd>' + RUBRIC.t.a + '<br>材料：(a) 振り返り (b) やってみた報告（引用リポスト） (c) 自分のコツへの「できた！」</dd>' +
+    '<dt>知識・技能</dt><dd>' + RUBRIC.k.a + '<br>材料：技のポイントの書き方、提出動画、できた技のチェック</dd>' +
+    '<dt>主体的に学習に取り組む態度</dt><dd>' + RUBRIC.a.a + '<br>材料：投稿の数、リアクションした数、やってみた報告の数</dd></dl></details>';
+}
+async function viewEval() {
+  const head = '<header class="top">' + header('評価', { right: unitSelect() }) + '<div class="grp-row">' + groupSeg() +
+    '<button class="btn line sm" style="margin-left:auto" data-act="export">スプレッドシートに書き出す</button></div></header>';
+  $('#main').innerHTML = head + '<div class="loading"><div class="spinner"></div></div>';
+  let r;
+  try { r = await call('evalList', { groupId: S.groupId, unitId: S.unitId }); } catch (e) { toast(errMsg(e), true); return; }
+  if (S.view.name !== 'eval') return;
+  S.evalList = r.students;
+  const g = function (x) { return x ? '<span class="grade ' + x + '">' + x + '</span>' : '<span class="grade C">―</span>'; };
+  let html = '<div class="page">' + rubricBox(false);
+  if (!r.students.length) html += '<div class="empty"><b>生徒がいません</b>「設定」から名簿を取り込んでください。</div>';
+  else {
+    html += '<p class="note">行を押すと、その生徒の材料を見ながら評価をつけられます。</p><div class="tbl-wrap"><table class="tbl"><thead><tr>' +
+      '<th class="l stick">組・番号・氏名</th><th>振り返り</th><th>やってみた<br>報告</th><th>生かされた<br>🎉</th><th>リアクション<br>した数</th><th>つぶやき</th><th>できた技</th><th>動画</th><th>思考</th><th>知技</th><th>態度</th></tr></thead><tbody>' +
+      r.students.map(function (s) {
+        const st = s.stats;
+        return '<tr class="click" data-act="evalopen" data-uid="' + s.id + '"><td class="l stick">' + esc(clsNo(s)) + ' <b>' + esc(s.name) + '</b></td>' +
+          '<td>' + st.reflections + '</td><td>' + st.quotes + '</td><td>' + st.helped + '</td><td>' + st.reacted + '</td><td>' + st.tweets + '</td><td>' + st.achievements + '</td><td>' + st.videos + '</td>' +
+          '<td>' + g(s.ev.t) + '</td><td>' + g(s.ev.k) + '</td><td>' + g(s.ev.a) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+  $('#main').innerHTML = head + html + '</div>';
+}
+let EV = null;
+async function openEval(uid) {
+  EV = { uid: uid, data: null, form: null, saving: false };
+  showModal('<div class="sheet-head"><button class="icon-btn" data-act="close">' + IC.close + '</button><h2>評価</h2></div><div class="loading"><div class="spinner"></div></div>', { wide: true });
+  try {
+    const r = await call('evalStudent', { userId: uid, unitId: S.unitId });
+    if (!EV || EV.uid !== uid) return;
+    EV.data = r;
+    EV.form = { k: r.ev.k, t: r.ev.t, a: r.ev.a, memo: r.ev.memo };
+    renderEval();
+  } catch (e) { toast(errMsg(e), true); closeModal(); }
+}
+function renderEval() {
+  const r = EV.data, f = EV.form;
+  const list = S.evalList || [];
+  const idx = list.findIndex(function (s) { return s.id === EV.uid; });
+  const st = r.stats;
+  const sec = function (title, k, items) {
+    return '<div class="mat-h">' + title + (k ? ' <span class="k">' + k + '</span>' : '') + '</div>' + (items || '<p class="note">まだありません。</p>');
+  };
+  const cards = function (arr) { return arr.length ? arr.map(function (p) { return card(p, { static: true }); }).join('') : ''; };
+  const helped = r.helpedPosts.length ? r.helpedPosts.map(function (h) {
+    return card(h.post, { static: true, showType: true }) + '<div class="helped-by">🎉 ' + h.by.length + '人が「できた！」：' + h.by.map(function (b) { return esc(displayName(b)); }).join('、') + '</div>';
+  }).join('') : '';
+  const ach = r.skills.map(function (c) {
+    return '<div class="cat">' + esc(c.cat) + '</div><div class="pick-chips">' + c.items.map(function (s) {
+      const on = r.achievements.indexOf(s) >= 0;
+      return '<span class="chip ' + (on ? 'on' : '') + '" style="' + (on ? 'background:var(--c-repost);border-color:var(--c-repost);color:#fff' : 'color:var(--muted)') + '">' + (on ? '✓ ' : '') + esc(s) + '</span>';
+    }).join('') + '</div>';
+  }).join('');
+  const abc = function (key) {
+    return '<div class="k">' + RUBRIC[key].name + '</div><div class="rb">A：' + RUBRIC[key].a + '</div><div class="abc">' + ['A', 'B', 'C'].map(function (x) {
+      return '<button class="' + (f[key] === x ? 'on' : '') + '" data-act="evset" data-k="' + key + '" data-v="' + x + '">' + x + '</button>';
+    }).join('') + '<button class="' + (!f[key] ? 'on' : '') + '" data-act="evset" data-k="' + key + '" data-v="" style="flex:.6">―</button></div>';
+  };
+  const html = '<div class="sheet-head"><button class="icon-btn" data-act="close" aria-label="閉じる">' + IC.close + '</button><h2>' + esc(clsNo(r.user)) + ' ' + esc(r.user.name) + '</h2>' +
+    '<button class="btn line sm" data-act="evnav" data-d="-1"' + (idx <= 0 ? ' disabled' : '') + '>← 前</button><button class="btn line sm" data-act="evnav" data-d="1"' + (idx < 0 || idx >= list.length - 1 ? ' disabled' : '') + '>次 →</button></div>' +
+    '<div class="sheet-body"><div class="ev-layout"><div style="min-width:0">' +
+      '<div class="statgrid"><div class="stat"><b>' + st.reflections + '</b><span>振り返り</span></div><div class="stat"><b>' + st.quotes + '</b><span>やってみた報告</span></div>' +
+      '<div class="stat"><b>' + st.helped + '</b><span>生かされた🎉</span></div><div class="stat"><b>' + st.reacted + '</b><span>リアクションした</span></div>' +
+      '<div class="stat"><b>' + st.tweets + '</b><span>つぶやき</span></div><div class="stat"><b>' + st.achievements + '</b><span>できた技</span></div><div class="stat"><b>' + st.videos + '</b><span>動画提出</span></div></div>' +
+      sec('(a) 振り返り', '思考', cards(r.reflections)) +
+      sec('(b) やってみた報告（引用リポスト）', '思考', cards(r.quotes)) +
+      sec('(c) 自分のコツが仲間の「できた！」につながった投稿', '思考', helped) +
+      sec('できた技のチェック', '知技', ach) +
+      sec('つぶやき', '', cards(r.tweets)) +
+    '</div><div class="ev-form">' + abc('t') + abc('k') + abc('a') +
+      '<div class="k">メモ</div><textarea class="ta" data-input="evmemo" rows="4" style="min-height:80px" placeholder="所見など（先生だけが見られます）">' + esc(f.memo) + '</textarea>' +
+      '<button class="btn blue lg" style="margin-top:10px" data-act="evsave"' + (EV.saving ? ' disabled' : '') + '>' + (EV.saving ? '保存中…' : '保存する') + '</button>' +
+      '<button class="btn line lg" style="margin-top:8px" data-act="evsavenext"' + (EV.saving || idx < 0 || idx >= list.length - 1 ? ' disabled' : '') + '>保存して次の生徒へ</button>' +
+    '</div></div></div>';
+  showModal(html, { wide: true, keep: true });
+}
+async function saveEval(next) {
+  if (!EV || EV.saving) return;
+  EV.saving = true; renderEval();
+  try {
+    await call('saveEval', { userId: EV.uid, unitId: S.unitId, k: EV.form.k, t: EV.form.t, a: EV.form.a, memo: EV.form.memo });
+    const s = (S.evalList || []).filter(function (x) { return x.id === EV.uid; })[0];
+    if (s) { s.ev = { k: EV.form.k, t: EV.form.t, a: EV.form.a, memo: EV.form.memo }; }
+    toast('保存しました');
+    EV.saving = false;
+    if (next) { evNav(1); } else { renderEval(); }
+  } catch (e) { EV.saving = false; renderEval(); toast(errMsg(e), true); }
+}
+function evNav(d) {
+  const list = S.evalList || [];
+  const i = list.findIndex(function (s) { return s.id === EV.uid; });
+  const n = list[i + d];
+  if (n) openEval(n.id);
+}
+
+/* =====================================================================
+   先生：できた技・未提出
+   ===================================================================== */
+async function viewMatrix() {
+  const head = '<header class="top">' + header('できた技', { right: unitSelect() }) + '<div class="grp-row">' + groupSeg() + '</div></header>';
+  $('#main').innerHTML = head + '<div class="loading"><div class="spinner"></div></div>';
+  let r;
+  try { r = await call('matrix', { groupId: S.groupId, unitId: S.unitId }); } catch (e) { toast(errMsg(e), true); return; }
+  if (S.view.name !== 'matrix') return;
+  const skills = [];
+  r.skills.forEach(function (c) { c.items.forEach(function (s) { skills.push(s); }); });
+  let html = '<div class="page"><p class="note">生徒が自分でチェックした「できた技」です。</p>';
+  if (!r.students.length) html += '<div class="empty"><b>生徒がいません</b></div>';
+  else {
+    const totals = skills.map(function (s) { return r.students.filter(function (x) { return x.done.indexOf(s) >= 0; }).length; });
+    html += '<div class="tbl-wrap"><table class="tbl"><thead><tr><th class="l stick">組・番号・氏名</th><th>計</th>' + skills.map(function (s) { return '<th class="v"><span>' + esc(s) + '</span></th>'; }).join('') + '</tr></thead><tbody>' +
+      r.students.map(function (st) {
+        return '<tr><td class="l stick">' + esc(clsNo(st)) + ' <b>' + esc(st.name) + '</b></td><td><b>' + st.done.length + '</b></td>' +
+          skills.map(function (s) { return st.done.indexOf(s) >= 0 ? '<td class="yes">✓</td>' : '<td></td>'; }).join('') + '</tr>';
+      }).join('') +
+      '<tr><td class="l stick"><b>できた人数</b></td><td></td>' + totals.map(function (t) { return '<td><b>' + t + '</b></td>'; }).join('') + '</tr>' +
+      '</tbody></table></div>';
+  }
+  $('#main').innerHTML = head + html + '</div>';
+}
+async function viewMissing() {
+  const head = '<header class="top">' + header('振り返り未提出', { right: unitSelect() }) + '<div class="grp-row">' + groupSeg() +
+    '<button class="icon-btn" style="margin-left:auto" data-act="reload" aria-label="更新">' + IC.refresh + '</button></div></header>';
+  $('#main').innerHTML = head + '<div class="loading"><div class="spinner"></div></div>';
+  let r;
+  try { r = await call('missing', { groupId: S.groupId, unitId: S.unitId }); } catch (e) { toast(errMsg(e), true); return; }
+  if (S.view.name !== 'missing') return;
+  const d = r.today.split('-');
+  let html = '<div class="page"><div class="panel"><p style="margin:0">今日（' + Number(d[1]) + '月' + Number(d[2]) + '日）、この単元で振り返りを出していない生徒</p>' +
+    '<div class="big">' + r.missing.length + ' <span style="font-size:18px;color:var(--muted)">/ ' + r.total + '人</span></div></div>';
+  html += r.missing.length ? '<div class="missing-list">' + r.missing.map(function (s) {
+    return '<span>' + esc(clsNo(s)) + ' ' + esc(s.name) + '</span>';
+  }).join('') + '</div>' : (r.total ? '<div class="empty"><b>🎉 全員が提出しました</b></div>' : '<div class="empty"><b>生徒がいません</b></div>');
+  $('#main').innerHTML = head + html + '</div>';
+}
+
+/* =====================================================================
+   先生：設定
+   ===================================================================== */
+async function viewSettings() {
+  $('#main').innerHTML = '<header class="top">' + header('設定') + '</header><div class="loading"><div class="spinner"></div></div>';
+  let st, stu;
+  try { [st, stu] = await Promise.all([call('getSettings'), call('listStudents')]); } catch (e) { toast(errMsg(e), true); return; }
+  if (S.view.name !== 'settings') return;
+  S.settings = st;
+  const sw = function (key, on, extra) {
+    return '<span class="switch"><input type="checkbox" data-change="setting" data-key="' + key + '"' + (extra || '') + (on ? ' checked' : '') + '><span></span></span>';
+  };
+  let html = '<div class="page">';
+  html += '<div class="set-sec"><h2>表示と投稿</h2>' +
+    '<div class="set-row"><div><b>リアクションの数を生徒に表示する</b><div class="d">オフにすると、生徒の画面から数が消えます（先生には見えます）。</div></div>' + sw('showCounts', st.showCounts) + '</div>' +
+    '<div class="set-row"><div><b>承認モード</b><div class="d">オンにすると、生徒の投稿は先生が「公開する」を押すまで表示されません。</div></div>' + sw('approvalMode', st.approvalMode) + '</div>' +
+    st.groups.map(function (g) {
+      const open = !st.openGroups || st.openGroups[g.id] !== false;
+      return '<div class="set-row"><div><b>投稿の受付：' + esc(g.name) + '</b><div class="d">停止中も、読むこととリアクションはできます。</div></div>' + sw('openGroup', open, ' data-gid="' + g.id + '"') + '</div>';
+    }).join('') + '</div>';
+
+  html += '<div class="set-sec"><h2>NGワード</h2><p class="note">ここにある言葉を含む投稿はブロックされ、「見守り」の記録に残ります。1行に1つずつ書きます。ひらがなだけの短い言葉は、ふつうの言葉に引っかかりやすいので注意してください（例：「えろ」→「かんがえろ」）。URL・メールアドレス・電話番号も自動でブロックします。</p>' +
+    '<textarea class="ta" id="ng-words" rows="8">' + esc(st.ngWords.join('\n')) + '</textarea>' +
+    '<div class="flabel" style="margin-top:12px;font-weight:800">許可する言葉</div><p class="note">NGワードを含んでいても、ブロックしない言葉です（例：「ばかり」は「ばか」を含むが許可）。</p>' +
+    '<textarea class="ta" id="ng-allow" rows="3">' + esc(st.ngAllow.join('\n')) + '</textarea>' +
+    '<div class="btn-row" style="margin-top:10px"><button class="btn blue" data-act="saveng">NGワードを保存</button></div></div>';
+
+  html += '<div class="set-sec"><h2>単元</h2><p class="note">単元ごとに、技のリストと場面タグを登録します。終わった単元は「投稿を受け付ける」をオフにすると、読み返し専用になります。</p>' +
+    st.units.map(function (u) {
+      const gn = u.groups.map(function (id) { const g = st.groups.filter(function (x) { return x.id === id; })[0]; return g ? g.name : ''; }).filter(Boolean).join('、');
+      return '<div class="unit-item"><div class="grow"><b>' + esc(u.name) + '</b> ' + (u.active ? '<span class="pill" style="background:var(--c-repost-bg);color:var(--c-repost)">進行中</span>' : '<span class="pill" style="background:var(--bg2);color:var(--muted)">終了</span>') +
+        '<div class="note" style="margin:2px 0 0">' + flatSkills(u).length + '技・タグ' + u.tags.length + '個・' + esc(gn || '公開先なし') + '</div></div><button class="btn line sm" data-act="unitedit" data-id="' + u.id + '">編集</button></div>';
+    }).join('') +
+    '<div class="btn-row" style="margin-top:10px"><button class="btn blue" data-act="unitedit" data-id="">＋ 単元を追加</button></div></div>';
+
+  html += '<div class="set-sec"><h2>授業集団</h2><p class="note">同じ授業集団の生徒どうしだけが、投稿を見られます。組は「2-1, 2-3」のように書きます。保存すると、生徒の授業集団が組に合わせて付け直されます。</p><div id="grp-edit">' +
+    st.groups.map(function (g) { return grpRow(g); }).join('') + '</div>' +
+    '<div class="btn-row"><button class="btn line sm" data-act="grpadd">＋ 集団を追加</button><button class="btn blue" data-act="grpsave">授業集団を保存</button></div></div>';
+
+  const byCls = {};
+  stu.students.forEach(function (s) { (byCls[s.cls] = byCls[s.cls] || []).push(s); });
+  html += '<div class="set-sec"><h2>生徒名簿 <span class="count-badge">' + stu.students.length + '人</span></h2>' +
+    '<p class="note">Excelで「学年・組・番号・氏名・メールアドレス」の5列を選んでコピーし、下に貼り付けてください（1行目が見出しでもOK）。Excelファイル（.xlsx）を直接選ぶこともできます。同じメールアドレスの生徒は上書きされます。</p>' +
+    '<textarea class="ta" id="roster" rows="5" placeholder="2\t1\t1\t新潟 太郎\tstudent01@example.jp"></textarea>' +
+    '<div class="btn-row" style="margin-top:8px"><label class="btn line sm" style="cursor:pointer">Excelファイルを選ぶ<input type="file" class="sr" accept=".xlsx,.xls,.csv" data-change="rosterfile"></label>' +
+    '<button class="btn blue" data-act="rosterimport">名簿を取り込む</button></div><div id="roster-msg"></div>' +
+    Object.keys(byCls).sort().map(function (c) {
+      return '<details class="cls"><summary>' + esc(c) + '（' + byCls[c].length + '人・' + esc(byCls[c][0].groupName) + '）</summary>' + byCls[c].map(function (s) {
+        return '<div class="stu"><span class="grow">' + s.number + '番 ' + esc(s.name) + ' <span class="note">' + esc(s.email) + '</span>' + (s.suspended ? ' <span class="tag-act red">投稿停止中</span>' : '') + '</span>' +
+          (s.suspended ? '<button class="btn line sm" data-act="unsuspend" data-uid="' + s.id + '">再開</button>' : '') +
+          '<button class="btn line sm" data-act="stuDel" data-id="' + s.id + '" data-name="' + esc(s.name) + '">削除</button></div>';
+      }).join('') + '</details>';
+    }).join('') + '</div>';
+
+  html += '<div class="set-sec"><h2>先生（管理者）</h2><p class="note">ここに登録した先生は、すべての管理機能を使えます。</p>' +
+    st.teachers.map(function (t) {
+      return '<div class="stu"><span class="grow"><b>' + esc(t.name) + '先生</b> <span class="note">' + esc(t.email) + '</span></span>' +
+        '<button class="btn line sm" data-act="tEdit" data-email="' + esc(t.email) + '" data-name="' + esc(t.name) + '">名前を変更</button>' +
+        (t.id === S.me.id ? '' : '<button class="btn line sm" data-act="tDel" data-id="' + t.id + '" data-name="' + esc(t.name) + '">削除</button>') + '</div>';
+    }).join('') +
+    '<div class="grp-edit" style="margin-top:10px"><input class="in" id="t-name" placeholder="名前（例：小林）"><input class="in" id="t-email" placeholder="メールアドレス"><button class="btn blue sm" data-act="tAdd">追加</button></div></div>';
+
+  $('#main').innerHTML = '<header class="top">' + header('設定') + '</header>' + html + '</div>';
+}
+function grpRow(g) {
+  return '<div class="grp-edit" data-gid="' + esc(g.id || '') + '"><input class="in" data-f="name" value="' + esc(g.name) + '" placeholder="集団の名前"><input class="in" data-f="classes" value="' + esc((g.classes || []).join(', ')) + '" placeholder="2-1, 2-3">' +
+    '<button class="btn line sm" data-act="grpdel">削除</button></div>';
+}
+function unitEditor(u) {
+  const st = S.settings;
+  u = u || { id: '', name: '', skills: [{ cat: '', items: [] }], tags: ['助走', '踏切', '着手', '回転', '目線', '着地'], groups: st.groups.map(function (g) { return g.id; }), active: true };
+  const skillsText = u.skills.map(function (c) { return (c.cat || '技') + '：' + c.items.join('、'); }).join('\n');
+  showModal('<div class="sheet-head"><button class="icon-btn" data-act="close">' + IC.close + '</button><h2>' + (u.id ? '単元を編集' : '単元を追加') + '</h2><button class="btn blue sm" data-act="unitsave" data-id="' + esc(u.id) + '">保存</button></div>' +
+    '<div class="sheet-body">' +
+      '<div class="field"><label for="u-name">単元名</label><input class="in" id="u-name" value="' + esc(u.name) + '" placeholder="例：陸上競技（ハードル走）"></div>' +
+      '<div class="field"><label for="u-skills">技のリスト</label><p class="note">1行に1つのまとまり。「まとまりの名前：技、技、技」の形で書きます。</p>' +
+        '<textarea class="ta" id="u-skills" rows="6" placeholder="回転系：前転、後転\n巧技系：倒立">' + esc(skillsText.replace(/^技：$/, '')) + '</textarea></div>' +
+      '<div class="field"><label for="u-tags">場面タグ</label><p class="note">スペースか「、」で区切ります（# はなくてOK）。</p><input class="in" id="u-tags" value="' + esc(u.tags.join(' ')) + '"></div>' +
+      '<div class="field"><div class="flabel">使う授業集団</div>' + st.groups.map(function (g) {
+        return '<label class="set-row" style="cursor:pointer"><span>' + esc(g.name) + '</span><span class="switch"><input type="checkbox" class="u-grp" value="' + g.id + '"' + (u.groups.indexOf(g.id) >= 0 ? ' checked' : '') + '><span></span></span></label>';
+      }).join('') + '</div>' +
+      '<label class="set-row" style="cursor:pointer"><div><b>投稿を受け付ける（進行中）</b><div class="d">オフにすると、読み返し専用になります。</div></div><span class="switch"><input type="checkbox" id="u-active"' + (u.active ? ' checked' : '') + '><span></span></span></label>' +
+    '</div>');
+}
+function parseSkills(text) {
+  return text.split('\n').map(function (line) {
+    line = line.trim();
+    if (!line) return null;
+    const m = line.split(/[:：]/);
+    const cat = m.length > 1 ? m.shift().trim() : '技';
+    const items = m.join('：').split(/[、,，\s]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    return { cat: cat, items: items };
+  }).filter(function (c) { return c && c.items.length; });
+}
+function parseRoster(rows) {
+  rows = rows.filter(function (r) { return r.some(function (c) { return String(c).trim(); }); });
+  if (!rows.length) return [];
+  let idx = { grade: 0, kumi: 1, number: 2, name: 3, email: 4 };
+  const head = rows[0].map(function (c) { return String(c).trim(); });
+  if (head.some(function (h) { return /氏名|名前|メール|学年/.test(h); })) {
+    const find = function (re) { return head.findIndex(function (h) { return re.test(h); }); };
+    idx = { grade: find(/学年/), kumi: find(/^組|クラス|学級/), number: find(/番号|番/), name: find(/氏名|名前/), email: find(/メール|mail|アドレス/i) };
+    rows = rows.slice(1);
+  }
+  return rows.map(function (r) {
+    const get = function (i) { return i >= 0 && r[i] != null ? String(r[i]).trim() : ''; };
+    let grade = get(idx.grade), kumi = get(idx.kumi);
+    const m = kumi.normalize('NFKC').match(/^(\d+)\s*[-ー年]\s*(\d+)/);
+    if (m) { grade = m[1]; kumi = m[2]; }
+    return { grade: grade, kumi: kumi, number: get(idx.number), name: get(idx.name), email: get(idx.email) };
+  });
+}
+let ROSTER_ROWS = null;
+function loadScript(src) {
+  return new Promise(function (resolve, reject) {
+    const s = document.createElement('script'); s.src = src; s.onload = resolve; s.onerror = function () { reject(new Error('読み込みに失敗しました')); };
+    document.head.appendChild(s);
+  });
+}
+async function rosterFile(input) {
+  const f = input.files && input.files[0];
+  if (!f) return;
+  try {
+    if (!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    const buf = await f.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+    $('#roster').value = rows.map(function (r) { return r.join('\t'); }).join('\n');
+    toast('ファイルを読み込みました。内容を確かめて「名簿を取り込む」を押してください。');
+  } catch (e) { toast('ファイルを読み込めませんでした：' + errMsg(e), true); }
+}
+async function rosterImport() {
+  const text = $('#roster').value;
+  const rows = parseRoster(text.split(/\r?\n/).map(function (l) { return l.split(l.indexOf('\t') >= 0 ? '\t' : ','); }));
+  if (!rows.length) { toast('貼り付けた内容が空です', true); return; }
+  if (!(await confirmBox(rows.length + '人分を取り込みます。よろしいですか？', '取り込む'))) return;
+  try {
+    const r = await call('importStudents', { rows: rows });
+    let msg = '新しく ' + r.added + '人、上書き ' + r.updated + '人を登録しました。';
+    if (r.noGroup.length) msg += '\n授業集団が決まっていない組：' + r.noGroup.join('、') + '（「授業集団」で組を追加してください）';
+    if (r.errors.length) msg += '\n読み取れなかった行：\n' + r.errors.slice(0, 10).join('\n');
+    toast('名簿を取り込みました');
+    await viewSettings();
+    const el = $('#roster-msg'); if (el) el.innerHTML = '<div class="notice" style="margin:10px 0;white-space:pre-wrap">' + esc(msg) + '</div>';
+  } catch (e) { toast(errMsg(e), true); }
+}
+
+/* =====================================================================
+   イベント（クリック・入力）
+   ===================================================================== */
+document.addEventListener('click', async function (ev) {
+  const el = ev.target.closest('[data-act]');
+  if (!el) return;
+  const act = el.getAttribute('data-act');
+  const d = function (k) { return el.getAttribute('data-' + k); };
+  if (act === 'overlay') { if (ev.target === el) { closeModal(); if (MENU.length === 2 && MENU[1].fn) { /* confirm cancel */ } } return; }
+  if (el.tagName === 'LABEL') return;
+  switch (act) {
+    case 'nav': {
+      const v = d('v');
+      if (v === 'more') {
+        openMenu([
+          { t: 'できた技', ic: 'grid', fn: function () { go('matrix', {}, true); } },
+          { t: '振り返り未提出', ic: 'list', fn: function () { go('missing', {}, true); } },
+          { t: '設定', ic: 'gear', fn: function () { go('settings', {}, true); } }
+        ]);
+        return;
+      }
+      if (v === 'me') { go('profile', { userId: S.me.id }, true); return; }
+      if (v === 'home' && S.view.name === 'home') { window.scrollTo({ top: 0, behavior: 'smooth' }); S.cutoff = 0; renderList(); loadFeed(true); return; }
+      go(v, {}, true);
+      if (v === 'home') loadFeed(true);
+      return;
+    }
+    case 'back': back(); return;
+    case 'profile': closeModal(); go('profile', { userId: d('uid'), ptab: d('ptab') || '' }); return;
+    case 'ptab': S.profileTab = d('t'); viewProfile(); return;
+    case 'tab': S.tab = d('tab'); store.set('tab', S.tab); viewHome(); return;
+    case 'skill': S.skill = d('skill'); S.pickOnly = false; renderFilters(); renderList(); return;
+    case 'pickonly': S.pickOnly = !S.pickOnly; if (S.pickOnly) S.skill = ''; renderFilters(); renderList(); return;
+    case 'tag': {
+      const t = d('tag');
+      S.tag = S.tag === t ? '' : t;
+      if (S.view.name !== 'home') go('home', {}, true);
+      else { renderFilters(); renderList(); }
+      window.scrollTo(0, 0);
+      return;
+    }
+    case 'group': {
+      S.groupId = d('gid'); store.set('group', S.groupId);
+      if (!unitsForGroup().some(function (u) { return u.id === S.unitId; })) pickDefaultUnit();
+      S.feed = null; S.ver = ''; S.cutoff = 0;
+      render();
+      if (S.view.name === 'home') loadFeed(true);
+      return;
+    }
+    case 'shownew': S.cutoff = 0; renderList(); window.scrollTo({ top: 0, behavior: 'smooth' }); return;
+    case 'compose': openCompose(); return;
+    case 'close': closeModal(); return;
+    case 'menu': { const p = S.posts[d('id')]; if (p) postMenu(p); return; }
+    case 'menuitem': { const it = MENU[Number(d('i'))]; closeModal(); if (it && it.fn) it.fn(); return; }
+    case 'react': react(el); return;
+    case 'rp': { const p = S.posts[d('id')]; if (p) repostMenu(p); return; }
+    case 'reload': render(); return;
+    /* 投稿フォーム */
+    case 'ctype': C.type = d('type'); C.step = 'form'; renderCompose(); return;
+    case 'cback': C.step = 'type'; C.err = ''; renderCompose(); return;
+    case 'ctarget': C.target = d('t'); renderCompose(); return;
+    case 'cskill': {
+      const s = d('skill'), multi = d('multi') === '1';
+      const i = C.skills.indexOf(s);
+      if (i >= 0) C.skills.splice(i, 1);
+      else if (multi) C.skills.push(s);
+      else { C.skills = [s]; C.other = ''; C._otherOpen = false; }
+      renderCompose(); return;
+    }
+    case 'cother': {
+      const multi = d('multi') === '1';
+      const on = C.skills.some(isOther) || C.other !== '' || C._otherOpen;
+      if (on) { C.skills = C.skills.filter(function (s) { return !isOther(s); }); C.other = ''; C._otherOpen = false; }
+      else { C._otherOpen = true; if (!multi) C.skills = []; }
+      renderCompose();
+      if (!on) { const inp = $('[data-input="other"]'); if (inp) inp.focus(); }
+      return;
+    }
+    case 'ctag': { const t = d('tag'); const i = C.tags.indexOf(t); if (i >= 0) C.tags.splice(i, 1); else C.tags.push(t); renderCompose(); return; }
+    case 'clast': C.task = lastTask(); renderCompose(); return;
+    case 'cnovideo': C.file = null; C.fileInfo = ''; renderCompose(); return;
+    case 'csubmit': submitCompose(); return;
+    /* できた技 */
+    case 'ach': {
+      try {
+        await call('toggleAchievement', { unitId: S.unitId, skill: d('skill') });
+        S.myAch = null;
+        viewProfile();
+      } catch (e) { toast(errMsg(e), true); }
+      return;
+    }
+    /* 見守り */
+    case 'tdel': { const id = d('id'); await teacherDelete({ id: id }); viewMod(); return; }
+    case 'resolve': try { await call('resolveReport', { id: d('id') }); toast('対応済みにしました'); viewMod(); refreshBadges(); } catch (e) { toast(errMsg(e), true); } return;
+    case 'approve': try { await call('approve', { postId: d('id'), ok: d('ok') === '1' }); toast(d('ok') === '1' ? '公開しました' : '非公開にしました'); viewMod(); } catch (e) { toast(errMsg(e), true); } return;
+    case 'unsuspend': try { await call('setSuspended', { userId: d('uid'), on: false }); toast('投稿を再開しました'); render(); } catch (e) { toast(errMsg(e), true); } return;
+    /* バズ */
+    case 'brange': S.view.range = d('r'); viewBuzz(); return;
+    case 'present': openPresent(); return;
+    case 'pmove': presMove(Number(d('d'))); return;
+    case 'pnames': PRES.names = !PRES.names; renderPresent(); return;
+    case 'pclose': closePresent(); return;
+    /* 評価 */
+    case 'evalopen': openEval(d('uid')); return;
+    case 'evset': EV.form[d('k')] = d('v'); renderEval(); return;
+    case 'evsave': saveEval(false); return;
+    case 'evsavenext': saveEval(true); return;
+    case 'evnav': evNav(Number(d('d'))); return;
+    case 'export': {
+      try {
+        const r = await call('exportEval', { groupId: S.groupId, unitId: S.unitId });
+        toast('「' + esc(r.sheet) + '」に書き出しました。<a href="' + esc(r.url) + '" target="_blank" rel="noopener">開く</a>', false, true);
+      } catch (e) { toast(errMsg(e), true); }
+      return;
+    }
+    /* 設定 */
+    case 'saveng': {
+      const lines = function (id) { return $(id).value.split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean); };
+      try {
+        await call('setSetting', { key: 'ngWords', value: lines('#ng-words') });
+        await call('setSetting', { key: 'ngAllow', value: lines('#ng-allow') });
+        toast('NGワードを保存しました');
+      } catch (e) { toast(errMsg(e), true); }
+      return;
+    }
+    case 'unitedit': {
+      const id = d('id');
+      unitEditor(id ? S.settings.units.filter(function (u) { return u.id === id; })[0] : null);
+      return;
+    }
+    case 'unitsave': {
+      const payload = {
+        id: d('id'), name: $('#u-name').value, skills: parseSkills($('#u-skills').value),
+        tags: $('#u-tags').value.split(/[\s、,，]+/).filter(Boolean),
+        groups: $$('.u-grp').filter(function (x) { return x.checked; }).map(function (x) { return x.value; }),
+        active: $('#u-active').checked
+      };
+      try {
+        await call('saveUnit', payload);
+        closeModal(); toast('単元を保存しました');
+        const b = await call('bootstrap'); S.units = b.units;
+        viewSettings();
+      } catch (e) { toast(errMsg(e), true); }
+      return;
+    }
+    case 'grpadd': $('#grp-edit').insertAdjacentHTML('beforeend', grpRow({ id: '', name: '', classes: [] })); return;
+    case 'grpdel': el.closest('.grp-edit').remove(); return;
+    case 'grpsave': {
+      const gs = $$('#grp-edit .grp-edit').map(function (row) {
+        return {
+          id: row.getAttribute('data-gid'), name: $('[data-f="name"]', row).value,
+          classes: $('[data-f="classes"]', row).value.normalize('NFKC').split(/[\s,、]+/).filter(Boolean)
+        };
+      });
+      if (!(await confirmBox('授業集団を保存します。生徒の授業集団は、組に合わせて付け直されます。', '保存する'))) return;
+      try {
+        await call('setSetting', { key: 'groups', value: gs });
+        const b = await call('bootstrap'); S.groups = b.groups; S.units = b.units;
+        if (!group(S.groupId)) S.groupId = (S.groups[0] || {}).id || '';
+        S.feed = null; S.ver = '';
+        toast('授業集団を保存しました');
+        viewSettings();
+      } catch (e) { toast(errMsg(e), true); }
+      return;
+    }
+    case 'rosterimport': rosterImport(); return;
+    case 'stuDel': {
+      if (!(await confirmBox(d('name') + 'さんを名簿から削除しますか？\n（投稿は残りますが、ログインできなくなります）', '削除する', true))) return;
+      try { await call('removeStudent', { id: d('id') }); toast('削除しました'); viewSettings(); } catch (e) { toast(errMsg(e), true); }
+      return;
+    }
+    case 'tAdd': {
+      try { await call('saveTeacher', { name: $('#t-name').value, email: $('#t-email').value }); toast('先生を追加しました'); viewSettings(); } catch (e) { toast(errMsg(e), true); }
+      return;
+    }
+    case 'tEdit': {
+      showModal('<div class="sheet-head"><button class="icon-btn" data-act="close">' + IC.close + '</button><h2>名前を変更</h2></div><div class="sheet-body">' +
+        '<div class="field"><label for="t-rename">名前（「先生」は自動で付きます）</label><input class="in" id="t-rename" value="' + esc(d('name')) + '"></div>' +
+        '<button class="btn blue lg" data-act="tRename" data-email="' + esc(d('email')) + '">保存する</button></div>', { menu: true });
+      return;
+    }
+    case 'tRename': {
+      const name = $('#t-rename').value.trim();
+      if (!name) return;
+      try {
+        await call('saveTeacher', { name: name, email: d('email') }); closeModal(); toast('変更しました');
+        const b = await call('bootstrap'); S.me = b.me; renderNav();
+        viewSettings();
+      } catch (e) { toast(errMsg(e), true); }
+      return;
+    }
+    case 'tDel': {
+      if (!(await confirmBox(d('name') + '先生を管理者から外しますか？', '外す', true))) return;
+      try { await call('removeTeacher', { id: d('id') }); toast('外しました'); viewSettings(); } catch (e) { toast(errMsg(e), true); }
+      return;
+    }
+  }
+});
+
+document.addEventListener('input', function (ev) {
+  const el = ev.target;
+  const k = el.getAttribute && el.getAttribute('data-input');
+  if (!k) return;
+  if (k === 'evmemo') { if (EV && EV.form) EV.form.memo = el.value; return; }
+  if (!C) return;
+  if (k === 'other') { C.other = el.value; return; }
+  C[k] = el.value;
+  updateCounters();
+});
+
+document.addEventListener('change', async function (ev) {
+  const el = ev.target;
+  const k = el.getAttribute && el.getAttribute('data-change');
+  if (!k) return;
+  if (k === 'unit') {
+    S.unitId = el.value; store.set('unit', S.unitId);
+    S.feed = null; S.ver = ''; S.cutoff = 0; S.skill = ''; S.tag = '';
+    render();
+    if (S.view.name === 'home') loadFeed(true);
+    return;
+  }
+  if (k === 'video') { pickVideo(el); return; }
+  if (k === 'rosterfile') { rosterFile(el); return; }
+  if (k === 'open') {
+    try {
+      await call('setSetting', { key: 'openGroup', groupId: S.groupId, value: el.checked });
+      S.open = el.checked; toast(el.checked ? '投稿の受付を始めました' : '投稿の受付を止めました');
+      viewHome(); renderNav(); renderRight(); loadFeed(true);
+    } catch (e) { el.checked = !el.checked; toast(errMsg(e), true); }
+    return;
+  }
+  if (k === 'setting') {
+    const key = el.getAttribute('data-key');
+    try {
+      await call('setSetting', { key: key, value: el.checked, groupId: el.getAttribute('data-gid') });
+      if (key === 'showCounts') S.showCounts = el.checked;
+      if (key === 'approvalMode') S.approvalMode = el.checked;
+      if (key === 'openGroup' && el.getAttribute('data-gid') === S.groupId) S.open = el.checked;
+      S.ver = '';
+      toast('変更しました');
+    } catch (e) { el.checked = !el.checked; toast(errMsg(e), true); }
+  }
+});
+
+window.addEventListener('resize', function () { renderRight(); });
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' && !PRES && $('#modal').firstChild) closeModal();
+});
+
+start();
+</script>
+</body>
+</html>
