@@ -481,6 +481,7 @@ const IC = {
   star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.6 7 .7-5.3 4.8 1.6 7L12 17.5 5.7 21.1l1.6-7L2 9.3l7-.7L12 2z"/></svg>',
   stop: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 110 20 10 10 0 010-20zm0 2a8 8 0 00-6.3 12.9L16.9 5.7A8 8 0 0012 4zm6.3 3.1L7.1 18.3A8 8 0 0018.3 7.1z"/></svg>',
   tv: '<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M2 4h20v13H2V4zm2 2v9h16V6H4zm4 13h8v2H8v-2z"/></svg>',
+  users: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 4a4 4 0 110 8 4 4 0 010-8zm0 2a2 2 0 100 4 2 2 0 000-4zm8 1a3 3 0 110 6 3 3 0 010-6zm0 2a1 1 0 100 2 1 1 0 000-2zM1.5 20c.4-3.9 3.6-6.5 7.5-6.5s7.1 2.6 7.5 6.5l.1 1H1.4l.1-1zm2.3-1h10.4c-.7-2.2-2.8-3.5-5.2-3.5S4.5 16.8 3.8 19zm13.7-4.4c2.8.1 5 2 5.4 4.8l.1 1.1h-4.2v-2h1.9c-.6-1.1-1.8-1.8-3.2-1.9v-2z"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4a8 8 0 017.4 5H16v2h7V4h-2v3.3A10 10 0 002 12h2a8 8 0 018-8zm8 8a8 8 0 01-15.4 3H8v-2H1v7h2v-3.3A10 10 0 0022 12h-2z"/></svg>'
 };
 
@@ -613,6 +614,7 @@ function navItems() {
       { v: 'mod', t: '見守り', ic: 'shield', badge: (S.badges.reports || 0) + (S.badges.pending || 0) },
       { v: 'buzz', t: 'バズ', ic: 'trophy' },
       { v: 'eval', t: '評価', ic: 'clip' },
+      { v: 'students', t: '生徒', ic: 'users' },
       { v: 'matrix', t: 'できた技', ic: 'grid' },
       { v: 'missing', t: '未提出', ic: 'list' },
       { v: 'settings', t: '設定', ic: 'gear' }
@@ -658,7 +660,7 @@ function renderNav() {
     bottom = items.slice(0, 4).concat([{ v: 'more', t: 'メニュー', ic: 'menu' }]);
   }
   $('#bottom').innerHTML = bottom.map(function (it) {
-    const on = cur === it.v || (it.v === 'more' && ['matrix', 'missing', 'settings'].indexOf(cur) >= 0);
+    const on = cur === it.v || (it.v === 'more' && ['students', 'matrix', 'missing', 'settings'].indexOf(cur) >= 0);
     const ic = it.v === 'home' && on ? IC.homeOn : IC[it.ic];
     return '<button class="' + (on ? 'on' : '') + '" data-act="nav" data-v="' + it.v + '">' + ic + '<span>' + it.t + '</span>' +
       (it.badge ? '<span class="badge">' + it.badge + '</span>' : '') + '</button>';
@@ -693,7 +695,7 @@ function render() {
   const v = S.view.name;
   const fn = {
     home: viewHome, profile: viewProfile, mod: viewMod, buzz: viewBuzz, eval: viewEval,
-    matrix: viewMatrix, missing: viewMissing, settings: viewSettings
+    matrix: viewMatrix, missing: viewMissing, settings: viewSettings, students: viewStudents
   }[v];
   (fn || viewHome)();
   renderRight();
@@ -1576,6 +1578,37 @@ function evNav(d) {
 /* =====================================================================
    先生：できた技・未提出
    ===================================================================== */
+/* ---------- 先生：生徒一覧（名簿から生徒のページを開く） ---------- */
+async function viewStudents() {
+  const head = '<header class="top">' + header('生徒', { right: unitSelect(), sub: '名前を押すと、その生徒のページが開きます' }) +
+    '<div class="grp-row">' + groupSeg() + '<input class="in" id="stu-q" data-input="stuq" placeholder="名前で探す" style="max-width:220px;margin-left:auto;padding:8px 14px;border-radius:999px" value="' + esc(S.view.q || '') + '"></div></header>';
+  $('#main').innerHTML = head + '<div class="loading"><div class="spinner"></div></div>';
+  let r;
+  try { r = await call('evalList', { groupId: S.groupId, unitId: S.unitId }); } catch (e) { toast(errMsg(e), true); return; }
+  if (S.view.name !== 'students') return;
+  S.studentList = r.students;
+  $('#main').innerHTML = head + '<div id="stu-list"></div>';
+  renderStudentList();
+}
+function renderStudentList() {
+  const el = $('#stu-list');
+  if (!el) return;
+  const q = (S.view.q || '').replace(/\s/g, '');
+  const list = (S.studentList || []).filter(function (s) { return !q || s.name.replace(/\s/g, '').indexOf(q) >= 0; });
+  if (!list.length) { el.innerHTML = '<div class="empty"><b>' + (q ? '見つかりませんでした' : '生徒がいません') + '</b></div>'; return; }
+  let html = '', cls = '';
+  list.forEach(function (s) {
+    if (s.cls !== cls) { cls = s.cls; html += '<div class="sect-lbl" style="padding:14px 16px 4px;font-size:13px">' + esc(cls) + '</div>'; }
+    const st = s.stats;
+    const total = st.reflections + st.tweets;
+    html += '<button class="post" style="width:100%;text-align:left;align-items:center" data-act="profile" data-uid="' + s.id + '">' + avatar({ id: s.id, name: s.name }) +
+      '<div class="pbody"><div class="phead"><span class="name">' + esc(s.name) + '</span><span class="meta">' + esc(clsNo(s)) + '</span></div>' +
+      '<div class="meta" style="color:var(--muted);font-size:13px">' + (total ? '振り返り ' + st.reflections + '・つぶやき ' + st.tweets + '・やってみた報告 ' + st.quotes + '・🎉 ' + st.helped : 'まだ投稿がありません') + '</div></div>' +
+      '<span style="color:var(--muted);font-size:22px">›</span></button>';
+  });
+  el.innerHTML = html;
+}
+
 async function viewMatrix() {
   const head = '<header class="top">' + header('できた技', { right: unitSelect() }) + '<div class="grp-row">' + groupSeg() + '</div></header>';
   $('#main').innerHTML = head + '<div class="loading"><div class="spinner"></div></div>';
@@ -1777,6 +1810,7 @@ document.addEventListener('click', async function (ev) {
       const v = d('v');
       if (v === 'more') {
         openMenu([
+          { t: '生徒', ic: 'users', fn: function () { go('students', {}, true); } },
           { t: 'できた技', ic: 'grid', fn: function () { go('matrix', {}, true); } },
           { t: '振り返り未提出', ic: 'list', fn: function () { go('missing', {}, true); } },
           { t: '設定', ic: 'gear', fn: function () { go('settings', {}, true); } }
@@ -1805,6 +1839,7 @@ document.addEventListener('click', async function (ev) {
     }
     case 'group': {
       S.groupId = d('gid'); store.set('group', S.groupId);
+      if (S.view.q) S.view.q = '';
       if (!unitsForGroup().some(function (u) { return u.id === S.unitId; })) pickDefaultUnit();
       S.feed = null; S.ver = ''; S.cutoff = 0;
       render();
@@ -1966,6 +2001,7 @@ document.addEventListener('input', function (ev) {
   const k = el.getAttribute && el.getAttribute('data-input');
   if (!k) return;
   if (k === 'evmemo') { if (EV && EV.form) EV.form.memo = el.value; return; }
+  if (k === 'stuq') { S.view.q = el.value; renderStudentList(); return; }
   if (!C) return;
   if (k === 'other') { C.other = el.value; return; }
   C[k] = el.value;
