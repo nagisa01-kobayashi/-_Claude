@@ -69,6 +69,11 @@
 
 ## プログラムを更新するとき
 
+コピーする元のファイルは、次のリンクから開けます。開いた画面の右上にある **「Copy raw file」（📋のボタン）** を押すと、ファイルの中身が全部コピーされます。
+
+- [Index.html（画面）](https://github.com/nagisa01-kobayashi/-_Claude/blob/claude/eager-maxwell-mwekin/gas/Index.html)
+- [Code.gs（サーバー側）](https://github.com/nagisa01-kobayashi/-_Claude/blob/claude/eager-maxwell-mwekin/gas/Code.gs)
+
 1. Apps Scriptの `Code.gs` と `Index.html` を、新しい中身に貼り替えて保存します。
 2. **「デプロイ → デプロイを管理」→ ✏️（編集）→ バージョン「新バージョン」→「デプロイ」** を押します。
    - こうすると**URLは変わりません**（「新しいデプロイ」を押すとURLが変わってしまうので注意）。
