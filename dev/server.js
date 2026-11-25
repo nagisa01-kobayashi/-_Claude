@@ -24,12 +24,14 @@ function persist() { fs.writeFileSync(DATA_FILE, JSON.stringify(store)); }
 
 /* ---------------- Apps Script のまね ---------------- */
 let currentEmail = TEACHER;
+const stats = { reads: 0, opens: 0 };
 
 function stripQuote(v) { return typeof v === 'string' && v.charAt(0) === "'" ? v.slice(1) : v; }
 
 class Range {
   constructor(sheet, r, c, nr, nc) { Object.assign(this, { sheet, r, c, nr: nr || 1, nc: nc || 1 }); }
   getValues() {
+    stats.reads++;
     const d = store.sheets[this.sheet.name];
     const out = [];
     for (let i = 0; i < this.nr; i++) {
@@ -122,7 +124,7 @@ function formatDate(date, tz, fmt) {
 
 const ctx = vm.createContext({
   console,
-  SpreadsheetApp: { openById: () => SS, getActiveSpreadsheet: () => SS },
+  SpreadsheetApp: { openById: () => { stats.opens++; return SS; }, getActiveSpreadsheet: () => SS, flush: () => {} },
   PropertiesService: {
     getScriptProperties: () => ({
       getProperty: (k) => (k in store.props ? store.props[k] : null),
@@ -249,7 +251,9 @@ http.createServer((req, res) => {
       try {
         const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         currentEmail = String(body.as || TEACHER).toLowerCase();
+        const r0 = stats.reads, o0 = stats.opens;
         out = { result: ctx.api(body.args[0], body.args[1]) };
+        if (process.env.KOTSUTTER_DEBUG) console.log(body.args[0], 'sheetReads=' + (stats.reads - r0), 'opens=' + (stats.opens - o0));
         persist();
       } catch (e) {
         out = { error: e.message || String(e) };

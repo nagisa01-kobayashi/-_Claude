@@ -111,9 +111,11 @@ function doGet() {
  */
 function api(action, payloadJson) {
   DB.reset();
+  DB._dirty = {};
+  TableVer._memo = null;
   const payload = payloadJson ? JSON.parse(payloadJson) : {};
   const me = currentUser_();
-  if (action === 'bootstrap') return JSON.stringify(bootstrap_(me));
+  if (action === 'bootstrap') return JSON.stringify(bootstrap_(me, payload));
   if (!me) throw new Error('このアカウントは登録されていません。先生に確認してください。');
   const studentActions = {
     feed: feed_, createPost: createPost_, editPost: editPost_, deletePost: deletePost_,
@@ -187,6 +189,7 @@ function setup() {
   if (email && !DB.all('Teachers').some(function (t) { return t.email === email; })) {
     DB.insert('Teachers', { id: newId_('t'), email: email, name: '管理者' });
   }
+  DB.finishWrites();
   Ver.bump(['global']);
   return 'セットアップが完了しました。';
 }
@@ -195,10 +198,56 @@ function setup() {
 /*  データアクセス                                                        */
 /* ------------------------------------------------------------------ */
 
+/**
+ * シートの中身は、Googleのキャッシュにも入れておきます。
+ * 読むだけのときはスプレッドシートを開かずにすむので、画面の表示が速くなります。
+ * 書き込みがあったシートは版番号を変えて、古いキャッシュを使わないようにします。
+ */
+const TableVer = {
+  _memo: null,
+  load: function () {
+    if (this._memo) return this._memo;
+    const ks = Object.keys(SCHEMA).map(function (n) { return 'tv:' + n; });
+    this._memo = CacheService.getScriptCache().getAll(ks) || {};
+    return this._memo;
+  },
+  get: function (name) {
+    const m = this.load();
+    let v = m['tv:' + name];
+    if (!v) {
+      v = String(Date.now()) + Math.random().toString(36).slice(2, 7);
+      CacheService.getScriptCache().put('tv:' + name, v, 21600);
+      m['tv:' + name] = v;
+    }
+    return v;
+  },
+  bump: function (names) {
+    const o = {};
+    names.forEach(function (n) { o['tv:' + n] = String(Date.now()) + Math.random().toString(36).slice(2, 7); });
+    CacheService.getScriptCache().putAll(o, 21600);
+    this._memo = null;
+  }
+};
+
 const DB = {
   _ss: null,
   _memo: {},
+  _dirty: {},
+  _inLock: false,
+  _pendingVer: null,
   reset: function () { this._memo = {}; },
+  /** 書き込みを確定させ、キャッシュの版番号を進める */
+  finishWrites: function () {
+    const names = Object.keys(this._dirty);
+    if (!names.length) return;
+    SpreadsheetApp.flush();
+    TableVer.bump(names);
+    this._dirty = {};
+  },
+  touch: function (name) {
+    delete this._memo[name];
+    this._dirty[name] = true;
+  },
   ss: function () {
     if (!this._ss) {
       const id = PropertiesService.getScriptProperties().getProperty('SS_ID');
@@ -210,10 +259,19 @@ const DB = {
   sheet: function (name) { return this.ss().getSheetByName(name); },
   all: function (name) {
     if (this._memo[name]) return this._memo[name];
-    const sh = this.sheet(name);
     const cols = SCHEMA[name];
-    const n = sh.getLastRow() - 1;
-    const rows = n > 0 ? sh.getRange(2, 1, n, cols.length).getValues() : [];
+    let rows = null, key = null;
+    // 書き込み中（ロックの中）や、この実行で書き込んだシートは、必ずシートから読む
+    if (!this._inLock && !this._dirty[name]) {
+      key = 'tbl:' + name + ':' + TableVer.get(name);
+      rows = BigCache.get(key);
+    }
+    if (!rows) {
+      const sh = this.sheet(name);
+      const n = sh.getLastRow() - 1;
+      rows = n > 0 ? sh.getRange(2, 1, n, cols.length).getValues() : [];
+      if (key) BigCache.put(key, rows, 21600);
+    }
     const out = rows.map(function (r, i) {
       const o = { _row: i + 2 };
       cols.forEach(function (c, j) { o[c] = decode_(c, r[j]); });
@@ -227,7 +285,7 @@ const DB = {
     const cols = SCHEMA[name];
     sh.getRange(sh.getLastRow() + 1, 1, 1, cols.length)
       .setValues([cols.map(function (c) { return encode_(c, obj[c]); })]);
-    delete this._memo[name];
+    this.touch(name);
   },
   insertMany: function (name, list) {
     if (!list.length) return;
@@ -235,7 +293,7 @@ const DB = {
     const cols = SCHEMA[name];
     sh.getRange(sh.getLastRow() + 1, 1, list.length, cols.length)
       .setValues(list.map(function (obj) { return cols.map(function (c) { return encode_(c, obj[c]); }); }));
-    delete this._memo[name];
+    this.touch(name);
   },
   /** 全行をまとめて書き直す（行の数は変えない） */
   rewrite: function (name, list) {
@@ -243,17 +301,17 @@ const DB = {
     const cols = SCHEMA[name];
     this.sheet(name).getRange(2, 1, list.length, cols.length)
       .setValues(list.map(function (obj) { return cols.map(function (c) { return encode_(c, obj[c]); }); }));
-    delete this._memo[name];
+    this.touch(name);
   },
   update: function (name, obj) {
     const cols = SCHEMA[name];
     this.sheet(name).getRange(obj._row, 1, 1, cols.length)
       .setValues([cols.map(function (c) { return encode_(c, obj[c]); })]);
-    delete this._memo[name];
+    this.touch(name);
   },
   remove: function (name, obj) {
     this.sheet(name).deleteRow(obj._row);
-    delete this._memo[name];
+    this.touch(name);
   }
 };
 
@@ -278,11 +336,23 @@ function decode_(col, v) {
 function withLock_(fn) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
+  DB._inLock = true;
+  DB._pendingVer = [];
   try {
     DB.reset();
     return fn();
   } finally {
-    lock.releaseLock();
+    try {
+      DB.finishWrites();
+      const pv = DB._pendingVer;
+      DB._pendingVer = null;
+      // シートのキャッシュを新しくしてから、タイムラインの版番号を進める
+      if (pv && pv.length) Ver.bump(pv, true);
+    } finally {
+      DB._inLock = false;
+      DB.reset();
+      lock.releaseLock();
+    }
   }
 }
 
@@ -302,7 +372,11 @@ const Ver = {
     if (Object.keys(missing).length) c.putAll(missing, 21600);
     return vals.join('.');
   },
-  bump: function (keys) {
+  bump: function (keys, now) {
+    if (!now && DB._pendingVer) {
+      keys.forEach(function (k) { if (DB._pendingVer.indexOf(k) < 0) DB._pendingVer.push(k); });
+      return;
+    }
     const c = CacheService.getScriptCache();
     const o = {};
     keys.forEach(function (k) { o['v:' + k] = String(Date.now()) + Math.floor(Math.random() * 1000); });
@@ -477,14 +551,25 @@ function ngCheck_(text) {
 /*  起動・タイムライン                                                     */
 /* ------------------------------------------------------------------ */
 
-function bootstrap_(me) {
+function bootstrap_(me, d) {
   if (!me) {
     return { unregistered: true, email: Session.getActiveUser().getEmail() || '' };
   }
+  d = d || {};
   const st = settings_();
   const groups = groups_();
   const mine = me.teacher ? groups : groups.filter(function (g) { return g.id === me.groupId; });
+  // 最初のタイムラインも一緒に返して、通信の回数を減らす
+  let first = null;
+  const gid = me.teacher ? (mine.some(function (g) { return g.id === d.groupId; }) ? d.groupId : (mine[0] || {}).id) : me.groupId;
+  const units = visibleUnits_(me).filter(function (u) { return !me.teacher || u.groups.indexOf(gid) >= 0; });
+  let uid = units.some(function (u) { return u.id === d.unitId; }) ? d.unitId : '';
+  if (!uid) uid = ((units.filter(function (u) { return u.active; })[0]) || units[0] || {}).id || '';
+  if (d.withFeed && gid && uid) {
+    try { first = feed_(me, { unitId: uid, groupId: gid }); first.unitId = uid; first.groupId = gid; } catch (e) { first = null; }
+  }
   return {
+    feed: first,
     me: {
       id: me.id, name: me.name, cls: me.cls || '', number: me.number || 0,
       teacher: me.teacher, groupId: me.groupId || '', suspended: !!me.suspended
@@ -602,7 +687,8 @@ function feed_(me, d) {
     suspended: meRow ? !!meRow.suspended : false,
     showCounts: st.showCounts !== false,
     approvalMode: !!st.approvalMode,
-    units: visibleUnits_(me)
+    units: visibleUnits_(me),
+    badges: me.teacher ? badges_(me) : null
   };
 }
 

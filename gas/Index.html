@@ -570,7 +570,7 @@ function isOther(s) { return s.indexOf('その他：') === 0; }
 async function start() {
   let b;
   try {
-    b = await call('bootstrap');
+    b = await call('bootstrap', { withFeed: true, unitId: store.get('unit', ''), groupId: store.get('group', '') });
   } catch (e) {
     $('#app').innerHTML = '<div class="center-msg">' + LOGO + '<h2>読み込めませんでした</h2><p>' + esc(errMsg(e)) + '</p><button class="btn blue" onclick="location.reload()">もう一度読み込む</button></div>';
     return;
@@ -584,12 +584,13 @@ async function start() {
   S.groupId = S.me.teacher ? store.get('group', (S.groups[0] || {}).id) : S.me.groupId;
   if (!group(S.groupId)) S.groupId = (S.groups[0] || {}).id || '';
   pickDefaultUnit();
+  if (b.feed) { S.groupId = b.feed.groupId; S.unitId = b.feed.unitId; }
   S.tab = store.get('tab', 'reflection');
   renderShell();
   go('home', {}, true);
-  loadFeed(true);
+  if (b.feed) applyFeed(b.feed, true); else loadFeed(true);
   setInterval(poll, 20000);
-  if (S.me.teacher) { refreshBadges(); setInterval(refreshBadges, 30000); }
+  if (S.me.teacher) setInterval(refreshBadges, 60000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
 }
 
@@ -883,10 +884,18 @@ async function loadFeed(force) {
     const r = await call('feed', { unitId: S.unitId, groupId: S.groupId, ver: force ? '' : S.ver });
     if (key !== S.unitId + '|' + S.groupId) return;
     if (r.unchanged) return;
+    applyFeed(r, force);
+  } catch (e) {
+    if (force) toast(errMsg(e), true);
+  }
+}
+function applyFeed(r, force) {
+  {
     const prevTop = S.feed && S.feed.posts.length ? Math.max.apply(null, S.feed.posts.map(function (p) { return p.createdAt; })) : 0;
     const hadFeed = !!S.feed;
     S.feed = r; S.ver = r.ver; S.open = r.open; S.suspended = r.suspended;
     S.showCounts = r.showCounts; S.approvalMode = r.approvalMode;
+    if (r.badges) S.badges = r.badges;
     if (r.units) {
       S.units = r.units;
       if (!S.units.some(function (u) { return u.id === S.unitId; })) { pickDefaultUnit(); S.feed = null; S.ver = ''; return loadFeed(true); }
@@ -907,13 +916,29 @@ async function loadFeed(force) {
     }
     renderNav();
     renderRight();
-  } catch (e) {
-    if (force) toast(errMsg(e), true);
   }
 }
 function poll() {
   if (document.hidden) return;
   if (S.view.name === 'home' || !S.feed) loadFeed(false);
+}
+/* 一度開いたページはすぐに表示し、裏で新しい内容を取りに行く */
+const VC = {};
+async function cachedCall(action, payload, isCurrent, show, fail) {
+  const key = action + ':' + JSON.stringify(payload);
+  const hit = VC[key];
+  if (hit && isCurrent()) show(hit);
+  try {
+    const r = await call(action, payload);
+    const same = hit && JSON.stringify(hit) === JSON.stringify(r);
+    VC[key] = r;
+    if (!same && isCurrent()) show(r);
+  } catch (e) {
+    if (!hit) fail(e); else toast(errMsg(e), true);
+  }
+}
+function forgetCache(action) {
+  Object.keys(VC).forEach(function (k) { if (!action || k.indexOf(action + ':') === 0) delete VC[k]; });
 }
 async function refreshBadges() {
   try { S.badges = await call('badges'); renderNav(); } catch (e) { /* 次回 */ }
@@ -923,12 +948,16 @@ async function refreshBadges() {
    右カラム
    ===================================================================== */
 async function loadMyAch() {
-  if (S.me.teacher || !S.unitId) return;
+  if (S.me.teacher || !S.unitId || S.achLoading) return;
+  S.achLoading = true;
   try {
-    const r = await call('profile', { userId: S.me.id, unitId: S.unitId });
+    const payload = { userId: S.me.id, unitId: S.unitId };
+    const r = await call('profile', payload);
+    VC['profile:' + JSON.stringify(payload)] = r;
     S.myAch = { unitId: S.unitId, list: r.achievements || [], helped: r.stats.helped };
     renderRight();
   } catch (e) { /* 表示しないだけ */ }
+  S.achLoading = false;
 }
 function renderRight() {
   const el = $('#right');
@@ -1309,12 +1338,14 @@ async function viewProfile() {
   const uid = S.view.userId;
   const isMe = uid === S.me.id;
   $('#main').innerHTML = '<header class="top">' + header(isMe ? '自分のページ' : 'プロフィール', { back: S.stack.length > 0, right: unitSelect() }) + '</header><div class="loading"><div class="spinner"></div>読み込み中…</div>';
-  let r;
-  try { r = await call('profile', { userId: uid, unitId: S.unitId }); } catch (e) {
-    $('#main').innerHTML = '<header class="top">' + header('プロフィール', { back: true }) + '</header><div class="empty"><b>表示できません</b>' + esc(errMsg(e)) + '</div>';
-    return;
-  }
-  if (S.view.name !== 'profile' || S.view.userId !== uid) return;
+  await cachedCall('profile', { userId: uid, unitId: S.unitId },
+    function () { return S.view.name === 'profile' && S.view.userId === uid; },
+    function (r) { renderProfile(r, uid, isMe); },
+    function (e) {
+      $('#main').innerHTML = '<header class="top">' + header('プロフィール', { back: true }) + '</header><div class="empty"><b>表示できません</b>' + esc(errMsg(e)) + '</div>';
+    });
+}
+function renderProfile(r, uid, isMe) {
   if (isMe) S.myAch = { unitId: S.unitId, list: r.achievements || [], helped: r.stats.helped };
   const u = r.user;
   const tabs = [['posts', '投稿'], ['reposts', 'リポスト']];
@@ -1368,9 +1399,7 @@ const LOG_LABEL = {
 };
 async function viewMod() {
   $('#main').innerHTML = '<header class="top">' + header('見守り', { right: '<button class="icon-btn" data-act="reload" aria-label="更新">' + IC.refresh + '</button>' }) + '</header><div class="loading"><div class="spinner"></div></div>';
-  let r;
-  try { r = await call('moderation'); } catch (e) { $('#main').innerHTML += '<div class="err">' + esc(errMsg(e)) + '</div>'; return; }
-  if (S.view.name !== 'mod') return;
+  await cachedCall('moderation', {}, function () { return S.view.name === 'mod'; }, function (r) {
   S.badges = { reports: r.reports.length, pending: r.pending.length };
   renderNav();
   let html = '<div class="page">';
@@ -1405,6 +1434,7 @@ async function viewMod() {
       (snap ? '<div class="snap">' + esc(snap) + '</div>' : '') + '</div></div>';
   }).join('') : '<p class="note">記録はまだありません。</p>';
   $('#main').innerHTML = '<header class="top">' + header('見守り', { right: '<button class="icon-btn" data-act="reload" aria-label="更新">' + IC.refresh + '</button>' }) + '</header>' + html + '</div>';
+  }, function (e) { $('#main').innerHTML += '<div class="err">' + esc(errMsg(e)) + '</div>'; });
 }
 
 /* =====================================================================
@@ -1416,9 +1446,7 @@ async function viewBuzz() {
     '<div class="grp-row">' + groupSeg() + '<div class="seg" style="margin-left:auto"><button class="' + (range === 'today' ? 'on' : '') + '" data-act="brange" data-r="today">今日</button>' +
     '<button class="' + (range === 'all' ? 'on' : '') + '" data-act="brange" data-r="all">全期間</button></div></div></header>';
   $('#main').innerHTML = head + '<div class="loading"><div class="spinner"></div></div>';
-  let r;
-  try { r = await call('buzz', { groupId: S.groupId, unitId: S.unitId, range: range }); } catch (e) { toast(errMsg(e), true); return; }
-  if (S.view.name !== 'buzz') return;
+  await cachedCall('buzz', { groupId: S.groupId, unitId: S.unitId, range: range }, function () { return S.view.name === 'buzz'; }, function (r) {
   S.buzz = r.list;
   let html = '<div class="page"><div class="btn-row" style="justify-content:space-between"><p class="note" style="margin:0">「できた！」の多い順' + (range === 'today' ? '（今日ついたリアクション）' : '') + '</p>' +
     (r.list.length ? '<button class="btn blue sm" data-act="present">' + IC.tv + '発表モード</button>' : '') + '</div>';
@@ -1427,6 +1455,7 @@ async function viewBuzz() {
       card(p, { static: true, showType: true }).replace('class="post ', 'class="post static ') + '</div></div>';
   }).join('') : '<div class="empty"><b>まだありません</b>' + (range === 'today' ? '今日はまだリアクションがついていません。' : 'リアクションがついた投稿がありません。') + '</div>';
   $('#main').innerHTML = head + html + '</div>';
+  }, function (e) { toast(errMsg(e), true); });
 }
 let PRES = null;
 function openPresent() {
@@ -1484,9 +1513,7 @@ async function viewEval() {
   const head = '<header class="top">' + header('評価', { right: unitSelect() }) + '<div class="grp-row">' + groupSeg() +
     '<button class="btn line sm" style="margin-left:auto" data-act="export">スプレッドシートに書き出す</button></div></header>';
   $('#main').innerHTML = head + '<div class="loading"><div class="spinner"></div></div>';
-  let r;
-  try { r = await call('evalList', { groupId: S.groupId, unitId: S.unitId }); } catch (e) { toast(errMsg(e), true); return; }
-  if (S.view.name !== 'eval') return;
+  await cachedCall('evalList', { groupId: S.groupId, unitId: S.unitId }, function () { return S.view.name === 'eval'; }, function (r) {
   S.evalList = r.students;
   const g = function (x) { return x ? '<span class="grade ' + x + '">' + x + '</span>' : '<span class="grade C">―</span>'; };
   let html = '<div class="page">' + rubricBox(false);
@@ -1502,6 +1529,7 @@ async function viewEval() {
       }).join('') + '</tbody></table></div>';
   }
   $('#main').innerHTML = head + html + '</div>';
+  }, function (e) { toast(errMsg(e), true); });
 }
 let EV = null;
 async function openEval(uid) {
@@ -1583,12 +1611,11 @@ async function viewStudents() {
   const head = '<header class="top">' + header('生徒', { right: unitSelect(), sub: '名前を押すと、その生徒のページが開きます' }) +
     '<div class="grp-row">' + groupSeg() + '<input class="in" id="stu-q" data-input="stuq" placeholder="名前で探す" style="max-width:220px;margin-left:auto;padding:8px 14px;border-radius:999px" value="' + esc(S.view.q || '') + '"></div></header>';
   $('#main').innerHTML = head + '<div class="loading"><div class="spinner"></div></div>';
-  let r;
-  try { r = await call('evalList', { groupId: S.groupId, unitId: S.unitId }); } catch (e) { toast(errMsg(e), true); return; }
-  if (S.view.name !== 'students') return;
+  await cachedCall('evalList', { groupId: S.groupId, unitId: S.unitId }, function () { return S.view.name === 'students'; }, function (r) {
   S.studentList = r.students;
   $('#main').innerHTML = head + '<div id="stu-list"></div>';
   renderStudentList();
+  }, function (e) { toast(errMsg(e), true); });
 }
 function renderStudentList() {
   const el = $('#stu-list');
@@ -1612,9 +1639,7 @@ function renderStudentList() {
 async function viewMatrix() {
   const head = '<header class="top">' + header('できた技', { right: unitSelect() }) + '<div class="grp-row">' + groupSeg() + '</div></header>';
   $('#main').innerHTML = head + '<div class="loading"><div class="spinner"></div></div>';
-  let r;
-  try { r = await call('matrix', { groupId: S.groupId, unitId: S.unitId }); } catch (e) { toast(errMsg(e), true); return; }
-  if (S.view.name !== 'matrix') return;
+  await cachedCall('matrix', { groupId: S.groupId, unitId: S.unitId }, function () { return S.view.name === 'matrix'; }, function (r) {
   const skills = [];
   r.skills.forEach(function (c) { c.items.forEach(function (s) { skills.push(s); }); });
   let html = '<div class="page"><p class="note">生徒が自分でチェックした「できた技」です。</p>';
@@ -1630,14 +1655,13 @@ async function viewMatrix() {
       '</tbody></table></div>';
   }
   $('#main').innerHTML = head + html + '</div>';
+  }, function (e) { toast(errMsg(e), true); });
 }
 async function viewMissing() {
   const head = '<header class="top">' + header('振り返り未提出', { right: unitSelect() }) + '<div class="grp-row">' + groupSeg() +
     '<button class="icon-btn" style="margin-left:auto" data-act="reload" aria-label="更新">' + IC.refresh + '</button></div></header>';
   $('#main').innerHTML = head + '<div class="loading"><div class="spinner"></div></div>';
-  let r;
-  try { r = await call('missing', { groupId: S.groupId, unitId: S.unitId }); } catch (e) { toast(errMsg(e), true); return; }
-  if (S.view.name !== 'missing') return;
+  await cachedCall('missing', { groupId: S.groupId, unitId: S.unitId }, function () { return S.view.name === 'missing'; }, function (r) {
   const d = r.today.split('-');
   let html = '<div class="page"><div class="panel"><p style="margin:0">今日（' + Number(d[1]) + '月' + Number(d[2]) + '日）、この単元で振り返りを出していない生徒</p>' +
     '<div class="big">' + r.missing.length + ' <span style="font-size:18px;color:var(--muted)">/ ' + r.total + '人</span></div></div>';
@@ -1645,6 +1669,7 @@ async function viewMissing() {
     return '<span>' + esc(clsNo(s)) + ' ' + esc(s.name) + '</span>';
   }).join('') + '</div>' : (r.total ? '<div class="empty"><b>🎉 全員が提出しました</b></div>' : '<div class="empty"><b>生徒がいません</b></div>');
   $('#main').innerHTML = head + html + '</div>';
+  }, function (e) { toast(errMsg(e), true); });
 }
 
 /* =====================================================================
@@ -1881,11 +1906,19 @@ document.addEventListener('click', async function (ev) {
     case 'csubmit': submitCompose(); return;
     /* できた技 */
     case 'ach': {
+      // 押したらすぐにチェックを切り替え、保存は裏で行う
+      const skill = d('skill');
+      const r = VC['profile:' + JSON.stringify({ userId: S.me.id, unitId: S.unitId })];
+      if (r && r.achievements) {
+        const i = r.achievements.indexOf(skill);
+        if (i >= 0) r.achievements.splice(i, 1); else r.achievements.push(skill);
+        S.myAch = { unitId: S.unitId, list: r.achievements.slice(), helped: r.stats.helped };
+        renderProfile(r, S.me.id, true);
+        renderRight();
+      }
       try {
-        await call('toggleAchievement', { unitId: S.unitId, skill: d('skill') });
-        S.myAch = null;
-        viewProfile();
-      } catch (e) { toast(errMsg(e), true); }
+        await call('toggleAchievement', { unitId: S.unitId, skill: skill });
+      } catch (e) { toast(errMsg(e), true); forgetCache('profile'); S.myAch = null; viewProfile(); }
       return;
     }
     /* 見守り */
