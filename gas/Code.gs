@@ -42,6 +42,12 @@ const SCHEMA = {
 };
 const JSON_COLS = { value: 1, skills: 1, tags: 1, groups: 1, detail: 1 };
 const LEVELS = ['◎', '○', '△'];
+/** 各シートで行を見分ける列 */
+const KEY_COLS = {
+  Settings: ['key'], Teachers: ['id'], Students: ['id'], Units: ['id'], Posts: ['id'],
+  Reactions: ['postId', 'userId', 'kind'], Reposts: ['postId', 'userId'], Reports: ['id'],
+  Achievements: ['userId', 'unitId', 'skill'], Pins: ['userId', 'unitId'], Evals: ['userId', 'unitId'], Log: ['id']
+};
 const NUM_COLS = { number: 1, suspended: 1, active: 1, pick: 1, createdAt: 1, editedAt: 1, at: 1 };
 
 const DEFAULT_GROUPS = [
@@ -269,8 +275,9 @@ const DB = {
     if (this._memo[name]) return this._memo[name];
     const cols = SCHEMA[name];
     let rows = null, key = null;
-    // 書き込み中（ロックの中）や、この実行で書き込んだシートは、必ずシートから読む
-    if (!this._inLock && !this._dirty[name]) {
+    // この実行で書き込んだシートは、必ずシートから読む
+    // （ロックの中でもキャッシュを使う。キャッシュは前の書き込みが確定した後の版なので、シートと同じ内容）
+    if (!this._dirty[name]) {
       key = 'tbl:' + name + ':' + TableVer.get(name);
       rows = BigCache.get(key);
     }
@@ -321,14 +328,38 @@ const DB = {
       .setValues(list.map(function (obj) { return cols.map(function (c) { return encode_(c, obj[c]); }); }));
     this.touch(name);
   },
+  /** 次に読むとき、キャッシュを使わずシートから読む */
+  fresh: function (name) {
+    delete this._memo[name];
+    this._dirty[name] = true;
+  },
+  /** 書き換える行が本当にその行か、シートで確かめる（違っていたら探し直す） */
+  locate: function (name, obj) {
+    const cols = SCHEMA[name];
+    const keys = KEY_COLS[name] || [cols[0]];
+    const same = function (row) {
+      return keys.every(function (k) { return String(decode_(k, row[cols.indexOf(k)])) === String(obj[k] == null ? '' : obj[k]); });
+    };
+    const row = this.sheet(name).getRange(obj._row, 1, 1, cols.length).getValues()[0];
+    if (same(row)) return obj._row;
+    this.fresh(name);
+    const hit = this.all(name).filter(function (o) {
+      return keys.every(function (k) { return String(o[k]) === String(obj[k] == null ? '' : obj[k]); });
+    })[0];
+    if (!hit) throw new Error('データが更新されていました。もう一度試してください。');
+    obj._row = hit._row;
+    return hit._row;
+  },
   update: function (name, obj) {
     const cols = SCHEMA[name];
-    this.sheet(name).getRange(obj._row, 1, 1, cols.length)
+    const r = this.locate(name, obj);
+    this.sheet(name).getRange(r, 1, 1, cols.length)
       .setValues([cols.map(function (c) { return encode_(c, obj[c]); })]);
     this.touch(name);
   },
   remove: function (name, obj) {
-    this.sheet(name).deleteRow(obj._row);
+    const r = this.locate(name, obj);
+    this.sheet(name).deleteRow(r);
     this.touch(name);
   }
 };
@@ -353,7 +384,7 @@ function decode_(col, v) {
 /** 書き込みは必ずロックの中で行います（同時に投稿されても壊れないように） */
 function withLock_(fn) {
   const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
+  lock.waitLock(28000);
   DB._inLock = true;
   DB._pendingVer = [];
   try {
@@ -471,6 +502,18 @@ function studentMe_(s, email, guest) {
 function currentUser_(payload) {
   const email = (Session.getActiveUser().getEmail() || '').toLowerCase();
   if (!email) return null;
+  // 先生・生徒の判定結果を覚えておく（名簿や設定が変わると自動で作り直す）
+  const vkey = 'me:' + email + ':' + TableVer.get('Teachers') + TableVer.get('Students') + TableVer.get('Settings');
+  if (!(payload && payload._g)) {
+    const hit = CacheService.getScriptCache().get(vkey);
+    if (hit) return JSON.parse(hit);
+  }
+  const me = currentUserUncached_(email, payload);
+  if (me && !me.guest) CacheService.getScriptCache().put(vkey, JSON.stringify(me), 21600);
+  return me;
+}
+
+function currentUserUncached_(email, payload) {
   const t = DB.all('Teachers').filter(function (x) { return x.email === email; })[0];
   if (t) return { id: t.id, email: email, name: t.name, teacher: true };
   // 共通アカウント（仮ログイン用）
@@ -791,9 +834,13 @@ function feed_(me, d) {
   }
   const st = settings_();
   const meRow = me.teacher ? null : DB.all('Students').filter(function (s) { return s.id === me.id; })[0];
+  // 送る投稿は新しい順に limit 件まで（古い投稿は「もっと見る」で読む）
+  const all = personalize_(base, me, st);
+  const limit = Math.max(50, Math.min(3000, Number(d.limit) || 150));
   return {
     ver: v,
-    posts: personalize_(base, me, st),
+    posts: all.slice(0, limit),
+    more: all.length > limit,
     open: isOpen_(st, gid),
     suspended: meRow ? !!meRow.suspended : false,
     showCounts: st.showCounts !== false,
@@ -1470,6 +1517,7 @@ function setSetting_(me, d) {
         });
         putSetting_('groups', gs);
         DB.reset();
+        DB.fresh('Students');
         const all = DB.all('Students');
         all.forEach(function (s) { s.groupId = groupOfClass_(s.cls); });
         DB.rewrite('Students', all);
@@ -1512,6 +1560,7 @@ function saveUnit_(me, d) {
  */
 function importStudents_(me, d) {
   return withLock_(function () {
+    DB.fresh('Students');
     const existing = {};
     DB.all('Students').forEach(function (s) { existing[s.email] = s; });
     const teacherEmails = {};

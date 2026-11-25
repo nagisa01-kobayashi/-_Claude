@@ -535,12 +535,24 @@ const store = {
 };
 
 /* ---------- サーバー呼び出し ---------- */
+/* 大勢が同時に使って混み合ったときは、少し待って自動でやり直す */
+const BUSY_RE = /too many|invoked|simultaneous|lock|timed? ?out|exceeded|ロック|混み|NetworkError|Failed to fetch/i;
 function call(action, payload) {
+  const body = JSON.stringify(S.guestToken ? Object.assign({}, payload || {}, { _g: S.guestToken }) : (payload || {}));
   return new Promise(function (resolve, reject) {
-    google.script.run
-      .withSuccessHandler(function (r) { try { resolve(JSON.parse(r)); } catch (e) { reject(e); } })
-      .withFailureHandler(function (e) { reject(e); })
-      .api(action, JSON.stringify(S.guestToken ? Object.assign({}, payload || {}, { _g: S.guestToken }) : (payload || {})));
+    let tries = 0;
+    const attempt = function () {
+      google.script.run
+        .withSuccessHandler(function (r) { try { resolve(JSON.parse(r)); } catch (e) { reject(e); } })
+        .withFailureHandler(function (e) {
+          if (tries < 3 && BUSY_RE.test(String(e && (e.message || e)))) {
+            tries++;
+            setTimeout(attempt, 700 * tries + Math.random() * 1500);
+          } else reject(e);
+        })
+        .api(action, body);
+    };
+    attempt();
   });
 }
 function errMsg(e) {
@@ -623,8 +635,9 @@ async function start() {
   if (b.feed) applyFeed(b.feed, true); else loadFeed(true);
   if (S.started) return;
   S.started = true;
-  setInterval(poll, 20000);
-  if (S.me.teacher) setInterval(refreshBadges, 60000);
+  // 全員が同じ瞬間に問い合わせないよう、間隔を少しずつずらす
+  (function schedule() { setTimeout(function () { poll(); schedule(); }, 17000 + Math.random() * 8000); })();
+  if (S.me.teacher) setInterval(refreshBadges, 60000 + Math.random() * 10000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
 }
 
@@ -905,6 +918,7 @@ function renderList() {
   } else {
     html += posts.map(function (p) { return card(p); }).join('');
   }
+  if (S.feed.more) html += '<div style="padding:16px;text-align:center"><button class="btn line" data-act="morefeed">もっと前の投稿を見る</button></div>';
   el.innerHTML = html;
 }
 
@@ -988,7 +1002,7 @@ async function loadFeed(force) {
   if (!S.unitId || !S.groupId) return;
   const key = S.unitId + '|' + S.groupId;
   try {
-    const r = await call('feed', { unitId: S.unitId, groupId: S.groupId, ver: force ? '' : S.ver });
+    const r = await call('feed', { unitId: S.unitId, groupId: S.groupId, ver: force ? '' : S.ver, limit: S.limit || 150 });
     if (key !== S.unitId + '|' + S.groupId) return;
     if (r.unchanged) return;
     applyFeed(r, force);
@@ -1005,7 +1019,7 @@ function applyFeed(r, force) {
     if (r.badges) S.badges = r.badges;
     if (r.units) {
       S.units = r.units;
-      if (!S.units.some(function (u) { return u.id === S.unitId; })) { pickDefaultUnit(); S.feed = null; S.ver = ''; return loadFeed(true); }
+      if (!S.units.some(function (u) { return u.id === S.unitId; })) { pickDefaultUnit(); S.feed = null; S.ver = ''; S.limit = 150; return loadFeed(true); }
     }
     const scrolled = window.scrollY > 150;
     const hasNewer = r.posts.some(function (p) { return p.createdAt > prevTop && !p.mine; });
@@ -1182,7 +1196,7 @@ const EXAMPLES = {
   mat: {
     tweet: '例）後転は、あごを引いておへそを見ると、まっすぐ回れる！',
     tweetQuote: '例）「おへそを見る」を選んだのは、ぼくは後転で横に曲がってしまうから。やってみたら、まっすぐ回れた！',
-    task: '例）開脚前転で、手をつかずに立ち上がるにはどうすればよいか',
+    task: '例）開脚前転で、膝を伸ばして立ち上がるにはどうすればよいか',
     body: '例）足を開くのが早くて立てなかったので、おしりがマットにつく直前に開くようにしたら、勢いが残って立てた。なぜなら、回転の勢いをためられたからだと思う。次は、手を股の近くについて押してみたい。',
     bodyQuote: '例）○○さんの「足を開くのは直前」を選んだのは…。やってみたら…。自分は…を工夫した。'
   },
@@ -2066,11 +2080,12 @@ document.addEventListener('click', async function (ev) {
       S.groupId = d('gid'); store.set('group', S.groupId);
       if (S.view.q) S.view.q = '';
       if (!unitsForGroup().some(function (u) { return u.id === S.unitId; })) pickDefaultUnit();
-      S.feed = null; S.ver = ''; S.cutoff = 0;
+      S.feed = null; S.ver = ''; S.limit = 150; S.cutoff = 0;
       render();
       if (S.view.name === 'home') loadFeed(true);
       return;
     }
+    case 'morefeed': S.limit = (S.limit || 150) + 300; el.disabled = true; el.textContent = '読み込み中…'; loadFeed(true); return;
     case 'shownew': S.cutoff = 0; renderList(); window.scrollTo({ top: 0, behavior: 'smooth' }); return;
     case 'compose': openCompose(); return;
     case 'close': closeModal(); return;
@@ -2222,7 +2237,7 @@ document.addEventListener('click', async function (ev) {
         await call('setSetting', { key: 'groups', value: gs });
         const b = await call('bootstrap'); S.groups = b.groups; S.units = b.units;
         if (!group(S.groupId)) S.groupId = (S.groups[0] || {}).id || '';
-        S.feed = null; S.ver = '';
+        S.feed = null; S.ver = ''; S.limit = 150;
         toast('授業集団を保存しました');
         viewSettings();
       } catch (e) { toast(errMsg(e), true); }
@@ -2281,7 +2296,7 @@ document.addEventListener('change', async function (ev) {
   if (!k) return;
   if (k === 'unit') {
     S.unitId = el.value; store.set('unit', S.unitId);
-    S.feed = null; S.ver = ''; S.cutoff = 0; S.skill = ''; S.tag = '';
+    S.feed = null; S.ver = ''; S.limit = 150; S.cutoff = 0; S.skill = ''; S.tag = '';
     render();
     if (S.view.name === 'home') loadFeed(true);
     return;
