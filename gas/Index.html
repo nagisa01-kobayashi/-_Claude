@@ -1060,6 +1060,36 @@ function lastTask() {
   const mine = (S.feed ? S.feed.posts : []).filter(function (p) { return p.mine && p.type === 'reflection'; });
   return mine.length ? mine[0].task : '';
 }
+/* 入力欄の例文。単元名に合わせて切り替える（マット運動が基本） */
+const EXAMPLES = {
+  mat: {
+    tweet: '例）後転は、あごを引いておへそを見ると、まっすぐ回れる！',
+    tweetQuote: '例）「おへそを見る」を選んだのは、ぼくは後転で横に曲がってしまうから。やってみたら、まっすぐ回れた！',
+    task: '例）開脚前転で、手をつかずに立ち上がるにはどうすればよいか',
+    body: '例）足を開くのが早くて立てなかったので、おしりがマットにつく直前に開くようにしたら、勢いが残って立てた。なぜなら、回転の勢いをためられたからだと思う。次は、手を股の近くについて押してみたい。',
+    bodyQuote: '例）○○さんの「足を開くのは直前」を選んだのは…。やってみたら…。自分は…を工夫した。'
+  },
+  vault: {
+    tweet: '例）開脚跳びは、手を遠くについて、肩を前に出すと跳び越しやすい！',
+    tweetQuote: '例）「手を遠くにつく」を選んだのは、ぼくはいつも手前についていたから。やってみたら、おしりが上がって跳びやすくなった！',
+    task: '例）開脚跳びで、着手のあとに体を前に運ぶにはどうすればよいか',
+    body: '例）手をつく位置を前にしたら、おしりが上がって跳びやすくなった。なぜなら…。次は、踏切を強くすることを試したい。',
+    bodyQuote: '例）○○さんの「手を遠くにつく」を選んだのは…。やってみたら…。自分は…を工夫した。'
+  },
+  other: {
+    tweet: '例）気づいたコツを書こう',
+    tweetQuote: '例）このコツを選んだ理由と、やってみた結果を書こう',
+    task: '例）〇〇するにはどうすればよいか',
+    body: '例）やってみたこと → どうなったか → なぜそうなったと思うか → 次に試すこと',
+    bodyQuote: '例）○○さんのコツを選んだのは…。やってみたら…。自分は…を工夫した。'
+  }
+};
+function ex() {
+  const name = (unit() || {}).name || '';
+  if (name.indexOf('跳び箱') >= 0) return EXAMPLES.vault;
+  if (name.indexOf('マット') >= 0) return EXAMPLES.mat;
+  return EXAMPLES.other;
+}
 function composeForm() {
   let html = '';
   if (S.me.teacher && !C.editId) {
@@ -1071,13 +1101,13 @@ function composeForm() {
     html += skillPicker(false);
     html += '<div class="field"><label for="c-body">' + (C.quote ? 'やってみてどうだった？' : 'つぶやき') + '</label>' +
       (C.quote ? '<div class="hint">書き方のヒント：①このコツを選んだ理由 ②やってみた結果 ③自分に合わせて工夫したこと</div>' : '') +
-      '<textarea class="ta" id="c-body" data-input="body" rows="4" placeholder="' + (C.quote ? '例）手を遠くにつくコツを選んだのは、ぼくはいつも手前についていたから。やってみたら、おしりが上がって跳びやすくなった！' : '例）着手のとき、手を遠くにつくと回りやすい！') + '">' + esc(C.body) + '</textarea>' +
+      '<textarea class="ta" id="c-body" data-input="body" rows="4" placeholder="' + (C.quote ? ex().tweetQuote : ex().tweet) + '">' + esc(C.body) + '</textarea>' +
       '<div class="counter" data-for="body" data-max="' + S.limits.tweet + '"></div></div>';
     html += tagPicker();
   } else {
     const lt = !C.editId && !C.task ? lastTask() : '';
     html += '<div class="field"><label for="c-task">🎯 学習課題</label>' +
-      '<textarea class="ta" id="c-task" data-input="task" rows="2" style="min-height:64px" placeholder="例）開脚跳びで、着手のあとに体を前に運ぶにはどうすればよいか">' + esc(C.task) + '</textarea>' +
+      '<textarea class="ta" id="c-task" data-input="task" rows="2" style="min-height:64px" placeholder="' + ex().task + '">' + esc(C.task) + '</textarea>' +
       '<div class="counter" data-for="task" data-max="' + S.limits.task + '"></div>' +
       (lt ? '<button class="chip" style="margin-top:4px" data-act="clast">前回の課題を使う：' + esc(lt.length > 24 ? lt.slice(0, 24) + '…' : lt) + '</button>' : '') + '</div>';
     html += skillPicker(true);
@@ -1086,8 +1116,8 @@ function composeForm() {
         ? '書き方のヒント：<ol><li>このコツを選んだ理由は？</li><li>やってみてどうだった？</li><li>自分に合わせて工夫したことは？</li></ol>'
         : '書き方のヒント：<ol><li>やってみたこと</li><li>どうなったか</li><li>なぜそうなったと思う？</li><li>次は何を試す？</li></ol>') + '</div>' +
       '<textarea class="ta" id="c-body" data-input="body" rows="7" placeholder="' + (C.quote
-        ? '例）○○さんの「手を遠くにつく」を選んだのは…。やってみたら…。自分は…を工夫した。'
-        : '例）手をつく位置を前にしたら、おしりが上がって跳びやすくなった。なぜなら…。次は、踏切を強くすることを試したい。') + '">' + esc(C.body) + '</textarea>' +
+        ? ex().bodyQuote
+        : ex().body) + '">' + esc(C.body) + '</textarea>' +
       '<div class="counter" data-for="body" data-max="' + S.limits.body + '"></div></div>';
     html += tagPicker();
     if (!S.me.teacher && !C.editId) {
