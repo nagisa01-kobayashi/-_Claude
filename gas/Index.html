@@ -187,6 +187,30 @@ svg { display: block; }
 .notice.warn { background: var(--c-yatta-bg); }
 .notice.danger { background: var(--danger-bg); }
 .notice b { display: block; }
+.taskbar { margin: 12px 16px 0; display: grid; gap: 8px; }
+.task-box { border: 2px solid var(--blue); background: var(--blue-soft); border-radius: 16px; padding: 10px 14px; display: flex; gap: 10px; align-items: flex-start; }
+.task-box.class { border-color: var(--gold); background: var(--c-naruhodo-bg); }
+.task-box .k { font-size: 12px; font-weight: 800; color: var(--muted); }
+.task-box .v { font-weight: 800; font-size: 16px; word-break: break-word; }
+.task-box .grow { flex: 1; min-width: 0; }
+.task-cta { width: 100%; border: 2px dashed var(--blue); color: var(--blue); border-radius: 16px; padding: 12px; font-weight: 800; font-size: 16px; background: var(--bg); }
+.lv { display: inline-block; font-size: 12px; font-weight: 800; border-radius: 6px; padding: 1px 8px; margin-left: 6px; background: var(--c-repost-bg); color: var(--c-repost); }
+.lv.l2 { background: var(--c-naruhodo-bg); color: var(--c-naruhodo); } .lv.l3 { background: var(--bg2); color: var(--muted); }
+.lvl-pick { display: flex; gap: 8px; }
+.lvl-pick button { flex: 1; min-height: 52px; border-radius: 14px; border: 2px solid var(--line2); background: var(--bg); font-weight: 800; font-size: 15px; }
+.lvl-pick button.on { border-color: var(--blue); background: var(--blue); color: #fff; }
+.guestbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 45; background: #e8590c; color: #fff; border-radius: 999px; padding: 6px 8px 6px 16px; font-weight: 800; font-size: 14px; display: flex; gap: 10px; align-items: center; box-shadow: var(--shadow); white-space: nowrap; }
+.guestbar button { background: #fff; color: #e8590c; border-radius: 999px; padding: 4px 12px; font-weight: 800; }
+@media (min-width: 700px) { .guestbar { bottom: 16px; } }
+.guest-wrap { max-width: 560px; margin: 6vh auto 40px; padding: 0 16px; }
+.guest-wrap h2 { font-size: 24px; margin: 12px 0 6px; }
+.guest-step { background: var(--bg2); border-radius: 18px; padding: 16px; margin-top: 14px; }
+.guest-step h3 { margin: 0 0 10px; font-size: 16px; }
+.name-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.name-grid button { background: var(--bg); border: 1px solid var(--line2); border-radius: 12px; padding: 12px; text-align: left; font-weight: 700; }
+.name-grid button.on { background: var(--blue); color: #fff; border-color: var(--blue); }
+.code-in { font-size: 34px; letter-spacing: 12px; text-align: center; font-weight: 800; }
+.big-code { font-size: 72px; font-weight: 900; letter-spacing: 16px; text-align: center; color: var(--blue); margin: 10px 0; }
 .new-pill {
   position: sticky; top: 112px; z-index: 15; margin: 8px auto 0; display: flex; width: max-content;
   background: var(--blue); color: #fff; font-weight: 700; padding: 8px 18px; border-radius: 999px; box-shadow: var(--shadow);
@@ -197,7 +221,7 @@ svg { display: block; }
 .spinner { width: 28px; height: 28px; border: 3px solid var(--blue-soft); border-top-color: var(--blue); border-radius: 50%; margin: 0 auto 10px; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ---------- 投稿カード ---------- */
+/* ---------- 投稿カード（見た目） ---------- */
 .post { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); align-items: flex-start; }
 .post.pending { background: var(--bg2); }
 .post.static { border: 1px solid var(--line); border-radius: 16px; margin: 0 0 10px; }
@@ -516,7 +540,7 @@ function call(action, payload) {
     google.script.run
       .withSuccessHandler(function (r) { try { resolve(JSON.parse(r)); } catch (e) { reject(e); } })
       .withFailureHandler(function (e) { reject(e); })
-      .api(action, JSON.stringify(payload || {}));
+      .api(action, JSON.stringify(S.guestToken ? Object.assign({}, payload || {}, { _g: S.guestToken }) : (payload || {})));
   });
 }
 function errMsg(e) {
@@ -569,10 +593,18 @@ function isOther(s) { return s.indexOf('その他：') === 0; }
    ===================================================================== */
 async function start() {
   let b;
+  S.guestToken = store.get('guestToken', '');
   try {
     b = await call('bootstrap', { withFeed: true, unitId: store.get('unit', ''), groupId: store.get('group', '') });
   } catch (e) {
     $('#app').innerHTML = '<div class="center-msg">' + LOGO + '<h2>読み込めませんでした</h2><p>' + esc(errMsg(e)) + '</p><button class="btn blue" onclick="location.reload()">もう一度読み込む</button></div>';
+    return;
+  }
+  if (b.guestAccount) {
+    // 共通アカウント：名前を選んで仮ログインする
+    if (S.guestToken) { S.guestToken = ''; store.set('guestToken', ''); }
+    G = { classes: b.classes, cls: '', students: null, sid: '', code: '', err: '', busy: false };
+    renderGuestLogin();
     return;
   }
   if (b.unregistered) {
@@ -589,9 +621,41 @@ async function start() {
   renderShell();
   go('home', {}, true);
   if (b.feed) applyFeed(b.feed, true); else loadFeed(true);
+  if (S.started) return;
+  S.started = true;
   setInterval(poll, 20000);
   if (S.me.teacher) setInterval(refreshBadges, 60000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
+}
+
+/* ---------- 仮ログイン（共通アカウント） ---------- */
+let G = null;
+function renderGuestLogin() {
+  let html = '<div class="guest-wrap">' + LOGO.replace('class="mark"', 'class="mark" style="width:56px;height:56px"') +
+    '<h2>仮ログイン</h2><p class="note" style="font-size:15px">自分のアカウントでログインできないときに使います。先生に「合言葉」を教えてもらってください。</p>';
+  html += '<div class="guest-step"><h3>① 組をえらぶ</h3><div class="pick-chips">' + G.classes.map(function (c) {
+    return '<button class="chip ' + (G.cls === c ? 'on' : '') + '" data-act="gcls" data-c="' + esc(c) + '">' + esc(c) + '</button>';
+  }).join('') + '</div></div>';
+  if (G.cls) {
+    html += '<div class="guest-step"><h3>② 自分の名前をえらぶ</h3>' + (G.students ? '<div class="name-grid">' + G.students.map(function (s) {
+      return '<button class="' + (G.sid === s.id ? 'on' : '') + '" data-act="gname" data-id="' + s.id + '">' + s.number + '　' + esc(s.name) + '</button>';
+    }).join('') + '</div>' : '<div class="loading"><div class="spinner"></div></div>') + '</div>';
+  }
+  if (G.sid) {
+    html += '<div class="guest-step"><h3>③ 先生の合言葉（4けたの数字）</h3>' +
+      '<input class="in code-in" id="g-code" inputmode="numeric" maxlength="4" autocomplete="off" value="' + esc(G.code) + '" data-input="gcode">' +
+      (G.err ? '<div class="err">' + esc(G.err) + '</div>' : '') +
+      '<button class="btn blue lg" style="margin-top:12px" data-act="glogin"' + (G.busy ? ' disabled' : '') + '>' + (G.busy ? '確認中…' : 'この名前で始める') + '</button></div>';
+  } else if (G.err) {
+    html += '<div class="err">' + esc(G.err) + '</div>';
+  }
+  $('#app').innerHTML = html + '</div>';
+}
+async function guestLogout() {
+  try { await call('guestLogout', {}); } catch (e) { /* 期限切れでもOK */ }
+  S.guestToken = ''; store.set('guestToken', '');
+  toast('仮ログインを終わりました');
+  start();
 }
 
 function unitsForGroup() {
@@ -634,7 +698,8 @@ function renderShell() {
       '<aside class="right" id="right"></aside>' +
     '</div>' +
     '<nav class="bottom" id="bottom"></nav>' +
-    '<button class="fab" id="fab" data-act="compose" aria-label="投稿する">' + IC.plus + '</button>';
+    '<button class="fab" id="fab" data-act="compose" aria-label="投稿する">' + IC.plus + '</button>' +
+    (S.me.guest ? '<div class="guestbar">仮ログイン中：' + esc(S.me.name) + '<button data-act="guestout">終わる</button></div>' : '');
   renderNav();
 }
 function currentNav() {
@@ -728,7 +793,8 @@ function viewHome() {
   const u = unit();
   const teacherRow = S.me.teacher
     ? '<div class="grp-row">' + groupSeg() +
-      '<label class="open-pill" style="margin-left:auto"><span class="dot ' + (S.open ? 'on' : '') + '"></span>' + (S.open ? '投稿受付中' : '受付停止中') +
+      '<button class="btn line sm" style="margin-left:auto" data-act="gcode">🔑 合言葉</button>' +
+      '<label class="open-pill"><span class="dot ' + (S.open ? 'on' : '') + '"></span>' + (S.open ? '投稿受付中' : '受付停止中') +
       '<span class="switch"><input type="checkbox" data-change="open"' + (S.open ? ' checked' : '') + ' aria-label="投稿の受付"><span></span></span></label></div>'
     : '';
   $('#main').innerHTML =
@@ -736,18 +802,52 @@ function viewHome() {
       header(S.me.teacher ? 'ホーム' : 'コツッター', { right: unitSelect(), sub: S.me.teacher ? '' : (group() ? group().name : '') }) +
       teacherRow +
       '<div class="tabs" role="tablist">' +
-        '<button class="' + (S.tab === 'reflection' ? 'on' : '') + '" data-act="tab" data-tab="reflection">📝 振り返り</button>' +
+        '<button class="' + (S.tab === 'task' ? 'on' : '') + '" data-act="tab" data-tab="task">🎯 学習課題</button>' +
         '<button class="' + (S.tab === 'tweet' ? 'on' : '') + '" data-act="tab" data-tab="tweet">💬 つぶやき</button>' +
+        '<button class="' + (S.tab === 'reflection' ? 'on' : '') + '" data-act="tab" data-tab="reflection">📝 振り返り</button>' +
       '</div>' +
     '</header>' +
-    '<div id="filters"></div><div id="notices"></div><div id="list"></div>';
+    '<div id="taskbar"></div><div id="filters"></div><div id="notices"></div><div id="list"></div>';
   if (!u) {
     $('#list').innerHTML = '<div class="empty"><b>単元がまだありません</b>' + (S.me.teacher ? '「設定」から単元を追加してください。' : '先生が準備中です。') + '</div>';
     return;
   }
+  renderTaskBar();
   renderFilters();
   renderNotices();
   renderList();
+}
+/* ---------- 今日の学習課題（いちばん上に出す） ---------- */
+function isToday(ms) { return new Date(ms).toDateString() === new Date().toDateString(); }
+function todayTask() {
+  return (S.feed ? S.feed.posts : []).filter(function (p) { return p.mine && p.type === 'task' && isToday(p.createdAt); })[0] || null;
+}
+function classTask() {
+  return (S.feed ? S.feed.posts : []).filter(function (p) { return p.author.teacher && p.type === 'task' && p.status === 'published' && isToday(p.createdAt); })[0] || null;
+}
+function renderTaskBar() {
+  const el = $('#taskbar');
+  if (!el) return;
+  const u = unit();
+  if (!u || !S.feed) { el.innerHTML = ''; return; }
+  const ct = classTask();
+  let html = '';
+  if (ct) {
+    html += '<div class="task-box class"><span style="font-size:22px">📣</span><div class="grow"><div class="k">全体の学習課題（' + esc(displayName(ct.author)) + '）</div><div class="v">' + nl(ct.task) + '</div></div>' +
+      (S.me.teacher && ct.mine ? '<button class="btn line sm" data-act="tedit" data-id="' + ct.id + '">書き直す</button>' : '') + '</div>';
+  }
+  if (S.me.teacher) {
+    if (u.active) html += '<button class="task-cta" data-act="newtask">📣 ' + (ct ? 'もう一度、全体の学習課題を出す' : '今日の全体の学習課題を出す') + '</button>';
+  } else {
+    const mt = todayTask();
+    if (mt) {
+      html += '<div class="task-box"><span style="font-size:22px">🎯</span><div class="grow"><div class="k">今日の学習課題' + (mt.skills.length ? '（' + esc(mt.skills.join('・')) + '）' : '') + '</div><div class="v">' + nl(mt.task) + '</div></div>' +
+        (u.active ? '<button class="btn line sm" data-act="tedit" data-id="' + mt.id + '">書き直す</button>' : '') + '</div>';
+    } else if (u.active) {
+      html += '<button class="task-cta" data-act="newtask">🎯 今日の学習課題を立てよう</button>';
+    }
+  }
+  el.innerHTML = html ? '<div class="taskbar">' + html + '</div>' : '';
 }
 function renderFilters() {
   const u = unit();
@@ -797,10 +897,11 @@ function renderList() {
   const newer = S.cutoff ? S.feed.posts.filter(function (p) { return p.createdAt > S.cutoff && !p.mine; }).length : 0;
   let html = newer ? '<button class="new-pill" data-act="shownew">↑ 新しい投稿 ' + newer + '件</button>' : '';
   if (!posts.length) {
-    const what = S.tab === 'reflection' ? '振り返り' : 'つぶやき';
+    const what = { reflection: '振り返り', tweet: 'つぶやき', task: '学習課題' }[S.tab];
     const filt = S.skill || S.tag || S.pickOnly;
+    const hintText = { tweet: '気づいたコツを、最初につぶやいてみよう！', reflection: '今日の学びを振り返ってみよう！', task: '授業のはじめに、今日の学習課題を立てよう！' }[S.tab];
     html += '<div class="empty"><b>' + (filt ? '見つかりませんでした' : 'まだ' + what + 'がありません') + '</b>' +
-      (filt ? '絞り込みを「すべて」にすると、ほかの投稿も見られます。' : (S.tab === 'tweet' ? '気づいたコツを、最初につぶやいてみよう！' : '今日の学びを振り返ってみよう！')) + '</div>';
+      (filt ? '絞り込みを「すべて」にすると、ほかの投稿も見られます。' : hintText) + '</div>';
   } else {
     html += posts.map(function (p) { return card(p); }).join('');
   }
@@ -808,6 +909,8 @@ function renderList() {
 }
 
 /* ---------- 投稿カード ---------- */
+const LEVELS = [{ v: '◎', t: '◎ できた' }, { v: '○', t: '○ もう少し' }, { v: '△', t: '△ まだ' }];
+function levelClass(v) { return v === '○' ? 'l2' : v === '△' ? 'l3' : ''; }
 function card(p, opt) {
   opt = opt || {};
   S.posts[p.id] = p;
@@ -818,14 +921,18 @@ function card(p, opt) {
   if (p.pick) labels.push('<span class="pick">' + IC.star.replace('<svg', '<svg width="14" height="14"') + '先生のおすすめ</span>');
   if (p.status === 'pending') labels.push('<span class="state">⏳ 先生の確認待ち</span>');
   if (p.status === 'deleted_teacher' || p.status === 'deleted_self' || p.status === 'rejected') labels.push('<span class="state">削除済み</span>');
-  if (opt.showType) labels.push('<span class="state" style="color:var(--muted);background:var(--bg2)">' + (p.type === 'reflection' ? '📝 振り返り' : '💬 つぶやき') + '</span>');
+  if (opt.showType) labels.push('<span class="state" style="color:var(--muted);background:var(--bg2)">' + ({ reflection: '📝 振り返り', tweet: '💬 つぶやき', task: '🎯 学習課題' }[p.type] || '') + '</span>');
   p.skills.forEach(function (s) { labels.push('<span class="pill">' + esc(s) + '</span>'); });
   let body = '';
-  if (p.type === 'reflection') {
-    body += '<div class="sect-lbl">🎯 学習課題</div><div class="task">' + nl(p.task) + '</div>' +
-      '<div class="sect-lbl">💡 つかんだコツ・学んだ過程</div>';
+  if (p.type === 'task') {
+    body += '<div class="sect-lbl">' + (a.teacher ? '📣 全体の学習課題' : '🎯 学習課題') + '</div><div class="task" style="font-size:17px">' + nl(p.task) + '</div>';
+  } else {
+    if (p.type === 'reflection') {
+      body += '<div class="sect-lbl">🎯 学習課題' + (p.level ? '<span class="lv ' + levelClass(p.level) + '">達成度 ' + esc(p.level) + '</span>' : '') + '</div><div class="task">' + nl(p.task) + '</div>' +
+        '<div class="sect-lbl">💡 つかんだコツ・学んだ過程</div>';
+    }
+    body += '<div class="text">' + nl(p.body) + '</div>';
   }
-  body += '<div class="text">' + nl(p.body) + '</div>';
   if (p.tags.length) {
     body += '<div class="tags-line">' + p.tags.map(function (t) {
       return interactive ? '<button data-act="tag" data-tag="' + esc(t) + '">#' + esc(t) + '</button>' : '<span style="color:var(--blue);font-size:14px">#' + esc(t) + '</span>';
@@ -855,7 +962,7 @@ function quoteBox(q) {
   if (q.unavailable) return '<div class="quote gone">元の投稿は表示できません</div>';
   return '<div class="quote"><div class="qh">' + avatar(q.author, 'sm') + '<b>' + esc(displayName(q.author)) + '</b><span>' + (q.author.teacher ? '' : esc(q.author.cls) + ' · ') + ago(q.createdAt) + '</span></div>' +
     (q.skills.length ? '<div class="label-row">' + q.skills.map(function (s) { return '<span class="pill">' + esc(s) + '</span>'; }).join('') + '</div>' : '') +
-    (q.type === 'reflection' ? '<div class="task" style="font-size:14px">🎯 ' + nl(q.task) + '</div>' : '') +
+    (q.type === 'reflection' || q.type === 'task' ? '<div class="task" style="font-size:14px">🎯 ' + nl(q.task) + '</div>' : '') +
     '<div class="text">' + nl(q.body) + '</div></div>';
 }
 function actions(p) {
@@ -908,7 +1015,7 @@ function applyFeed(r, force) {
       S.cutoff = 0;
     }
     if (S.view.name === 'home') {
-      if (!$('#list')) viewHome(); else { renderFilters(); renderNotices(); renderList(); }
+      if (!$('#list')) viewHome(); else { renderTaskBar(); renderFilters(); renderNotices(); renderList(); }
       const top = $('.top'); if (top && S.me.teacher) { /* 受付スイッチの表示を更新 */
         const sw = $('[data-change="open"]'); if (sw) sw.checked = S.open;
         const pill = $('.open-pill'); if (pill) pill.firstChild.className = 'dot ' + (S.open ? 'on' : '');
@@ -999,7 +1106,8 @@ function openCompose(opts) {
     return;
   }
   C = {
-    step: opts.edit ? 'form' : 'type', type: opts.edit ? opts.edit.type : '', editId: opts.edit ? opts.edit.id : '',
+    step: opts.edit || opts.type ? 'form' : 'type', type: opts.edit ? opts.edit.type : (opts.type || ''), editId: opts.edit ? opts.edit.id : '',
+    level: opts.edit ? (opts.edit.level || '') : '', taskId: '', fromTask: false,
     skills: opts.edit ? opts.edit.skills.slice() : (S.skill && S.skill !== '*other' ? [S.skill] : []),
     tags: opts.edit ? opts.edit.tags.slice() : (S.tag ? [S.tag] : []),
     task: opts.edit ? opts.edit.task : '', body: opts.edit ? opts.edit.body : '',
@@ -1013,7 +1121,15 @@ function openCompose(opts) {
   if (opts.quote) {
     C.skills = opts.quote.skills.filter(function (s) { return !isOther(s) && flatSkills(unit()).indexOf(s) >= 0; });
   }
+  if (C.type === 'reflection' && !C.editId) prefillFromTask();
   renderCompose();
+}
+/* 振り返りを書くとき、今日の学習課題を自動で入れる（書き直しもできる） */
+function prefillFromTask() {
+  const t = todayTask();
+  if (!t) return;
+  C.task = t.task; C.taskId = t.id; C.fromTask = true;
+  if (!C.skills.length) C.skills = t.skills.filter(function (s) { return !isOther(s); });
 }
 function renderCompose() {
   if (!C) return;
@@ -1022,21 +1138,22 @@ function renderCompose() {
   if (C.quote) body += '<div class="quote-src"><div class="sect-lbl" style="margin:0 0 4px">引用する投稿</div>' + quoteBox(C.quote).replace('class="quote"', 'class="quote" style="margin:0;border:0;padding:0"') + '</div>';
   if (C.step === 'type') {
     body += '<div class="type-pick">' +
-      '<button class="type-card" data-act="ctype" data-type="reflection"><span class="ic">📝</span><span><b>振り返り</b><span>学習課題・行った技・つかんだコツや学んだ過程を、じっくり書く</span></span></button>' +
+      (C.quote ? '' : '<button class="type-card" data-act="ctype" data-type="task"><span class="ic">' + (S.me.teacher ? '📣' : '🎯') + '</span><span><b>' + (S.me.teacher ? '全体の学習課題' : '学習課題') + '</b><span>' + (S.me.teacher ? '授業のはじめに、クラス全体の学習課題を出す' : '授業のはじめに、今日の学習課題を立てる') + '</span></span></button>') +
       '<button class="type-card" data-act="ctype" data-type="tweet"><span class="ic">💬</span><span><b>つぶやき</b><span>技を選んで、気づいたコツをサッとつぶやく（' + S.limits.tweet + '字まで）</span></span></button>' +
+      '<button class="type-card" data-act="ctype" data-type="reflection"><span class="ic">📝</span><span><b>振り返り</b><span>授業のおわりに、学習課題に対してどうだったかを振り返る</span></span></button>' +
     '</div>';
   } else {
     body += composeForm();
   }
   showModal('<div class="sheet-head"><button class="icon-btn" data-act="' + (C.step === 'form' && !C.editId ? 'cback' : 'close') + '" aria-label="もどる">' + (C.step === 'form' && !C.editId ? IC.back : IC.close) + '</button><h2>' + title + '</h2>' +
-    (C.step === 'form' ? '<button class="btn blue sm" data-act="csubmit" ' + (C.busy ? 'disabled' : '') + '>' + (C.busy ? '送信中…' : C.editId ? '保存' : C.type === 'tweet' ? 'つぶやく' : '投稿する') + '</button>' : '') +
+    (C.step === 'form' ? '<button class="btn blue sm" data-act="csubmit" ' + (C.busy ? 'disabled' : '') + '>' + (C.busy ? '送信中…' : C.editId ? '保存' : C.type === 'tweet' ? 'つぶやく' : C.type === 'task' ? '立てる' : '投稿する') + '</button>' : '') +
     '</div><div class="sheet-body" id="cbody">' + body + '</div>', { keep: true });
   updateCounters();
 }
 function skillPicker(multi) {
   const u = unit();
   const required = !S.me.teacher;
-  let html = '<div class="field"><div class="flabel">' + (C.type === 'reflection' ? '行った技' : '技をえらぶ') +
+  let html = '<div class="field"><div class="flabel">' + (C.type === 'reflection' ? '行った技' : C.type === 'task' ? '取り組む技' : '技をえらぶ') +
     '<span class="opt">' + (required ? (multi ? '（いくつでも）' : '') : '（先生は省略できます）') + '</span></div>';
   u.skills.forEach(function (c) {
     html += '<div class="cat">' + esc(c.cat) + '</div><div class="pick-chips">' + c.items.map(function (s) {
@@ -1057,7 +1174,7 @@ function tagPicker() {
     }).join('') + '</div></div>';
 }
 function lastTask() {
-  const mine = (S.feed ? S.feed.posts : []).filter(function (p) { return p.mine && p.type === 'reflection'; });
+  const mine = (S.feed ? S.feed.posts : []).filter(function (p) { return p.mine && (p.type === 'reflection' || p.type === 'task'); });
   return mine.length ? mine[0].task : '';
 }
 /* 入力欄の例文。単元名に合わせて切り替える（マット運動が基本） */
@@ -1097,7 +1214,16 @@ function composeForm() {
       '<button class="' + (C.target !== '*' ? 'on' : '') + '" data-act="ctarget" data-t="' + S.groupId + '">' + esc(group().name) + '</button>' +
       '<button class="' + (C.target === '*' ? 'on' : '') + '" data-act="ctarget" data-t="*">全集団</button></div></div>';
   }
-  if (C.type === 'tweet') {
+  if (C.type === 'task') {
+    const ltk = !C.editId && !C.task ? lastTask() : '';
+    html += skillPicker(true);
+    html += '<div class="field"><label for="c-task">' + (S.me.teacher ? '📣 全体の学習課題' : '🎯 今日の学習課題') + '</label>' +
+      '<div class="hint">' + (S.me.teacher ? 'クラス全体に出す課題です。生徒の画面のいちばん上に表示されます。' : '今日の授業で、何ができるようになりたい？ どこを意識してやってみる？') + '</div>' +
+      '<textarea class="ta" id="c-task" data-input="task" rows="3" style="min-height:80px" placeholder="' + ex().task + '">' + esc(C.task) + '</textarea>' +
+      '<div class="counter" data-for="task" data-max="' + S.limits.task + '"></div>' +
+      (ltk ? '<button class="chip" style="margin-top:4px" data-act="clast">前回の課題を使う：' + esc(ltk.length > 24 ? ltk.slice(0, 24) + '…' : ltk) + '</button>' : '') + '</div>';
+    html += tagPicker();
+  } else if (C.type === 'tweet') {
     html += skillPicker(false);
     html += '<div class="field"><label for="c-body">' + (C.quote ? 'やってみてどうだった？' : 'つぶやき') + '</label>' +
       (C.quote ? '<div class="hint">書き方のヒント：①このコツを選んだ理由 ②やってみた結果 ③自分に合わせて工夫したこと</div>' : '') +
@@ -1107,14 +1233,17 @@ function composeForm() {
   } else {
     const lt = !C.editId && !C.task ? lastTask() : '';
     html += '<div class="field"><label for="c-task">🎯 学習課題</label>' +
+      (!C.editId ? '<div class="hint">' + (C.fromTask ? '✅ 授業のはじめに立てた学習課題が入っています。書き直してもOKです。' : '授業のはじめに学習課題を立てておくと、ここに自動で入ります。') + '</div>' : '') +
       '<textarea class="ta" id="c-task" data-input="task" rows="2" style="min-height:64px" placeholder="' + ex().task + '">' + esc(C.task) + '</textarea>' +
       '<div class="counter" data-for="task" data-max="' + S.limits.task + '"></div>' +
       (lt ? '<button class="chip" style="margin-top:4px" data-act="clast">前回の課題を使う：' + esc(lt.length > 24 ? lt.slice(0, 24) + '…' : lt) + '</button>' : '') + '</div>';
+    html += '<div class="field"><div class="flabel">学習課題の達成度' + (S.me.teacher ? '<span class="opt">（先生は省略できます）</span>' : '') + '</div><div class="lvl-pick">' +
+      LEVELS.map(function (l) { return '<button class="' + (C.level === l.v ? 'on' : '') + '" data-act="clevel" data-v="' + l.v + '">' + l.t + '</button>'; }).join('') + '</div></div>';
     html += skillPicker(true);
     html += '<div class="field"><label for="c-body">💡 つかんだコツ・学んだ過程</label>' +
       '<div class="hint">' + (C.quote
         ? '書き方のヒント：<ol><li>このコツを選んだ理由は？</li><li>やってみてどうだった？</li><li>自分に合わせて工夫したことは？</li></ol>'
-        : '書き方のヒント：<ol><li>やってみたこと</li><li>どうなったか</li><li>なぜそうなったと思う？</li><li>次は何を試す？</li></ol>') + '</div>' +
+        : '書き方のヒント：<ol><li>学習課題に対して、やってみたこと</li><li>どうなったか</li><li>なぜそうなったと思う？</li><li>次は何を試す？</li></ol>') + '</div>' +
       '<textarea class="ta" id="c-body" data-input="body" rows="7" placeholder="' + (C.quote
         ? ex().bodyQuote
         : ex().body) + '">' + esc(C.body) + '</textarea>' +
@@ -1128,7 +1257,7 @@ function composeForm() {
     }
   }
   if (C.err) html += '<div class="err">' + esc(C.err) + '</div>';
-  html += '<button class="btn blue lg" data-act="csubmit" ' + (C.busy ? 'disabled' : '') + '>' + (C.busy ? (C.file ? '動画を送信中…' : '送信中…') : C.editId ? '保存する' : C.type === 'tweet' ? 'つぶやく' : '振り返りを投稿する') + '</button>';
+  html += '<button class="btn blue lg" data-act="csubmit" ' + (C.busy ? 'disabled' : '') + '>' + (C.busy ? (C.file ? '動画を送信中…' : '送信中…') : C.editId ? '保存する' : C.type === 'tweet' ? 'つぶやく' : C.type === 'task' ? (S.me.teacher ? '全体の学習課題を出す' : '学習課題を立てる') : '振り返りを投稿する') + '</button>';
   return html;
 }
 function updateCounters() {
@@ -1196,8 +1325,10 @@ async function submitCompose() {
   const body = C.body.trim(), task = C.task.trim();
   C.err = '';
   if (!S.me.teacher && !skills.length) C.err = '技を選んでください。';
-  else if (C.type === 'reflection' && !task) C.err = '学習課題を書いてください。';
-  else if (C.type === 'reflection' && task.length > L.task) C.err = '学習課題は' + L.task + '字までです。';
+  else if ((C.type === 'reflection' || C.type === 'task') && !task) C.err = '学習課題を書いてください。';
+  else if ((C.type === 'reflection' || C.type === 'task') && task.length > L.task) C.err = '学習課題は' + L.task + '字までです。';
+  else if (C.type === 'task') C.err = '';
+  else if (C.type === 'reflection' && !S.me.teacher && !C.level) C.err = '学習課題の達成度（◎○△）を選んでください。';
   else if (!body) C.err = C.type === 'tweet' ? 'つぶやきを書いてください。' : 'つかんだコツや学んだ過程を書いてください。';
   else if (body.length > (C.type === 'tweet' ? L.tweet : L.body)) C.err = (C.type === 'tweet' ? 'つぶやきは' + L.tweet : '振り返りは' + L.body) + '字までです。';
   if (C.err) { renderCompose(); return; }
@@ -1205,7 +1336,7 @@ async function submitCompose() {
   try {
     let r;
     if (C.editId) {
-      r = await call('editPost', { id: C.editId, skills: skills, tags: C.tags, task: task, body: body });
+      r = await call('editPost', { id: C.editId, skills: skills, tags: C.tags, task: task, body: body, level: C.level });
     } else {
       let token = '';
       if (C.file) {
@@ -1215,12 +1346,13 @@ async function submitCompose() {
       }
       r = await call('createPost', {
         type: C.type, unitId: S.unitId, groupId: C.target, skills: skills, tags: C.tags,
-        task: task, body: body, quoteOf: C.quote ? C.quote.id : '', uploadToken: token
+        task: task, body: body, quoteOf: C.quote ? C.quote.id : '', uploadToken: token,
+        level: C.level, taskId: C.taskId
       });
     }
     const wasType = C.type;
     C = null; closeModal();
-    toast(r.pending ? '送信しました。先生が確認したら公開されます。' : (wasType === 'tweet' ? 'つぶやきました！' : '投稿しました！'));
+    toast(r.pending ? '送信しました。先生が確認したら公開されます。' : ({ tweet: 'つぶやきました！', task: S.me.teacher ? '全体の学習課題を出しました！' : '今日の学習課題を立てました！' }[wasType] || '投稿しました！'));
     if (S.tab !== wasType) { S.tab = wasType; store.set('tab', wasType); }
     if (S.view.name !== 'home') go('home', {}, true);
     else viewHome();
@@ -1435,7 +1567,19 @@ function achView(r, isMe) {
 /* =====================================================================
    先生：見守り
    ===================================================================== */
+async function openGuestCode() {
+  showModal('<div class="sheet-head"><button class="icon-btn" data-act="close">' + IC.close + '</button><h2>仮ログインの合言葉</h2></div><div class="sheet-body"><div class="loading"><div class="spinner"></div></div></div>', { menu: true });
+  try {
+    const r = await call('guestInfo', {});
+    showModal('<div class="sheet-head"><button class="icon-btn" data-act="close">' + IC.close + '</button><h2>仮ログインの合言葉</h2></div><div class="sheet-body">' +
+      '<div class="big-code">' + esc(r.code) + '</div>' +
+      '<p class="note" style="text-align:center">今日だけ使えます（明日になると自動で変わります）。<br>テレビに映しているときは、この画面を閉じてください。</p>' +
+      (r.emails.length ? '' : '<div class="notice warn" style="margin:10px 0"><span>⚠️</span><div>共通アカウントがまだ登録されていません。「設定 → 仮ログイン」で登録してください。</div></div>') +
+      '<button class="btn line lg" data-act="gregen">合言葉を新しくする</button></div>', { menu: true });
+  } catch (e) { closeModal(); toast(errMsg(e), true); }
+}
 const LOG_LABEL = {
+  guest_login: ['仮ログイン', false], guest_post: ['仮ログインで投稿', false],
   delete_teacher: ['先生が削除', true], delete_self: ['本人が削除', false], edit: ['編集前の内容', false],
   blocked: ['NGワードでブロック', true], reject: ['承認せず非公開', true], suspend: ['投稿を一時停止', true], unsuspend: ['投稿を再開', false]
 };
@@ -1535,7 +1679,7 @@ function renderPresent() {
       '<div class="prank">' + (PRES.i + 1) + '位</div>' +
       '<div class="pname">' + (PRES.names ? esc(displayName(p.author)) + (p.author.cls ? '（' + esc(p.author.cls) + '）' : '') : '？？？さん') + '</div>' +
       (p.skills.length ? '<div class="pskill">' + p.skills.map(function (s) { return '<span>' + esc(s) + '</span>'; }).join('') + '</div>' : '') +
-      (p.type === 'reflection' ? '<div class="ptask">🎯 ' + nl(p.task) + '</div>' : '') +
+      (p.type === 'reflection' || p.type === 'task' ? '<div class="ptask">🎯 ' + nl(p.task) + '</div>' : '') +
       '<div class="ptext">' + nl(p.body) + '</div>' +
       '<div class="pscore"><span class="d">🎉 できた！ ' + p.score.dekita + '</span><span>💪 やってみた ' + p.score.yatta + '</span><span>💡 なるほど ' + p.score.naruhodo + '</span></div>' +
     '</div></div>' +
@@ -1562,11 +1706,11 @@ async function viewEval() {
   if (!r.students.length) html += '<div class="empty"><b>生徒がいません</b>「設定」から名簿を取り込んでください。</div>';
   else {
     html += '<p class="note">行を押すと、その生徒の材料を見ながら評価をつけられます。</p><div class="tbl-wrap"><table class="tbl"><thead><tr>' +
-      '<th class="l stick">組・番号・氏名</th><th>振り返り</th><th>やってみた<br>報告</th><th>生かされた<br>🎉</th><th>リアクション<br>した数</th><th>つぶやき</th><th>できた技</th><th>動画</th><th>思考</th><th>知技</th><th>態度</th></tr></thead><tbody>' +
+      '<th class="l stick">組・番号・氏名</th><th>学習<br>課題</th><th>振り返り</th><th>やってみた<br>報告</th><th>生かされた<br>🎉</th><th>リアクション<br>した数</th><th>つぶやき</th><th>できた技</th><th>動画</th><th>思考</th><th>知技</th><th>態度</th></tr></thead><tbody>' +
       r.students.map(function (s) {
         const st = s.stats;
         return '<tr class="click" data-act="evalopen" data-uid="' + s.id + '"><td class="l stick">' + esc(clsNo(s)) + ' <b>' + esc(s.name) + '</b></td>' +
-          '<td>' + st.reflections + '</td><td>' + st.quotes + '</td><td>' + st.helped + '</td><td>' + st.reacted + '</td><td>' + st.tweets + '</td><td>' + st.achievements + '</td><td>' + st.videos + '</td>' +
+          '<td>' + (st.tasks || 0) + '</td><td>' + st.reflections + '</td><td>' + st.quotes + '</td><td>' + st.helped + '</td><td>' + st.reacted + '</td><td>' + st.tweets + '</td><td>' + st.achievements + '</td><td>' + st.videos + '</td>' +
           '<td>' + g(s.ev.t) + '</td><td>' + g(s.ev.k) + '</td><td>' + g(s.ev.a) + '</td></tr>';
       }).join('') + '</tbody></table></div>';
   }
@@ -1611,10 +1755,11 @@ function renderEval() {
   const html = '<div class="sheet-head"><button class="icon-btn" data-act="close" aria-label="閉じる">' + IC.close + '</button><h2>' + esc(clsNo(r.user)) + ' ' + esc(r.user.name) + '</h2>' +
     '<button class="btn line sm" data-act="evnav" data-d="-1"' + (idx <= 0 ? ' disabled' : '') + '>← 前</button><button class="btn line sm" data-act="evnav" data-d="1"' + (idx < 0 || idx >= list.length - 1 ? ' disabled' : '') + '>次 →</button></div>' +
     '<div class="sheet-body"><div class="ev-layout"><div style="min-width:0">' +
-      '<div class="statgrid"><div class="stat"><b>' + st.reflections + '</b><span>振り返り</span></div><div class="stat"><b>' + st.quotes + '</b><span>やってみた報告</span></div>' +
+      '<div class="statgrid"><div class="stat"><b>' + (st.tasks || 0) + '</b><span>学習課題</span></div><div class="stat"><b>' + st.reflections + '</b><span>振り返り</span></div><div class="stat"><b>' + st.quotes + '</b><span>やってみた報告</span></div>' +
       '<div class="stat"><b>' + st.helped + '</b><span>生かされた🎉</span></div><div class="stat"><b>' + st.reacted + '</b><span>リアクションした</span></div>' +
       '<div class="stat"><b>' + st.tweets + '</b><span>つぶやき</span></div><div class="stat"><b>' + st.achievements + '</b><span>できた技</span></div><div class="stat"><b>' + st.videos + '</b><span>動画提出</span></div></div>' +
-      sec('(a) 振り返り', '思考', cards(r.reflections)) +
+      sec('学習課題（授業のはじめ）', '', cards(r.tasks || [])) +
+      sec('(a) 振り返り（学習課題と達成度つき）', '思考', cards(r.reflections)) +
       sec('(b) やってみた報告（引用リポスト）', '思考', cards(r.quotes)) +
       sec('(c) 自分のコツが仲間の「できた！」につながった投稿', '思考', helped) +
       sec('できた技のチェック', '知技', ach) +
@@ -1669,10 +1814,10 @@ function renderStudentList() {
   list.forEach(function (s) {
     if (s.cls !== cls) { cls = s.cls; html += '<div class="sect-lbl" style="padding:14px 16px 4px;font-size:13px">' + esc(cls) + '</div>'; }
     const st = s.stats;
-    const total = st.reflections + st.tweets;
+    const total = st.reflections + st.tweets + (st.tasks || 0);
     html += '<button class="post" style="width:100%;text-align:left;align-items:center" data-act="profile" data-uid="' + s.id + '">' + avatar({ id: s.id, name: s.name }) +
       '<div class="pbody"><div class="phead"><span class="name">' + esc(s.name) + '</span><span class="meta">' + esc(clsNo(s)) + '</span></div>' +
-      '<div class="meta" style="color:var(--muted);font-size:13px">' + (total ? '振り返り ' + st.reflections + '・つぶやき ' + st.tweets + '・やってみた報告 ' + st.quotes + '・🎉 ' + st.helped : 'まだ投稿がありません') + '</div></div>' +
+      '<div class="meta" style="color:var(--muted);font-size:13px">' + (total ? '学習課題 ' + (st.tasks || 0) + '・振り返り ' + st.reflections + '・つぶやき ' + st.tweets + '・やってみた報告 ' + st.quotes + '・🎉 ' + st.helped : 'まだ投稿がありません') + '</div></div>' +
       '<span style="color:var(--muted);font-size:22px">›</span></button>';
   });
   el.innerHTML = html;
@@ -1700,16 +1845,23 @@ async function viewMatrix() {
   }, function (e) { toast(errMsg(e), true); });
 }
 async function viewMissing() {
-  const head = '<header class="top">' + header('振り返り未提出', { right: unitSelect() }) + '<div class="grp-row">' + groupSeg() +
+  const head = '<header class="top">' + header('未提出（学習課題・振り返り）', { right: unitSelect() }) + '<div class="grp-row">' + groupSeg() +
     '<button class="icon-btn" style="margin-left:auto" data-act="reload" aria-label="更新">' + IC.refresh + '</button></div></header>';
   $('#main').innerHTML = head + '<div class="loading"><div class="spinner"></div></div>';
   await cachedCall('missing', { groupId: S.groupId, unitId: S.unitId }, function () { return S.view.name === 'missing'; }, function (r) {
   const d = r.today.split('-');
-  let html = '<div class="page"><div class="panel"><p style="margin:0">今日（' + Number(d[1]) + '月' + Number(d[2]) + '日）、この単元で振り返りを出していない生徒</p>' +
-    '<div class="big">' + r.missing.length + ' <span style="font-size:18px;color:var(--muted)">/ ' + r.total + '人</span></div></div>';
-  html += r.missing.length ? '<div class="missing-list">' + r.missing.map(function (s) {
-    return '<span>' + esc(clsNo(s)) + ' ' + esc(s.name) + '</span>';
-  }).join('') + '</div>' : (r.total ? '<div class="empty"><b>🎉 全員が提出しました</b></div>' : '<div class="empty"><b>生徒がいません</b></div>');
+  const day = Number(d[1]) + '月' + Number(d[2]) + '日';
+  const block = function (title, list, done) {
+    let h = '<div class="panel"><p style="margin:0">' + title + '</p>' +
+      '<div class="big">' + list.length + ' <span style="font-size:18px;color:var(--muted)">/ ' + r.total + '人</span></div></div>';
+    h += list.length ? '<div class="missing-list" style="margin-bottom:24px">' + list.map(function (s) {
+      return '<span>' + esc(clsNo(s)) + ' ' + esc(s.name) + '</span>';
+    }).join('') + '</div>' : (r.total ? '<div class="empty" style="padding:16px"><b>🎉 ' + done + '</b></div>' : '<div class="empty"><b>生徒がいません</b></div>');
+    return h;
+  };
+  let html = '<div class="page">' +
+    block('🎯 今日（' + day + '）、学習課題を立てていない生徒', r.noTask || [], '全員が学習課題を立てました') +
+    block('📝 今日（' + day + '）、振り返りを出していない生徒', r.missing, '全員が振り返りを出しました');
   $('#main').innerHTML = head + html + '</div>';
   }, function (e) { toast(errMsg(e), true); });
 }
@@ -1767,6 +1919,11 @@ async function viewSettings() {
           '<button class="btn line sm" data-act="stuDel" data-id="' + s.id + '" data-name="' + esc(s.name) + '">削除</button></div>';
       }).join('') + '</details>';
     }).join('') + '</div>';
+
+  html += '<div class="set-sec"><h2>仮ログイン（共通アカウント）</h2><p class="note">自分のアカウントでログインできない生徒は、ここに登録した共通アカウントでログインし、名前を選んで「先生の合言葉」を入れると、その生徒として使えます。合言葉は毎日変わり、ホームの「🔑 合言葉」で確認できます。仮ログインしたことは「見守り」の記録に残ります。</p>' +
+    '<div class="flabel" style="font-weight:800;margin-bottom:6px">共通アカウントのメールアドレス<span class="opt" style="font-weight:500;color:var(--muted);font-size:13px">（1行に1つ）</span></div>' +
+    '<textarea class="ta" id="guest-emails" rows="2" placeholder="kyotsu@example.ed.jp">' + esc((st.guestEmails || []).join('\n')) + '</textarea>' +
+    '<div class="btn-row" style="margin-top:10px"><button class="btn blue" data-act="saveguest">共通アカウントを保存</button><button class="btn line" data-act="gcode">🔑 今日の合言葉を見る</button></div></div>';
 
   html += '<div class="set-sec"><h2>先生（管理者）</h2><p class="note">ここに登録した先生は、すべての管理機能を使えます。</p>' +
     st.teachers.map(function (t) {
@@ -1923,7 +2080,40 @@ document.addEventListener('click', async function (ev) {
     case 'rp': { const p = S.posts[d('id')]; if (p) repostMenu(p); return; }
     case 'reload': render(); return;
     /* 投稿フォーム */
-    case 'ctype': C.type = d('type'); C.step = 'form'; renderCompose(); return;
+    case 'ctype': C.type = d('type'); C.step = 'form'; if (C.type === 'reflection' && !C.task) prefillFromTask(); renderCompose(); return;
+    case 'clevel': C.level = d('v'); renderCompose(); return;
+    case 'newtask': openCompose({ type: 'task' }); return;
+    case 'tedit': { const p = S.posts[d('id')]; if (p) openCompose({ edit: p }); return; }
+    case 'guestout': guestLogout(); return;
+    case 'gcls': {
+      G.cls = d('c'); G.students = null; G.sid = ''; G.err = ''; renderGuestLogin();
+      try { const r = await call('guestNames', { cls: G.cls }); G.students = r.students; } catch (e) { G.err = errMsg(e); G.students = []; }
+      renderGuestLogin(); return;
+    }
+    case 'gname': G.sid = d('id'); G.err = ''; renderGuestLogin(); { const c = $('#g-code'); if (c) c.focus(); } return;
+    case 'glogin': {
+      if (G.busy) return;
+      G.busy = true; G.err = ''; renderGuestLogin();
+      try {
+        const r = await call('guestLogin', { studentId: G.sid, code: G.code });
+        S.guestToken = r.token; store.set('guestToken', r.token);
+        G = null;
+        $('#app').innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中…</div>';
+        start();
+      } catch (e) { G.busy = false; G.err = errMsg(e); renderGuestLogin(); }
+      return;
+    }
+    case 'gcode': openGuestCode(); return;
+    case 'gregen': {
+      if (!(await confirmBox('合言葉を新しくしますか？\nいまの合言葉は使えなくなります（すでに仮ログインしている生徒はそのまま使えます）。', '新しくする'))) return;
+      try { await call('guestRegenerate', {}); openGuestCode(); } catch (e) { toast(errMsg(e), true); }
+      return;
+    }
+    case 'saveguest': {
+      const list = $('#guest-emails').value.split(/[\s,、]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+      try { await call('setSetting', { key: 'guestEmails', value: list }); toast('共通アカウントを保存しました'); } catch (e) { toast(errMsg(e), true); }
+      return;
+    }
     case 'cback': C.step = 'type'; C.err = ''; renderCompose(); return;
     case 'ctarget': C.target = d('t'); renderCompose(); return;
     case 'cskill': {
@@ -2078,6 +2268,7 @@ document.addEventListener('input', function (ev) {
   if (!k) return;
   if (k === 'evmemo') { if (EV && EV.form) EV.form.memo = el.value; return; }
   if (k === 'stuq') { S.view.q = el.value; renderStudentList(); return; }
+  if (k === 'gcode') { if (G) G.code = el.value; return; }
   if (!C) return;
   if (k === 'other') { C.other = el.value; return; }
   C[k] = el.value;

@@ -31,7 +31,7 @@ const SCHEMA = {
   Students: ['id', 'email', 'grade', 'cls', 'number', 'name', 'groupId', 'suspended'],
   Units: ['id', 'name', 'skills', 'tags', 'groups', 'active', 'createdAt'],
   Posts: ['id', 'unitId', 'groupId', 'authorId', 'type', 'skills', 'tags', 'task', 'body',
-          'quoteOf', 'videoId', 'status', 'pick', 'createdAt', 'editedAt'],
+          'quoteOf', 'videoId', 'status', 'pick', 'createdAt', 'editedAt', 'level', 'taskId'],
   Reactions: ['postId', 'userId', 'kind', 'at'],
   Reposts: ['postId', 'userId', 'at'],
   Reports: ['id', 'postId', 'reporterId', 'reason', 'status', 'at'],
@@ -41,6 +41,7 @@ const SCHEMA = {
   Log: ['id', 'at', 'actorId', 'action', 'postId', 'detail']
 };
 const JSON_COLS = { value: 1, skills: 1, tags: 1, groups: 1, detail: 1 };
+const LEVELS = ['◎', '○', '△'];
 const NUM_COLS = { number: 1, suspended: 1, active: 1, pick: 1, createdAt: 1, editedAt: 1, at: 1 };
 
 const DEFAULT_GROUPS = [
@@ -114,13 +115,19 @@ function api(action, payloadJson) {
   DB._dirty = {};
   TableVer._memo = null;
   const payload = payloadJson ? JSON.parse(payloadJson) : {};
-  const me = currentUser_();
+  const me = currentUser_(payload);
   if (action === 'bootstrap') return JSON.stringify(bootstrap_(me, payload));
+  if (me && me.guestAccount) {
+    // 共通アカウント：名前を選んで仮ログインするまでは、これだけ使える
+    const guestOnly = { guestNames: guestNames_, guestLogin: guestLogin_ };
+    if (guestOnly[action]) return JSON.stringify(guestOnly[action](me, payload));
+    throw new Error('仮ログインの期限が切れました。もう一度、名前を選んでください。');
+  }
   if (!me) throw new Error('このアカウントは登録されていません。先生に確認してください。');
   const studentActions = {
     feed: feed_, createPost: createPost_, editPost: editPost_, deletePost: deletePost_,
     react: react_, repost: repost_, report: report_, pin: pin_, toggleAchievement: toggleAchievement_,
-    profile: profile_, uploadVideo: uploadVideo_, badges: badges_
+    profile: profile_, uploadVideo: uploadVideo_, badges: badges_, guestLogout: guestLogout_
   };
   const teacherActions = {
     setPick: setPick_, teacherDelete: teacherDelete_, setSuspended: setSuspended_,
@@ -128,7 +135,8 @@ function api(action, payloadJson) {
     resolveReport: resolveReport_, buzz: buzz_, missing: missing_, matrix: matrix_,
     evalList: evalList_, evalStudent: evalStudent_, saveEval: saveEval_, exportEval: exportEval_,
     saveUnit: saveUnit_, importStudents: importStudents_, listStudents: listStudents_,
-    saveTeacher: saveTeacher_, removeTeacher: removeTeacher_, removeStudent: removeStudent_
+    saveTeacher: saveTeacher_, removeTeacher: removeTeacher_, removeStudent: removeStudent_,
+    guestInfo: guestInfo_, guestRegenerate: guestRegenerate_
   };
   let fn = studentActions[action];
   if (!fn && me.teacher) fn = teacherActions[action];
@@ -280,8 +288,18 @@ const DB = {
     this._memo[name] = out;
     return out;
   },
+  /** 列が増えたとき、見出し行を自動で直す（実行ごとに1回だけ確認） */
+  _hdr: {},
+  ensureHeader: function (name, sh) {
+    if (this._hdr[name]) return;
+    this._hdr[name] = true;
+    const cols = SCHEMA[name];
+    const cur = sh.getRange(1, 1, 1, cols.length).getValues()[0];
+    if (cols.some(function (c, i) { return cur[i] !== c; })) sh.getRange(1, 1, 1, cols.length).setValues([cols]);
+  },
   insert: function (name, obj) {
     const sh = this.sheet(name);
+    this.ensureHeader(name, sh);
     const cols = SCHEMA[name];
     sh.getRange(sh.getLastRow() + 1, 1, 1, cols.length)
       .setValues([cols.map(function (c) { return encode_(c, obj[c]); })]);
@@ -443,19 +461,109 @@ function isOpen_(st, gid) {
   return !st.openGroups || st.openGroups[gid] !== false;
 }
 
-function currentUser_() {
+function studentMe_(s, email, guest) {
+  return {
+    id: s.id, email: email, name: s.name, cls: s.cls, number: s.number,
+    groupId: s.groupId, suspended: !!s.suspended, teacher: false, guest: !!guest
+  };
+}
+
+function currentUser_(payload) {
   const email = (Session.getActiveUser().getEmail() || '').toLowerCase();
   if (!email) return null;
   const t = DB.all('Teachers').filter(function (x) { return x.email === email; })[0];
   if (t) return { id: t.id, email: email, name: t.name, teacher: true };
-  const s = DB.all('Students').filter(function (x) { return x.email === email; })[0];
-  if (s) {
-    return {
-      id: s.id, email: email, name: s.name, cls: s.cls, number: s.number,
-      groupId: s.groupId, suspended: !!s.suspended, teacher: false
-    };
+  // 共通アカウント（仮ログイン用）
+  if ((settings_().guestEmails || []).indexOf(email) >= 0) {
+    const tok = payload && payload._g;
+    if (tok) {
+      const raw = CacheService.getScriptCache().get('guest:' + tok);
+      if (raw) {
+        const g = JSON.parse(raw);
+        const gs = DB.all('Students').filter(function (x) { return x.id === g.sid; })[0];
+        if (gs && g.email === email) return studentMe_(gs, email, true);
+      }
+    }
+    return { guestAccount: true, email: email };
   }
+  const s = DB.all('Students').filter(function (x) { return x.email === email; })[0];
+  if (s) return studentMe_(s, email, false);
   return null;
+}
+
+/* ------------------------------------------------------------------ */
+/*  仮ログイン（共通アカウント＋名前＋先生の合言葉）                           */
+/* ------------------------------------------------------------------ */
+
+function hash_(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h >>> 0;
+}
+
+/** 今日の合言葉（4桁）。毎日変わり、先生が「新しくする」と変わる */
+function guestCode_() {
+  const salt = settings_().guestSalt;
+  if (!salt) return '';
+  return String(1000 + hash_(salt + '|' + dayKey_(Date.now())) % 9000);
+}
+
+function guestClasses_() {
+  const out = [];
+  groups_().forEach(function (g) { (g.classes || []).forEach(function (c) { if (out.indexOf(c) < 0) out.push(c); }); });
+  return out.sort();
+}
+
+function guestNames_(me, d) {
+  if (guestClasses_().indexOf(d.cls) < 0) throw new Error('組が見つかりません。');
+  return {
+    students: DB.all('Students').filter(function (s) { return s.cls === d.cls; })
+      .sort(function (a, b) { return a.number - b.number; })
+      .map(function (s) { return { id: s.id, name: s.name, number: s.number }; })
+  };
+}
+
+function guestLogin_(me, d) {
+  const s = DB.all('Students').filter(function (x) { return x.id === d.studentId; })[0];
+  if (!s || !s.groupId) throw new Error('名前が見つかりません。');
+  const c = CacheService.getScriptCache();
+  const failKey = 'gfail:' + s.id;
+  const fails = Number(c.get(failKey) || 0);
+  if (fails >= 5) throw new Error('合言葉を何度もまちがえたので、10分ほど待ってからやり直してください。');
+  const code = guestCode_();
+  if (!code) throw new Error('先生がまだ合言葉を用意していません。先生に伝えてください。');
+  if (String(d.code || '').normalize('NFKC').trim() !== code) {
+    c.put(failKey, String(fails + 1), 600);
+    throw new Error('合言葉がちがいます。');
+  }
+  const token = Utilities.getUuid();
+  // その日の終わりまで（最長6時間）有効
+  const now = new Date();
+  const hm = Utilities.formatDate(now, APP.TZ, 'HH:mm').split(':');
+  const left = (24 * 60 - (Number(hm[0]) * 60 + Number(hm[1]))) * 60;
+  c.put('guest:' + token, JSON.stringify({ sid: s.id, email: me.email }), Math.max(60, Math.min(21600, left)));
+  c.remove(failKey);
+  withLock_(function () { log_(s.id, 'guest_login', '', { name: s.name, cls: s.cls }); });
+  return { token: token };
+}
+
+function guestLogout_(me, d) {
+  if (d._g) CacheService.getScriptCache().remove('guest:' + d._g);
+  return { ok: true };
+}
+
+function guestInfo_() {
+  if (!settings_().guestSalt) {
+    withLock_(function () { putSetting_('guestSalt', Utilities.getUuid()); });
+    DB.reset();
+  }
+  return { code: guestCode_(), emails: settings_().guestEmails || [] };
+}
+
+function guestRegenerate_() {
+  withLock_(function () { putSetting_('guestSalt', Utilities.getUuid()); });
+  DB.reset();
+  return { code: guestCode_() };
 }
 
 function userMap_() {
@@ -515,7 +623,7 @@ function log_(actorId, action, postId, detail) {
 }
 
 function snapshot_(p) {
-  return { type: p.type, skills: p.skills, tags: p.tags, task: p.task, body: p.body, authorId: p.authorId };
+  return { type: p.type, skills: p.skills, tags: p.tags, task: p.task, body: p.body, level: p.level, authorId: p.authorId };
 }
 
 /* ------------------------------------------------------------------ */
@@ -555,6 +663,7 @@ function bootstrap_(me, d) {
   if (!me) {
     return { unregistered: true, email: Session.getActiveUser().getEmail() || '' };
   }
+  if (me.guestAccount) return { guestAccount: true, classes: guestClasses_() };
   d = d || {};
   const st = settings_();
   const groups = groups_();
@@ -572,7 +681,7 @@ function bootstrap_(me, d) {
     feed: first,
     me: {
       id: me.id, name: me.name, cls: me.cls || '', number: me.number || 0,
-      teacher: me.teacher, groupId: me.groupId || '', suspended: !!me.suspended
+      teacher: me.teacher, groupId: me.groupId || '', suspended: !!me.suspended, guest: !!me.guest
     },
     groups: mine.map(function (g) { return { id: g.id, name: g.name, classes: g.classes }; }),
     units: visibleUnits_(me),
@@ -609,7 +718,9 @@ function postBase_(p, users, idx, byId) {
     author: authorView_(users, p.authorId),
     rx: (idx.rx[p.id]) || { naruhodo: [], yatta: [], dekita: [] },
     rp: idx.rp[p.id] || [],
-    videoId: p.videoId || ''
+    videoId: p.videoId || '',
+    level: p.level || '',
+    taskId: p.taskId || ''
   };
   if (p.quoteOf) {
     const q = byId[p.quoteOf];
@@ -718,11 +829,15 @@ function validatePostInput_(me, d, unit, type) {
   const tags = (Array.isArray(d.tags) ? d.tags : []).filter(function (t) {
     return (unit.tags || []).indexOf(t) >= 0;
   });
-  const task = type === 'reflection' ? clean_(d.task) : '';
-  const body = clean_(d.body);
+  const task = (type === 'reflection' || type === 'task') ? clean_(d.task) : '';
+  const body = type === 'task' ? '' : clean_(d.body);
+  const level = type === 'reflection' && LEVELS.indexOf(d.level) >= 0 ? d.level : '';
 
   if (!me.teacher && skills.length === 0) throw new Error('技を選んでください。');
-  if (type === 'tweet') {
+  if (type === 'task') {
+    if (!task) throw new Error('学習課題を書いてください。');
+    if (task.length > APP.TASK_MAX) throw new Error('学習課題は' + APP.TASK_MAX + '字までです。');
+  } else if (type === 'tweet') {
     if (!body) throw new Error('つぶやきを書いてください。');
     if (body.length > APP.TWEET_MAX) throw new Error('つぶやきは' + APP.TWEET_MAX + '字までです。');
   } else {
@@ -730,9 +845,10 @@ function validatePostInput_(me, d, unit, type) {
     if (task.length > APP.TASK_MAX) throw new Error('学習課題は' + APP.TASK_MAX + '字までです。');
     if (!body) throw new Error('つかんだコツや学んだ過程を書いてください。');
     if (body.length > APP.BODY_MAX) throw new Error('振り返りは' + APP.BODY_MAX + '字までです。');
+    if (!me.teacher && !level) throw new Error('学習課題の達成度（◎○△）を選んでください。');
   }
   const hit = ngCheck_([task, body, skills.join(' ')].join('\n'));
-  return { skills: skills, tags: tags, task: task, body: body, hit: hit };
+  return { skills: skills, tags: tags, task: task, body: body, level: level, hit: hit };
 }
 
 function createPost_(me, d) {
@@ -752,7 +868,7 @@ function createPost_(me, d) {
       if (meRow.suspended) throw new Error('いまは投稿できません。先生に確認してください。');
       if (!isOpen_(st, gid)) throw new Error('いまは投稿の受付時間外です。');
     }
-    const type = d.type === 'reflection' ? 'reflection' : 'tweet';
+    const type = ['reflection', 'tweet', 'task'].indexOf(d.type) >= 0 ? d.type : 'tweet';
     const v = validatePostInput_(me, d, unit, type);
     if (v.hit) {
       log_(me.id, 'blocked', '', { text: [v.task, v.body].filter(String).join('\n'), word: v.hit });
@@ -769,13 +885,19 @@ function createPost_(me, d) {
       videoId = CacheService.getScriptCache().get('up:' + me.id + ':' + d.uploadToken) || '';
       if (!videoId) throw new Error('動画の送信が確認できませんでした。もう一度試してください。');
     }
+    let taskId = '';
+    if (d.taskId && type === 'reflection') {
+      const tp = findPost_(d.taskId);
+      if (tp && tp.type === 'task' && tp.authorId === me.id) taskId = tp.id;
+    }
     const status = (!me.teacher && st.approvalMode) ? 'pending' : 'published';
     const p = {
       id: newId_('p'), unitId: unit.id, groupId: gid, authorId: me.id, type: type,
       skills: v.skills, tags: v.tags, task: v.task, body: v.body, quoteOf: quoteOf, videoId: videoId,
-      status: status, pick: 0, createdAt: Date.now(), editedAt: 0
+      status: status, pick: 0, createdAt: Date.now(), editedAt: 0, level: v.level, taskId: taskId
     };
     DB.insert('Posts', p);
+    if (me.guest) log_(me.id, 'guest_post', p.id, { name: me.name, cls: me.cls });
     bumpGroup_(gid);
     return { ok: true, id: p.id, pending: status === 'pending' };
   });
@@ -802,6 +924,7 @@ function editPost_(me, d) {
     }
     log_(me.id, 'edit', p.id, snapshot_(p));
     p.skills = v.skills; p.tags = v.tags; p.task = v.task; p.body = v.body;
+    if (p.type === 'reflection') p.level = v.level;
     p.editedAt = Date.now();
     if (!me.teacher && st.approvalMode) p.status = 'pending';
     DB.update('Posts', p);
@@ -1139,17 +1262,19 @@ function buzz_(me, d) {
 
 function missing_(me, d) {
   const today = dayKey_(Date.now());
-  const done = {};
+  const done = {}, tasked = {};
   DB.all('Posts').forEach(function (p) {
-    if (p.unitId === d.unitId && p.type === 'reflection' && (p.status === 'published' || p.status === 'pending') &&
-        dayKey_(p.createdAt) === today) done[p.authorId] = true;
+    if (p.unitId !== d.unitId || (p.status !== 'published' && p.status !== 'pending') || dayKey_(p.createdAt) !== today) return;
+    if (p.type === 'reflection') done[p.authorId] = true;
+    if (p.type === 'task') tasked[p.authorId] = true;
   });
   const students = studentsOfGroup_(d.groupId);
+  const pick = function (s) { return { id: s.id, name: s.name, cls: s.cls, number: s.number }; };
   return {
     today: today,
     total: students.length,
-    missing: students.filter(function (s) { return !done[s.id]; })
-      .map(function (s) { return { id: s.id, name: s.name, cls: s.cls, number: s.number }; })
+    missing: students.filter(function (s) { return !done[s.id]; }).map(pick),
+    noTask: students.filter(function (s) { return !tasked[s.id]; }).map(pick)
   };
 }
 
@@ -1187,6 +1312,7 @@ function statsFor_(sid, unitId, idx) {
   const unitPostIds = {};
   DB.all('Posts').forEach(function (p) { if (p.unitId === unitId) unitPostIds[p.id] = true; });
   return {
+    tasks: posts.filter(function (p) { return p.type === 'task'; }).length,
     reflections: posts.filter(function (p) { return p.type === 'reflection'; }).length,
     tweets: posts.filter(function (p) { return p.type === 'tweet'; }).length,
     quotes: posts.filter(function (p) { return !!p.quoteOf; }).length,
@@ -1237,6 +1363,7 @@ function evalStudent_(me, d) {
     reflections: views.filter(function (v) { return v.type === 'reflection'; }),
     quotes: views.filter(function (v) { return !!v.quote; }),
     tweets: views.filter(function (v) { return v.type === 'tweet' && !v.quote; }),
+    tasks: views.filter(function (v) { return v.type === 'task'; }),
     helpedPosts: helpedPosts,
     achievements: DB.all('Achievements').filter(function (a) { return a.userId === s.id && a.unitId === d.unitId; })
       .map(function (a) { return a.skill; }),
@@ -1264,12 +1391,12 @@ function exportEval_(me, d) {
   const g = groups_().filter(function (x) { return x.id === d.groupId; })[0];
   if (!unit || !g) throw new Error('単元か授業集団が見つかりません。');
   const idx = reactionIndex_();
-  const rows = [['組', '番号', '氏名', '振り返り数', 'つぶやき数', 'やってみた報告数', '生かされた数（できた！）',
+  const rows = [['組', '番号', '氏名', '学習課題数', '振り返り数', 'つぶやき数', 'やってみた報告数', '生かされた数（できた！）',
     'リアクションした数', 'できた技の数', '動画提出数', '知識・技能', '思考・判断・表現', '主体的に学習に取り組む態度', 'メモ']];
   studentsOfGroup_(d.groupId).forEach(function (s) {
     const st = statsFor_(s.id, d.unitId, idx);
     const ev = evalOf_(s.id, d.unitId);
-    rows.push(["'" + s.cls, s.number, "'" + s.name, st.reflections, st.tweets, st.quotes, st.helped,
+    rows.push(["'" + s.cls, s.number, "'" + s.name, st.tasks, st.reflections, st.tweets, st.quotes, st.helped,
       st.reacted, st.achievements, st.videos, ev.k, ev.t, ev.a, ev.memo ? "'" + ev.memo : '']);
   });
   const ss = DB.ss();
@@ -1293,6 +1420,7 @@ function getSettings_() {
     openGroups: st.openGroups || {},
     ngWords: st.ngWords || [],
     ngAllow: st.ngAllow || [],
+    guestEmails: st.guestEmails || [],
     groups: groups_(),
     units: DB.all('Units').slice().sort(function (a, b) { return a.createdAt - b.createdAt; }).map(unitView_),
     teachers: DB.all('Teachers').map(function (t) { return { id: t.id, email: t.email, name: t.name }; })
@@ -1317,6 +1445,12 @@ function setSetting_(me, d) {
         const og = st.openGroups || {};
         og[d.groupId] = !!d.value;
         putSetting_('openGroups', og);
+        break;
+      }
+      case 'guestEmails': {
+        const list = (Array.isArray(d.value) ? d.value : []).map(function (w) { return clean_(w).toLowerCase(); })
+          .filter(function (w) { return w.indexOf('@') > 0; });
+        putSetting_('guestEmails', list.filter(function (w, i) { return list.indexOf(w) === i; }));
         break;
       }
       case 'ngWords':
