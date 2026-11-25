@@ -638,7 +638,7 @@ function renderGuestLogin() {
   }).join('') + '</div></div>';
   if (G.cls) {
     html += '<div class="guest-step"><h3>② 自分の名前をえらぶ</h3>' + (G.students ? '<div class="name-grid">' + G.students.map(function (s) {
-      return '<button class="' + (G.sid === s.id ? 'on' : '') + '" data-act="gname" data-id="' + s.id + '">' + s.number + '　' + esc(s.name) + '</button>';
+      return '<button class="' + (G.sid === s.id ? 'on' : '') + '" data-act="gname" data-id="' + s.id + '">' + s.number + ' ' + esc(s.name) + '</button>';
     }).join('') + '</div>' : '<div class="loading"><div class="spinner"></div></div>') + '</div>';
   }
   if (G.sid) {
