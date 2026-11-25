@@ -1379,6 +1379,7 @@ function renderProfile(r, uid, isMe) {
   if (isMe) S.myAch = { unitId: S.unitId, list: r.achievements || [], helped: r.stats.helped };
   const u = r.user;
   const tabs = [['posts', '投稿'], ['reposts', 'リポスト']];
+  if (r.reacted) tabs.push(['reacted', 'リアクション']);
   if (r.achievements) tabs.push(['ach', 'できた技']);
   if (S.view.ptab) { S.profileTab = S.view.ptab; delete S.view.ptab; }
   if (!tabs.some(function (t) { return t[0] === S.profileTab; })) S.profileTab = 'posts';
@@ -1387,6 +1388,17 @@ function renderProfile(r, uid, isMe) {
     if (r.pinned) list += '<div class="pinned-lbl">' + IC.pin + '固定されたベスト振り返り</div>' + card(r.pinned, { showType: true });
     const rest = r.posts.filter(function (p) { return !r.pinned || p.id !== r.pinned.id; });
     list += rest.length ? rest.map(function (p) { return card(p, { showType: true }); }).join('') : (r.pinned ? '' : '<div class="empty"><b>まだ投稿がありません</b></div>');
+  } else if (S.profileTab === 'reacted') {
+    const kind = S.reactKind || '';
+    const items = r.reacted.filter(function (p) { return !kind || p.reactedKinds.indexOf(kind) >= 0; });
+    list += '<div class="chips" style="border-bottom:1px solid var(--line)">' +
+      [['', 'すべて']].concat(RX.map(function (x) { return [x.k, x.em + ' ' + x.t]; })).map(function (c) {
+        const n = c[0] ? r.reacted.filter(function (p) { return p.reactedKinds.indexOf(c[0]) >= 0; }).length : r.reacted.length;
+        return '<button class="chip ' + (kind === c[0] ? 'on' : '') + '" data-act="rkind" data-k="' + c[0] + '">' + c[1] + ' ' + n + '</button>';
+      }).join('') + '</div>';
+    list += items.length ? items.map(function (p) { return card(p, { showType: true }); }).join('')
+      : '<div class="empty"><b>' + (r.reacted.length ? 'この種類のリアクションはまだありません' : 'まだリアクションしていません') + '</b>' +
+        (isMe ? '仲間のコツに「なるほど」「やってみた」「できた！」を送ると、ここにたまります。' : '') + '</div>';
   } else if (S.profileTab === 'reposts') {
     list += r.reposts.length ? r.reposts.map(function (p) { return card(p, { showType: true }); }).join('') : '<div class="empty"><b>リポストはまだありません</b>真似したコツや、残しておきたいコツをリポストしよう。</div>';
   } else {
@@ -1881,6 +1893,7 @@ document.addEventListener('click', async function (ev) {
     case 'back': back(); return;
     case 'profile': closeModal(); go('profile', { userId: d('uid'), ptab: d('ptab') || '' }); return;
     case 'ptab': S.profileTab = d('t'); viewProfile(); return;
+    case 'rkind': S.reactKind = d('k'); viewProfile(); return;
     case 'tab': S.tab = d('tab'); store.set('tab', S.tab); viewHome(); return;
     case 'skill': S.skill = d('skill'); S.pickOnly = false; renderFilters(); renderList(); return;
     case 'pickonly': S.pickOnly = !S.pickOnly; if (S.pickOnly) S.skill = ''; renderFilters(); renderList(); return;

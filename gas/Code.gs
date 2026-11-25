@@ -978,6 +978,18 @@ function profile_(me, d) {
     out.achievements = DB.all('Achievements').filter(function (a) {
       return a.userId === target.id && a.unitId === d.unitId;
     }).map(function (a) { return a.skill; });
+    // 自分がリアクションした投稿（本人と先生だけが見られる）
+    const latest = {};
+    DB.all('Reactions').forEach(function (x) {
+      if (x.userId !== target.id) return;
+      const k = latest[x.postId] || (latest[x.postId] = { at: 0, kinds: [] });
+      if (x.at > k.at) k.at = x.at;
+      if (k.kinds.indexOf(x.kind) < 0) k.kinds.push(x.kind);
+    });
+    const reactedPosts = Object.keys(latest).map(function (id) { return byId[id]; }).filter(function (p) {
+      return p && inUnit(p) && p.status === 'published' && canSeePost_(me, p);
+    }).sort(function (a, b) { return latest[b.id].at - latest[a.id].at; });
+    out.reacted = toViews(reactedPosts).map(function (v) { v.reactedKinds = latest[v.id].kinds; return v; });
   }
   return out;
 }
