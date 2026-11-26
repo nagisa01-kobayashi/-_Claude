@@ -1890,7 +1890,7 @@ async function viewSettings() {
   if (S.view.name !== 'settings') return;
   S.settings = st;
   const sw = function (key, on, extra) {
-    return '<span class="switch"><input type="checkbox" data-change="setting" data-key="' + key + '"' + (extra || '') + (on ? ' checked' : '') + '><span></span></span>';
+    return '<label class="switch"><input type="checkbox" data-change="setting" data-key="' + key + '"' + (extra || '') + (on ? ' checked' : '') + '><span></span></label>';
   };
   let html = '<div class="page">';
   html += '<div class="set-sec"><h2>表示と投稿</h2>' +
