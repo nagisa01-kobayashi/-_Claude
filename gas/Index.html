@@ -1280,7 +1280,7 @@ function composeForm() {
       (lt ? '<button class="chip" style="margin-top:4px" data-act="clast">前回の課題を使う：' + esc(lt.length > 24 ? lt.slice(0, 24) + '…' : lt) + '</button>' : '') + '</div>';
     html += '<div class="field"><div class="flabel">学習課題の達成度' + (S.me.teacher ? '<span class="opt">（先生は省略できます）</span>' : '') + '</div><div class="lvl-pick">' +
       LEVELS.map(function (l) { return '<button class="' + (C.level === l.v ? 'on' : '') + '" data-act="clevel" data-v="' + l.v + '">' + l.t + '</button>'; }).join('') + '</div>' +
-      '<p class="note" style="margin:6px 0 0">◎ 学習課題どおりにできた　○ 半分くらいできた　△ まだできなかった</p></div>';
+      '<p class="note" style="margin:6px 0 0">◎ 学習課題どおりにできた ○ 半分くらいできた △ まだできなかった</p></div>';
     html += skillPicker(true);
     html += '<div class="field"><label for="c-body">💡 つかんだコツ・学んだ過程</label>' +
       '<div class="hint">' + (C.quote
