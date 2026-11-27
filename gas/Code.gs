@@ -29,7 +29,7 @@ const SCHEMA = {
   Settings: ['key', 'value'],
   Teachers: ['id', 'email', 'name'],
   Students: ['id', 'email', 'grade', 'cls', 'number', 'name', 'groupId', 'suspended'],
-  Units: ['id', 'name', 'skills', 'tags', 'groups', 'active', 'createdAt'],
+  Units: ['id', 'name', 'skills', 'tags', 'groups', 'active', 'createdAt', 'members'],
   Posts: ['id', 'unitId', 'groupId', 'authorId', 'type', 'skills', 'tags', 'task', 'body',
           'quoteOf', 'videoId', 'status', 'pick', 'createdAt', 'editedAt', 'level', 'taskId'],
   Reactions: ['postId', 'userId', 'kind', 'at'],
@@ -40,7 +40,7 @@ const SCHEMA = {
   Evals: ['userId', 'unitId', 'k', 't', 'a', 'memo', 'at', 'byId'],
   Log: ['id', 'at', 'actorId', 'action', 'postId', 'detail']
 };
-const JSON_COLS = { value: 1, skills: 1, tags: 1, groups: 1, detail: 1 };
+const JSON_COLS = { value: 1, skills: 1, tags: 1, groups: 1, detail: 1, members: 1 };
 const LEVELS = ['◎', '○', '△'];
 /** 各シートで行を見分ける列 */
 const KEY_COLS = {
@@ -138,7 +138,7 @@ function api(action, payloadJson) {
   const teacherActions = {
     setPick: setPick_, teacherDelete: teacherDelete_, setSuspended: setSuspended_,
     getSettings: getSettings_, setSetting: setSetting_, moderation: moderation_, approve: approve_,
-    resolveReport: resolveReport_, buzz: buzz_, missing: missing_, matrix: matrix_,
+    resolveReport: resolveReport_, buzz: buzz_, missing: missing_, matrix: matrix_, checklist: checklist_,
     evalList: evalList_, evalStudent: evalStudent_, saveEval: saveEval_, exportEval: exportEval_,
     saveUnit: saveUnit_, importStudents: importStudents_, listStudents: listStudents_,
     saveTeacher: saveTeacher_, removeTeacher: removeTeacher_, removeStudent: removeStudent_,
@@ -352,6 +352,7 @@ const DB = {
   },
   update: function (name, obj) {
     const cols = SCHEMA[name];
+    this.ensureHeader(name, this.sheet(name));
     const r = this.locate(name, obj);
     this.sheet(name).getRange(r, 1, 1, cols.length)
       .setValues([cols.map(function (c) { return encode_(c, obj[c]); })]);
@@ -634,11 +635,24 @@ function unitView_(u) {
   return { id: u.id, name: u.name, skills: u.skills || [], tags: u.tags || [], groups: u.groups || [], active: !!u.active };
 }
 
+/** その生徒が、この単元を受けているか（members が空なら授業集団の全員） */
+function inUnit_(unit, s) {
+  if (!unit || !s) return false;
+  if ((unit.groups || []).indexOf(s.groupId) < 0) return false;
+  return !Array.isArray(unit.members) || unit.members.indexOf(s.id) >= 0;
+}
+
 function visibleUnits_(me) {
   const units = DB.all('Units').slice().sort(function (a, b) { return a.createdAt - b.createdAt; });
   return units.filter(function (u) {
-    return me.teacher || (u.groups || []).indexOf(me.groupId) >= 0;
+    return me.teacher || inUnit_(u, me);
   }).map(unitView_);
+}
+
+/** 授業集団の中で、この単元を受けている生徒 */
+function studentsOfUnit_(gid, unitId) {
+  const unit = findUnit_(unitId);
+  return studentsOfGroup_(gid).filter(function (s) { return !unit || inUnit_(unit, s); });
 }
 
 function findPost_(id) {
@@ -914,7 +928,7 @@ function createPost_(me, d) {
     } else {
       const meRow = DB.all('Students').filter(function (s) { return s.id === me.id; })[0];
       gid = meRow.groupId;
-      if ((unit.groups || []).indexOf(gid) < 0) throw new Error('この単元には投稿できません。');
+      if (!inUnit_(unit, meRow)) throw new Error('この単元には投稿できません（対象の生徒ではありません）。');
       if (meRow.suspended) throw new Error('いまは投稿できません。先生に確認してください。');
       if (!isOpen_(st, gid)) throw new Error('いまは投稿の受付時間外です。');
     }
@@ -1323,13 +1337,61 @@ function missing_(me, d) {
     if (p.type === 'reflection') done[p.authorId] = true;
     if (p.type === 'task') tasked[p.authorId] = true;
   });
-  const students = studentsOfGroup_(d.groupId);
+  const students = studentsOfUnit_(d.groupId, d.unitId);
   const pick = function (s) { return { id: s.id, name: s.name, cls: s.cls, number: s.number }; };
   return {
     today: today,
     total: students.length,
     missing: students.filter(function (s) { return !done[s.id]; }).map(pick),
     noTask: students.filter(function (s) { return !tasked[s.id]; }).map(pick)
+  };
+}
+
+/**
+ * 提出チェック表：ある日の、学習課題・振り返り・つぶやき・リアクションを生徒ごとにまとめる
+ * d.date は 'yyyy-MM-dd'（空なら今日）
+ */
+function checklist_(me, d) {
+  const today = dayKey_(Date.now());
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(d.date || '') ? d.date : today;
+  const students = studentsOfUnit_(d.groupId, d.unitId);
+  const ids = {};
+  students.forEach(function (s) { ids[s.id] = true; });
+  const row = {};
+  students.forEach(function (s) {
+    row[s.id] = { id: s.id, name: s.name, cls: s.cls, number: s.number, task: '', reflection: '', level: '', tweets: 0, reactions: 0 };
+  });
+  const days = {};
+  const postUnit = {};
+  DB.all('Posts').forEach(function (p) {
+    postUnit[p.id] = p.unitId;
+    if (p.unitId !== d.unitId || (p.status !== 'published' && p.status !== 'pending')) return;
+    if (!ids[p.authorId]) return;
+    const day = dayKey_(p.createdAt);
+    days[day] = true;
+    if (day !== date) return;
+    const r = row[p.authorId];
+    if (p.type === 'task') r.task = p.task;
+    else if (p.type === 'reflection') { r.reflection = p.body; r.level = p.level || '✓'; }
+    else if (p.type === 'tweet') r.tweets++;
+  });
+  const seen = {};
+  DB.all('Reactions').forEach(function (x) {
+    if (!ids[x.userId] || postUnit[x.postId] !== d.unitId || dayKey_(x.at) !== date) return;
+    const k = x.userId + '|' + x.postId + '|' + x.kind;
+    if (seen[k]) return;
+    seen[k] = true;
+    row[x.userId].reactions++;
+  });
+  days[today] = true;
+  const list = students.map(function (s) { return row[s.id]; });
+  return {
+    date: date,
+    days: Object.keys(days).sort().reverse(),
+    total: list.length,
+    taskDone: list.filter(function (r) { return r.task; }).length,
+    reflDone: list.filter(function (r) { return r.reflection; }).length,
+    rows: list
   };
 }
 
@@ -1343,7 +1405,7 @@ function matrix_(me, d) {
   const skills = unitSkills_(unit);
   return {
     skills: unit.skills,
-    students: studentsOfGroup_(d.groupId).map(function (s) {
+    students: studentsOfUnit_(d.groupId, d.unitId).map(function (s) {
       return {
         id: s.id, name: s.name, cls: s.cls, number: s.number,
         done: skills.filter(function (k) { return have[s.id + '|' + k]; })
@@ -1391,7 +1453,7 @@ function evalOf_(sid, unitId) {
 function evalList_(me, d) {
   const idx = reactionIndex_();
   return {
-    students: studentsOfGroup_(d.groupId).map(function (s) {
+    students: studentsOfUnit_(d.groupId, d.unitId).map(function (s) {
       return {
         id: s.id, name: s.name, cls: s.cls, number: s.number,
         stats: statsFor_(s.id, d.unitId, idx), ev: evalOf_(s.id, d.unitId)
@@ -1453,7 +1515,7 @@ function exportEval_(me, d) {
   const idx = reactionIndex_();
   const rows = [['組', '番号', '氏名', '学習課題数', '振り返り数', 'つぶやき数', 'やってみた報告数', '生かされた数（できた！）',
     'リアクションした数', 'できた技の数', '動画提出数', '知識・技能', '思考・判断・表現', '主体的に学習に取り組む態度', 'メモ']];
-  studentsOfGroup_(d.groupId).forEach(function (s) {
+  studentsOfUnit_(d.groupId, d.unitId).forEach(function (s) {
     const st = statsFor_(s.id, d.unitId, idx);
     const ev = evalOf_(s.id, d.unitId);
     rows.push(["'" + s.cls, s.number, "'" + s.name, st.tasks, st.reflections, st.tweets, st.quotes, st.helped,
@@ -1482,7 +1544,11 @@ function getSettings_() {
     ngAllow: st.ngAllow || [],
     guestEmails: st.guestEmails || [],
     groups: groups_(),
-    units: DB.all('Units').slice().sort(function (a, b) { return a.createdAt - b.createdAt; }).map(unitView_),
+    units: DB.all('Units').slice().sort(function (a, b) { return a.createdAt - b.createdAt; }).map(function (u) {
+      const v = unitView_(u);
+      v.members = Array.isArray(u.members) ? u.members : null;
+      return v;
+    }),
     teachers: DB.all('Teachers').map(function (t) { return { id: t.id, email: t.email, name: t.name }; })
   };
 }
@@ -1561,6 +1627,14 @@ function saveUnit_(me, d) {
     o.name = name; o.skills = skills; o.tags = tags;
     o.groups = (d.groups || []).filter(String);
     o.active = d.active ? 1 : 0;
+    // 受ける生徒：null なら授業集団の全員、配列なら選んだ生徒だけ
+    if (Array.isArray(d.members)) {
+      const ids = {};
+      DB.all('Students').forEach(function (s) { ids[s.id] = true; });
+      o.members = d.members.filter(function (id) { return ids[id]; });
+    } else {
+      o.members = null;
+    }
     if (row) DB.update('Units', o); else DB.insert('Units', o);
     Ver.bump(['global']);
     return { ok: true, id: o.id };

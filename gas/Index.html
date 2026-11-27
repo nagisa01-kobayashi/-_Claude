@@ -428,6 +428,13 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 14px; }
 .stat b { font-size: 22px; display: block; }
 .stat span { font-size: 12px; color: var(--muted); }
 .missing-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.ck-ok { color: var(--c-repost); font-weight: 900; }
+.ck-no { color: var(--danger); font-weight: 800; font-size: 12px; background: var(--danger-bg); border-radius: 6px; padding: 1px 6px; }
+.mem-cls { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; }
+.mem-cls summary { padding: 10px 12px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.mem-cls .mem-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 10px; padding: 0 12px 12px; }
+.mem-cls label { display: flex; align-items: center; gap: 6px; font-size: 14px; padding: 4px 0; }
+.mem-cls input { width: 20px; height: 20px; }
 .missing-list span { background: var(--bg2); border-radius: 10px; padding: 8px 12px; font-weight: 700; }
 .set-sec { border: 1px solid var(--line); border-radius: 16px; padding: 4px 14px 14px; margin-bottom: 18px; }
 .set-sec h2 { margin-top: 12px !important; }
@@ -694,7 +701,7 @@ function navItems() {
       { v: 'eval', t: '評価', ic: 'clip' },
       { v: 'students', t: '生徒', ic: 'users' },
       { v: 'matrix', t: 'できた技', ic: 'grid' },
-      { v: 'missing', t: '未提出', ic: 'list' },
+      { v: 'missing', t: '提出チェック', ic: 'list' },
       { v: 'settings', t: '設定', ic: 'gear' }
     ];
   }
@@ -822,7 +829,7 @@ function viewHome() {
     '</header>' +
     '<div id="taskbar"></div><div id="filters"></div><div id="notices"></div><div id="list"></div>';
   if (!u) {
-    $('#list').innerHTML = '<div class="empty"><b>単元がまだありません</b>' + (S.me.teacher ? '「設定」から単元を追加してください。' : '先生が準備中です。') + '</div>';
+    $('#list').innerHTML = '<div class="empty"><b>単元がまだありません</b>' + (S.me.teacher ? '「設定」から単元を追加してください。' : 'いま、あなたが受けている単元はありません。') + '</div>';
     return;
   }
   renderTaskBar();
@@ -1187,6 +1194,22 @@ function tagPicker() {
       return '<button class="chip tag ' + (C.tags.indexOf(t) >= 0 ? 'on' : '') + '" data-act="ctag" data-tag="' + esc(t) + '">#' + esc(t) + '</button>';
     }).join('') + '</div></div>';
 }
+/* 前回の振り返りの「次は〜」を取り出す */
+function lastNext() {
+  const mine = (S.feed ? S.feed.posts : []).filter(function (p) { return p.mine && p.type === 'reflection' && !isToday(p.createdAt); });
+  for (let i = 0; i < mine.length; i++) {
+    const m = String(mine[i].body || '').match(/次[はに]、?([^。\n！!]+)/);
+    if (m && m[1].trim().length >= 3) return m[1].trim();
+  }
+  return '';
+}
+const TASK_WORDS = ['膝を', 'つま先を', '手を', '腕を', 'あごを', '背中を', '腰を', '意識して', '伸ばして', 'そろえて', '大きく', 'まっすぐ', 'きれいに', 'こわがらずに', 'できるようにする', 'するにはどうすればよいか'];
+const BODY_STARTERS = ['やってみたら、', '意識したのは、', 'うまくいった。', 'うまくいかなかった。', 'なぜなら、', '友達のアドバイスで、', '次は、'];
+function insChips(field, words) {
+  return '<div class="pick-chips" style="margin-top:6px">' + words.map(function (w) {
+    return '<button class="chip" style="font-size:13px;padding:4px 10px" data-act="cins" data-f="' + field + '" data-t="' + esc(w) + '">' + esc(w) + '</button>';
+  }).join('') + '</div>';
+}
 function lastTask() {
   const mine = (S.feed ? S.feed.posts : []).filter(function (p) { return p.mine && (p.type === 'reflection' || p.type === 'task'); });
   return mine.length ? mine[0].task : '';
@@ -1235,7 +1258,11 @@ function composeForm() {
       '<div class="hint">' + (S.me.teacher ? 'クラス全体に出す課題です。生徒の画面のいちばん上に表示されます。' : '今日の授業で、何ができるようになりたい？ どこを意識してやってみる？') + '</div>' +
       '<textarea class="ta" id="c-task" data-input="task" rows="3" style="min-height:80px" placeholder="' + ex().task + '">' + esc(C.task) + '</textarea>' +
       '<div class="counter" data-for="task" data-max="' + S.limits.task + '"></div>' +
-      (ltk ? '<button class="chip" style="margin-top:4px" data-act="clast">前回の課題を使う：' + esc(ltk.length > 24 ? ltk.slice(0, 24) + '…' : ltk) + '</button>' : '') + '</div>';
+      (ltk ? '<button class="chip" style="margin-top:4px" data-act="clast">前回の課題を使う：' + esc(ltk.length > 24 ? ltk.slice(0, 24) + '…' : ltk) + '</button>' : '') +
+      (!S.me.teacher && lastNext() ? '<button class="chip" style="margin-top:4px" data-act="cnext">前回の振り返りの「次は」を使う：' + esc(lastNext().length > 20 ? lastNext().slice(0, 20) + '…' : lastNext()) + '</button>' : '') +
+      (!S.me.teacher ? '<div class="cat" style="margin-top:10px">課題の型：「技」で、「どこを」「どうする」（押すと入ります）</div>' +
+        insChips('task', C.skills.filter(function (k) { return !isOther(k); }).map(function (k) { return k + 'で、'; })
+          .concat(unit().tags.map(function (t) { return t + 'を'; })).concat(TASK_WORDS)) : '') + '</div>';
     html += tagPicker();
   } else if (C.type === 'tweet') {
     html += skillPicker(false);
@@ -1252,12 +1279,14 @@ function composeForm() {
       '<div class="counter" data-for="task" data-max="' + S.limits.task + '"></div>' +
       (lt ? '<button class="chip" style="margin-top:4px" data-act="clast">前回の課題を使う：' + esc(lt.length > 24 ? lt.slice(0, 24) + '…' : lt) + '</button>' : '') + '</div>';
     html += '<div class="field"><div class="flabel">学習課題の達成度' + (S.me.teacher ? '<span class="opt">（先生は省略できます）</span>' : '') + '</div><div class="lvl-pick">' +
-      LEVELS.map(function (l) { return '<button class="' + (C.level === l.v ? 'on' : '') + '" data-act="clevel" data-v="' + l.v + '">' + l.t + '</button>'; }).join('') + '</div></div>';
+      LEVELS.map(function (l) { return '<button class="' + (C.level === l.v ? 'on' : '') + '" data-act="clevel" data-v="' + l.v + '">' + l.t + '</button>'; }).join('') + '</div>' +
+      '<p class="note" style="margin:6px 0 0">◎ 学習課題どおりにできた　○ 半分くらいできた　△ まだできなかった</p></div>';
     html += skillPicker(true);
     html += '<div class="field"><label for="c-body">💡 つかんだコツ・学んだ過程</label>' +
       '<div class="hint">' + (C.quote
         ? '書き方のヒント：<ol><li>このコツを選んだ理由は？</li><li>やってみてどうだった？</li><li>自分に合わせて工夫したことは？</li></ol>'
         : '書き方のヒント：<ol><li>学習課題に対して、やってみたこと</li><li>どうなったか</li><li>なぜそうなったと思う？</li><li>次は何を試す？</li></ol>') + '</div>' +
+      (!C.quote ? '<div class="cat" style="margin:0 0 4px">書き出しのことば（押すと入ります）</div>' + insChips('body', BODY_STARTERS).replace('margin-top:6px', 'margin:0 0 8px') : '') +
       '<textarea class="ta" id="c-body" data-input="body" rows="7" placeholder="' + (C.quote
         ? ex().bodyQuote
         : ex().body) + '">' + esc(C.body) + '</textarea>' +
@@ -1858,25 +1887,50 @@ async function viewMatrix() {
   $('#main').innerHTML = head + html + '</div>';
   }, function (e) { toast(errMsg(e), true); });
 }
+function dayLabel(key) {
+  const t = new Date(key + 'T00:00:00');
+  return (t.getMonth() + 1) + '月' + t.getDate() + '日（' + '日月火水木金土'.charAt(t.getDay()) + '）';
+}
 async function viewMissing() {
-  const head = '<header class="top">' + header('未提出（学習課題・振り返り）', { right: unitSelect() }) + '<div class="grp-row">' + groupSeg() +
-    '<button class="icon-btn" style="margin-left:auto" data-act="reload" aria-label="更新">' + IC.refresh + '</button></div></header>';
-  $('#main').innerHTML = head + '<div class="loading"><div class="spinner"></div></div>';
-  await cachedCall('missing', { groupId: S.groupId, unitId: S.unitId }, function () { return S.view.name === 'missing'; }, function (r) {
-  const d = r.today.split('-');
-  const day = Number(d[1]) + '月' + Number(d[2]) + '日';
-  const block = function (title, list, done) {
-    let h = '<div class="panel"><p style="margin:0">' + title + '</p>' +
-      '<div class="big">' + list.length + ' <span style="font-size:18px;color:var(--muted)">/ ' + r.total + '人</span></div></div>';
-    h += list.length ? '<div class="missing-list" style="margin-bottom:24px">' + list.map(function (s) {
-      return '<span>' + esc(clsNo(s)) + ' ' + esc(s.name) + '</span>';
-    }).join('') + '</div>' : (r.total ? '<div class="empty" style="padding:16px"><b>🎉 ' + done + '</b></div>' : '<div class="empty"><b>生徒がいません</b></div>');
-    return h;
+  const date = S.view.date || '';
+  const only = !!S.view.only;
+  const headOf = function (r) {
+    const days = r ? r.days : [];
+    const sel = days.length ? '<select class="select" data-change="ckdate" aria-label="日付">' + days.map(function (k) {
+      return '<option value="' + k + '"' + (k === r.date ? ' selected' : '') + '>' + dayLabel(k) + '</option>';
+    }).join('') + '</select>' : '';
+    return '<header class="top">' + header('提出チェック', { right: unitSelect() }) + '<div class="grp-row">' + groupSeg() +
+      '<span style="margin-left:auto;display:flex;gap:8px;align-items:center">' + sel +
+      '<button class="icon-btn" data-act="reload" aria-label="更新">' + IC.refresh + '</button></span></div></header>';
   };
-  let html = '<div class="page">' +
-    block('🎯 今日（' + day + '）、学習課題を立てていない生徒', r.noTask || [], '全員が学習課題を立てました') +
-    block('📝 今日（' + day + '）、振り返りを出していない生徒', r.missing, '全員が振り返りを出しました');
-  $('#main').innerHTML = head + html + '</div>';
+  $('#main').innerHTML = headOf(null) + '<div class="loading"><div class="spinner"></div></div>';
+  await cachedCall('checklist', { groupId: S.groupId, unitId: S.unitId, date: date }, function () { return S.view.name === 'missing'; }, function (r) {
+    S.check = r;
+    const lv = function (x) {
+      if (!x.reflection) return '<span class="ck-no">未</span>';
+      return x.level && x.level !== '✓' ? '<span class="lv ' + levelClass(x.level) + '" style="margin:0">' + esc(x.level) + '</span>' : '<span class="ck-ok">✓</span>';
+    };
+    const rows = r.rows.filter(function (x) { return !only || !x.task || !x.reflection; });
+    let html = '<div class="page">' +
+      '<div class="statgrid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin-bottom:12px">' +
+        '<div class="stat"><b>' + r.taskDone + ' <span style="font-size:14px;color:var(--muted)">/ ' + r.total + '人</span></b><span>🎯 学習課題を立てた</span></div>' +
+        '<div class="stat"><b>' + r.reflDone + ' <span style="font-size:14px;color:var(--muted)">/ ' + r.total + '人</span></b><span>📝 振り返りを出した</span></div>' +
+      '</div>' +
+      '<div class="btn-row" style="margin-bottom:10px"><button class="chip ' + (only ? 'on' : '') + '" data-act="ckonly">' + (only ? '✓ ' : '') + '未提出がある生徒だけ表示</button>' +
+      '<span class="note" style="margin:0">' + esc(dayLabel(r.date)) + '・名前を押すと、その生徒のページが開きます</span></div>';
+    if (!r.total) {
+      html += '<div class="empty"><b>この単元を受ける生徒がいません</b>「設定 → 単元」で、受ける生徒を選んでください。</div>';
+    } else if (!rows.length) {
+      html += '<div class="empty"><b>🎉 全員が提出しました</b></div>';
+    } else {
+      html += '<div class="tbl-wrap"><table class="tbl"><thead><tr><th class="l stick">組・番号・氏名</th><th>🎯 学習課題</th><th>📝 振り返り</th><th>💬 つぶやき</th><th>💡 リアクション</th></tr></thead><tbody>' +
+        rows.map(function (x) {
+          return '<tr class="click" data-act="profile" data-uid="' + x.id + '"><td class="l stick">' + esc(clsNo(x)) + ' <b>' + esc(x.name) + '</b></td>' +
+            '<td>' + (x.task ? '<span class="ck-ok">✓</span>' : '<span class="ck-no">未</span>') + '</td>' +
+            '<td>' + lv(x) + '</td><td>' + (x.tweets || '') + '</td><td>' + (x.reactions || '') + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+    $('#main').innerHTML = headOf(r) + html + '</div>';
   }, function (e) { toast(errMsg(e), true); });
 }
 
@@ -1887,6 +1941,7 @@ async function viewSettings() {
   $('#main').innerHTML = '<header class="top">' + header('設定') + '</header><div class="loading"><div class="spinner"></div></div>';
   let st, stu;
   try { [st, stu] = await Promise.all([call('getSettings'), call('listStudents')]); } catch (e) { toast(errMsg(e), true); return; }
+  S.allStudents = stu.students;
   if (S.view.name !== 'settings') return;
   S.settings = st;
   const sw = function (key, on, extra) {
@@ -1911,7 +1966,7 @@ async function viewSettings() {
     st.units.map(function (u) {
       const gn = u.groups.map(function (id) { const g = st.groups.filter(function (x) { return x.id === id; })[0]; return g ? g.name : ''; }).filter(Boolean).join('、');
       return '<div class="unit-item"><div class="grow"><b>' + esc(u.name) + '</b> ' + (u.active ? '<span class="pill" style="background:var(--c-repost-bg);color:var(--c-repost)">進行中</span>' : '<span class="pill" style="background:var(--bg2);color:var(--muted)">終了</span>') +
-        '<div class="note" style="margin:2px 0 0">' + flatSkills(u).length + '技・タグ' + u.tags.length + '個・' + esc(gn || '公開先なし') + '</div></div><button class="btn line sm" data-act="unitedit" data-id="' + u.id + '">編集</button></div>';
+        '<div class="note" style="margin:2px 0 0">' + flatSkills(u).length + '技・タグ' + u.tags.length + '個・' + esc(gn || '公開先なし') + '・' + (Array.isArray(u.members) ? '受ける生徒 ' + u.members.length + '人' : '全員が受ける') + '</div></div><button class="btn line sm" data-act="unitedit" data-id="' + u.id + '">編集</button></div>';
     }).join('') +
     '<div class="btn-row" style="margin-top:10px"><button class="btn blue" data-act="unitedit" data-id="">＋ 単元を追加</button></div></div>';
 
@@ -1966,8 +2021,42 @@ function unitEditor(u) {
       '<div class="field"><div class="flabel">使う授業集団</div>' + st.groups.map(function (g) {
         return '<label class="set-row" style="cursor:pointer"><span>' + esc(g.name) + '</span><span class="switch"><input type="checkbox" class="u-grp" value="' + g.id + '"' + (u.groups.indexOf(g.id) >= 0 ? ' checked' : '') + '><span></span></span></label>';
       }).join('') + '</div>' +
+      membersEditor(u) +
       '<label class="set-row" style="cursor:pointer"><div><b>投稿を受け付ける（進行中）</b><div class="d">オフにすると、読み返し専用になります。</div></div><span class="switch"><input type="checkbox" id="u-active"' + (u.active ? ' checked' : '') + '><span></span></span></label>' +
     '</div>');
+}
+/* 単元を受ける生徒（選択授業など） */
+function membersEditor(u) {
+  const some = Array.isArray(u.members);
+  const chosen = some ? u.members : [];
+  const classes = [];
+  S.settings.groups.forEach(function (g) {
+    if (u.groups.indexOf(g.id) >= 0) g.classes.forEach(function (c) { if (classes.indexOf(c) < 0) classes.push(c); });
+  });
+  const byCls = {};
+  (S.allStudents || []).forEach(function (st) { (byCls[st.cls] = byCls[st.cls] || []).push(st); });
+  let html = '<div class="field"><div class="flabel">この単元を受ける生徒</div>' +
+    '<p class="note">選択授業などで一部の生徒だけが受けるときは「選んだ生徒だけ」にします。選ばれていない生徒の画面には、この単元が出ません。提出チェック・評価・できた技も、選んだ生徒だけになります。</p>' +
+    '<div class="seg" id="u-mode"><button class="' + (some ? '' : 'on') + '" data-act="umode" data-m="all">授業集団の全員</button><button class="' + (some ? 'on' : '') + '" data-act="umode" data-m="some">選んだ生徒だけ</button></div>' +
+    '<div id="u-members" style="margin-top:10px;' + (some ? '' : 'display:none') + '">';
+  if (!classes.length) html += '<p class="note">先に「使う授業集団」を選んで保存してください。</p>';
+  classes.sort().forEach(function (c) {
+    const list = (byCls[c] || []).slice().sort(function (a, b) { return a.number - b.number; });
+    const n = list.filter(function (st) { return chosen.indexOf(st.id) >= 0; }).length;
+    html += '<details class="mem-cls"' + (n ? ' open' : '') + '><summary>' + esc(c) + '<span class="note" style="margin:0" data-cnt="' + esc(c) + '">' + n + ' / ' + list.length + '人</span>' +
+      '<span style="margin-left:auto;display:flex;gap:6px"><button class="btn line sm" data-act="ucls" data-cls="' + esc(c) + '" data-on="1">全員</button><button class="btn line sm" data-act="ucls" data-cls="' + esc(c) + '" data-on="0">外す</button></span></summary>' +
+      '<div class="mem-list">' + list.map(function (st) {
+        return '<label><input type="checkbox" class="u-mem" data-cls="' + esc(c) + '" value="' + st.id + '"' + (chosen.indexOf(st.id) >= 0 ? ' checked' : '') + '>' + st.number + ' ' + esc(st.name) + '</label>';
+      }).join('') + '</div></details>';
+  });
+  return html + '</div></div>';
+}
+function updateMemCounts() {
+  $$('[data-cnt]').forEach(function (el) {
+    const c = el.getAttribute('data-cnt');
+    const boxes = $$('.u-mem[data-cls="' + c + '"]');
+    el.textContent = boxes.filter(function (b) { return b.checked; }).length + ' / ' + boxes.length + '人';
+  });
 }
 function parseSkills(text) {
   return text.split('\n').map(function (line) {
@@ -2050,7 +2139,7 @@ document.addEventListener('click', async function (ev) {
         openMenu([
           { t: '生徒', ic: 'users', fn: function () { go('students', {}, true); } },
           { t: 'できた技', ic: 'grid', fn: function () { go('matrix', {}, true); } },
-          { t: '振り返り未提出', ic: 'list', fn: function () { go('missing', {}, true); } },
+          { t: '提出チェック', ic: 'list', fn: function () { go('missing', {}, true); } },
           { t: '設定', ic: 'gear', fn: function () { go('settings', {}, true); } }
         ]);
         return;
@@ -2097,6 +2186,28 @@ document.addEventListener('click', async function (ev) {
     /* 投稿フォーム */
     case 'ctype': C.type = d('type'); C.step = 'form'; if (C.type === 'reflection' && !C.task) prefillFromTask(); renderCompose(); return;
     case 'clevel': C.level = d('v'); renderCompose(); return;
+    case 'cnext': C.task = lastNext(); renderCompose(); return;
+    case 'cins': {
+      const f = d('f');
+      C[f] = (C[f] || '') + d('t');
+      renderCompose();
+      const ta = $(f === 'task' ? '#c-task' : '#c-body');
+      if (ta) { ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) { /* noop */ } }
+      return;
+    }
+    case 'ckonly': S.view.only = !S.view.only; viewMissing(); return;
+    case 'umode': {
+      $$('#u-mode button').forEach(function (b) { b.classList.toggle('on', b === el); });
+      $('#u-members').style.display = d('m') === 'some' ? '' : 'none';
+      return;
+    }
+    case 'ucls': {
+      ev.preventDefault();
+      $$('.u-mem[data-cls="' + d('cls') + '"]').forEach(function (b) { b.checked = d('on') === '1'; });
+      el.closest('details').open = true;
+      updateMemCounts();
+      return;
+    }
     case 'newtask': openCompose({ type: 'task' }); return;
     case 'tedit': { const p = S.posts[d('id')]; if (p) openCompose({ edit: p }); return; }
     case 'guestout': guestLogout(); return;
@@ -2213,8 +2324,11 @@ document.addEventListener('click', async function (ev) {
         id: d('id'), name: $('#u-name').value, skills: parseSkills($('#u-skills').value),
         tags: $('#u-tags').value.split(/[\s、,，]+/).filter(Boolean),
         groups: $$('.u-grp').filter(function (x) { return x.checked; }).map(function (x) { return x.value; }),
-        active: $('#u-active').checked
+        active: $('#u-active').checked,
+        members: $('#u-mode .on') && $('#u-mode .on').getAttribute('data-m') === 'some'
+          ? $$('.u-mem').filter(function (x) { return x.checked; }).map(function (x) { return x.value; }) : null
       };
+      if (payload.members && !payload.members.length && !(await confirmBox('受ける生徒が1人も選ばれていません。このまま保存しますか？', '保存する'))) return;
       try {
         await call('saveUnit', payload);
         closeModal(); toast('単元を保存しました');
@@ -2292,6 +2406,7 @@ document.addEventListener('input', function (ev) {
 
 document.addEventListener('change', async function (ev) {
   const el = ev.target;
+  if (el.classList && el.classList.contains('u-mem')) { updateMemCounts(); return; }
   const k = el.getAttribute && el.getAttribute('data-change');
   if (!k) return;
   if (k === 'unit') {
@@ -2302,6 +2417,7 @@ document.addEventListener('change', async function (ev) {
     return;
   }
   if (k === 'video') { pickVideo(el); return; }
+  if (k === 'ckdate') { S.view.date = el.value; viewMissing(); return; }
   if (k === 'rosterfile') { rosterFile(el); return; }
   if (k === 'open') {
     try {
