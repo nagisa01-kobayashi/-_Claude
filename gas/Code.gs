@@ -385,6 +385,8 @@ function decode_(col, v) {
 function withLock_(fn) {
   const lock = LockService.getScriptLock();
   lock.waitLock(28000);
+  // ロックを待っている間に、ほかの人の書き込みで版が進んでいるかもしれないので読み直す
+  TableVer._memo = null;
   DB._inLock = true;
   DB._pendingVer = [];
   try {
@@ -738,12 +740,13 @@ function reactionIndex_() {
   const rx = {};
   DB.all('Reactions').forEach(function (r) {
     if (!rx[r.postId]) rx[r.postId] = { naruhodo: [], yatta: [], dekita: [] };
-    if (rx[r.postId][r.kind]) rx[r.postId][r.kind].push(r.userId);
+    const arr = rx[r.postId][r.kind];
+    if (arr && arr.indexOf(r.userId) < 0) arr.push(r.userId);
   });
   const rp = {};
   DB.all('Reposts').forEach(function (r) {
     if (!rp[r.postId]) rp[r.postId] = [];
-    rp[r.postId].push(r.userId);
+    if (rp[r.postId].indexOf(r.userId) < 0) rp[r.postId].push(r.userId);
   });
   return { rx: rx, rp: rp };
 }
@@ -1001,19 +1004,24 @@ function removePinsOf_(postId) {
     .forEach(function (x) { DB.remove('Pins', x); });
 }
 
+/** 同じ行が重なっていても、すべて消す（下の行から消すので行番号がずれない） */
+function removeAll_(name, rows) {
+  rows.slice().sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { DB.remove(name, r); });
+}
+
 function react_(me, d) {
   if (APP.REACTIONS.indexOf(d.kind) < 0) throw new Error('リアクションの種類が正しくありません。');
   return withLock_(function () {
     const p = findPost_(d.postId);
     if (!p || p.status !== 'published' || !canSeePost_(me, p)) throw new Error('投稿が見つかりません。');
     if (p.authorId === me.id) throw new Error('自分の投稿にはリアクションできません。');
-    const row = DB.all('Reactions').filter(function (r) {
+    const rows = DB.all('Reactions').filter(function (r) {
       return r.postId === p.id && r.userId === me.id && r.kind === d.kind;
-    })[0];
-    if (row) DB.remove('Reactions', row);
-    else DB.insert('Reactions', { postId: p.id, userId: me.id, kind: d.kind, at: Date.now() });
+    });
+    removeAll_('Reactions', rows);
+    if (!rows.length) DB.insert('Reactions', { postId: p.id, userId: me.id, kind: d.kind, at: Date.now() });
     bumpGroup_(p.groupId);
-    return { ok: true, on: !row };
+    return { ok: true, on: !rows.length };
   });
 }
 
@@ -1022,11 +1030,11 @@ function repost_(me, d) {
     const p = findPost_(d.postId);
     if (!p || p.status !== 'published' || !canSeePost_(me, p)) throw new Error('投稿が見つかりません。');
     if (p.authorId === me.id) throw new Error('自分の投稿はリポストできません。');
-    const row = DB.all('Reposts').filter(function (r) { return r.postId === p.id && r.userId === me.id; })[0];
-    if (row) DB.remove('Reposts', row);
-    else DB.insert('Reposts', { postId: p.id, userId: me.id, at: Date.now() });
+    const rows = DB.all('Reposts').filter(function (r) { return r.postId === p.id && r.userId === me.id; });
+    removeAll_('Reposts', rows);
+    if (!rows.length) DB.insert('Reposts', { postId: p.id, userId: me.id, at: Date.now() });
     bumpGroup_(p.groupId);
-    return { ok: true, on: !row };
+    return { ok: true, on: !rows.length };
   });
 }
 
@@ -1069,12 +1077,12 @@ function toggleAchievement_(me, d) {
     const unit = findUnit_(d.unitId);
     if (!unit) throw new Error('単元が見つかりません。');
     if (unitSkills_(unit).indexOf(d.skill) < 0) throw new Error('技が見つかりません。');
-    const row = DB.all('Achievements').filter(function (a) {
+    const rows = DB.all('Achievements').filter(function (a) {
       return a.userId === me.id && a.unitId === d.unitId && a.skill === d.skill;
-    })[0];
-    if (row) DB.remove('Achievements', row);
-    else DB.insert('Achievements', { userId: me.id, unitId: d.unitId, skill: d.skill, at: Date.now() });
-    return { ok: true, on: !row };
+    });
+    removeAll_('Achievements', rows);
+    if (!rows.length) DB.insert('Achievements', { userId: me.id, unitId: d.unitId, skill: d.skill, at: Date.now() });
+    return { ok: true, on: !rows.length };
   });
 }
 
@@ -1147,7 +1155,7 @@ function profile_(me, d) {
   if (out.isMe || me.teacher) {
     out.achievements = DB.all('Achievements').filter(function (a) {
       return a.userId === target.id && a.unitId === d.unitId;
-    }).map(function (a) { return a.skill; });
+    }).map(function (a) { return a.skill; }).filter(function (k, i, arr) { return arr.indexOf(k) === i; });
     // 自分がリアクションした投稿（本人と先生だけが見られる）
     const latest = {};
     DB.all('Reactions').forEach(function (x) {
@@ -1364,8 +1372,13 @@ function statsFor_(sid, unitId, idx) {
     tweets: posts.filter(function (p) { return p.type === 'tweet'; }).length,
     quotes: posts.filter(function (p) { return !!p.quoteOf; }).length,
     helped: helped,
-    reacted: DB.all('Reactions').filter(function (r) { return r.userId === sid && unitPostIds[r.postId]; }).length,
-    achievements: DB.all('Achievements').filter(function (a) { return a.userId === sid && a.unitId === unitId; }).length,
+    reacted: (function () {
+      const seen = {};
+      DB.all('Reactions').forEach(function (r) { if (r.userId === sid && unitPostIds[r.postId]) seen[r.postId + '|' + r.kind] = 1; });
+      return Object.keys(seen).length;
+    })(),
+    achievements: DB.all('Achievements').filter(function (a) { return a.userId === sid && a.unitId === unitId; })
+      .map(function (a) { return a.skill; }).filter(function (k, i, arr) { return arr.indexOf(k) === i; }).length,
     videos: posts.filter(function (p) { return !!p.videoId; }).length
   };
 }
